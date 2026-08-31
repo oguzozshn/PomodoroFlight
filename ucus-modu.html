@@ -1,0 +1,765 @@
+<title>Uçuş Modu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@300;400;500&display=swap">
+
+<style>
+:root{
+  --space:#DCE3EA;
+  --ground:#EDF0F4;
+  --panel:#FFFFFF;
+  --panel-2:#F4F6F9;
+  --line:#D2DAE3;
+  --line-soft:#E3E9EF;
+  --ink:#14202C;
+  --ink-2:#3B4A5A;
+  --muted:#66757F;
+  --amber:#B5670C;
+  --amber-2:#D98A26;
+  --amber-glow:rgba(181,103,12,.18);
+  --teal:#0E6B85;
+  --globe-a:#E7EDF3;
+  --globe-b:#D5DFE9;
+  --grat:#C3CFDB;
+  --limb:#A9B8C7;
+  --shadow:0 1px 2px rgba(20,32,44,.06),0 8px 24px rgba(20,32,44,.07);
+  --radius:4px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --space:#060B13;
+    --ground:#080E18;
+    --panel:#0F1725;
+    --panel-2:#131E2E;
+    --line:#223047;
+    --line-soft:#1A2536;
+    --ink:#E6EDF7;
+    --ink-2:#B7C6D8;
+    --muted:#7F93AE;
+    --amber:#F2B457;
+    --amber-2:#FFCC7A;
+    --amber-glow:rgba(242,180,87,.22);
+    --teal:#58A8C9;
+    --globe-a:#101C2E;
+    --globe-b:#0A121E;
+    --grat:#1F2F47;
+    --limb:#31445F;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --space:#060B13;
+  --ground:#080E18;
+  --panel:#0F1725;
+  --panel-2:#131E2E;
+  --line:#223047;
+  --line-soft:#1A2536;
+  --ink:#E6EDF7;
+  --ink-2:#B7C6D8;
+  --muted:#7F93AE;
+  --amber:#F2B457;
+  --amber-2:#FFCC7A;
+  --amber-glow:rgba(242,180,87,.22);
+  --teal:#58A8C9;
+  --globe-a:#101C2E;
+  --globe-b:#0A121E;
+  --grat:#1F2F47;
+  --limb:#31445F;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"Barlow","Segoe UI",system-ui,sans-serif;
+  font-size:15px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1220px;margin:0 auto;padding:20px 20px 56px}
+
+/* ---------- shared bits ---------- */
+.label{
+  font-family:"Barlow Condensed","Barlow Semi Condensed",sans-serif;
+  text-transform:uppercase;
+  letter-spacing:.14em;
+  font-size:12px;
+  font-weight:500;
+  color:var(--muted);
+}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.panel{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{
+  outline:2px solid var(--teal);outline-offset:2px
+}
+
+/* ---------- top bar ---------- */
+.topbar{
+  display:flex;align-items:center;gap:14px;
+  padding:6px 2px 16px;
+  border-bottom:1px solid var(--line);
+  margin-bottom:20px;
+}
+.brand{display:flex;align-items:center;gap:9px}
+.brand svg{display:block;color:var(--amber)}
+.brand b{
+  font-family:"Barlow Condensed",sans-serif;
+  font-weight:600;font-size:19px;letter-spacing:.2em;text-transform:uppercase;
+}
+.tailno{
+  margin-left:auto;display:flex;align-items:center;gap:10px;
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);
+  letter-spacing:.08em;
+}
+.ghost{
+  background:none;border:1px solid var(--line);border-radius:var(--radius);
+  padding:5px 10px;font-family:"Barlow Condensed",sans-serif;
+  text-transform:uppercase;letter-spacing:.1em;font-size:12px;color:var(--ink-2);
+}
+.ghost:hover{border-color:var(--muted);color:var(--ink)}
+.ghost[aria-pressed="false"]{color:var(--muted);opacity:.75}
+
+/* ---------- layout ---------- */
+.grid{display:grid;grid-template-columns:1fr;gap:20px}
+@media(min-width:980px){.grid{grid-template-columns:minmax(0,1.45fr) minmax(320px,1fr)}}
+.col{display:flex;flex-direction:column;gap:20px;min-width:0}
+
+/* ---------- map ---------- */
+.mapwrap{position:relative;overflow:hidden;background:var(--space)}
+#map{display:block;width:100%;height:auto;aspect-ratio:4/3}
+@media(min-width:980px){#map{aspect-ratio:16/11}}
+.hud{position:absolute;pointer-events:none}
+.hud-o{top:12px;left:14px}
+.hud-d{top:12px;right:14px;text-align:right}
+.hud .code{
+  font-family:"Barlow Condensed",sans-serif;font-weight:600;
+  font-size:28px;line-height:1;letter-spacing:.06em;color:var(--ink);
+}
+.hud .city{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.readout{
+  position:absolute;left:0;right:0;bottom:0;
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--line);
+  background:color-mix(in srgb,var(--panel) 86%,transparent);
+  backdrop-filter:blur(6px);
+}
+.cell{padding:8px 12px 9px;border-left:1px solid var(--line-soft)}
+.cell:first-child{border-left:0}
+.cell .v{font-family:"IBM Plex Mono",monospace;font-size:15px;font-variant-numeric:tabular-nums;margin-top:1px}
+.cell .v small{font-size:11px;color:var(--muted);margin-left:2px}
+.status{
+  position:absolute;left:14px;bottom:66px;display:inline-flex;align-items:center;gap:7px;
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.14em;
+  font-size:12px;color:var(--ink-2);
+  background:color-mix(in srgb,var(--panel) 80%,transparent);
+  border:1px solid var(--line);border-radius:100px;padding:3px 11px 3px 9px;
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.dot.live{background:var(--amber);box-shadow:0 0 0 0 var(--amber-glow);animation:pulse 2s infinite}
+.dot.rest{background:var(--teal)}
+@keyframes pulse{70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+/* ---------- timer ---------- */
+.timer{padding:22px 20px 20px;text-align:center}
+.phase{
+  display:inline-block;
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;
+  letter-spacing:.22em;font-size:13px;color:var(--amber);
+}
+.clock{
+  font-family:"IBM Plex Mono",monospace;font-weight:300;
+  font-size:clamp(64px,14vw,104px);line-height:1;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;margin:6px 0 2px;
+}
+.subline{font-size:13px;color:var(--muted);min-height:20px}
+.controls{display:flex;justify-content:center;gap:10px;margin-top:18px;flex-wrap:wrap}
+.btn{
+  border:1px solid var(--line);background:var(--panel-2);border-radius:var(--radius);
+  padding:10px 18px;font-family:"Barlow Condensed",sans-serif;font-weight:500;
+  text-transform:uppercase;letter-spacing:.12em;font-size:14px;
+  transition:border-color .15s,background .15s,transform .06s;
+}
+.btn:hover{border-color:var(--muted)}
+.btn:active{transform:translateY(1px)}
+.btn-go{background:var(--amber);border-color:var(--amber);color:var(--panel);min-width:150px}
+.btn-go:hover{background:var(--amber-2);border-color:var(--amber-2)}
+:root[data-theme="dark"] .btn-go{color:#0A101B}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn-go{color:#0A101B}}
+.cycle{display:flex;justify-content:center;gap:6px;margin-top:16px}
+.cycle i{width:22px;height:3px;background:var(--line);border-radius:2px}
+.cycle i.on{background:var(--amber)}
+
+/* ---------- legs ---------- */
+.pad{padding:16px 16px 18px}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+.head h2{
+  font-family:"Barlow Condensed",sans-serif;font-weight:600;text-transform:uppercase;
+  letter-spacing:.14em;font-size:14px;margin:0;
+}
+.head .aux{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted)}
+.legs{display:flex;gap:3px;margin-bottom:10px}
+.legs i{flex:1;height:14px;background:var(--line-soft);border:1px solid var(--line);border-radius:1px}
+.legs i.done{background:var(--amber);border-color:var(--amber)}
+.legs i.now{background:var(--amber-glow);border-color:var(--amber)}
+.legnote{font-size:13px;color:var(--muted)}
+
+/* ---------- routes ---------- */
+.route{
+  display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;
+  width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line-soft);
+  padding:11px 16px;
+}
+.route:first-of-type{border-top:0}
+.route:hover{background:var(--panel-2)}
+.route[aria-current="true"]{background:var(--amber-glow)}
+.route .pair{
+  font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.02em;white-space:nowrap;
+}
+.route .pair span{color:var(--muted);margin:0 3px}
+.route .nick{font-size:13px;color:var(--ink-2)}
+.route .km{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);white-space:nowrap}
+.route .tick{width:14px;color:var(--amber);font-size:13px}
+.custom{border-top:1px solid var(--line);padding:14px 16px 16px;display:grid;gap:9px}
+.selrow{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+select{
+  width:100%;background:var(--panel-2);color:var(--ink);
+  border:1px solid var(--line);border-radius:var(--radius);padding:8px 9px;font:inherit;font-size:14px;
+}
+.arrow{color:var(--muted);font-size:14px}
+.msg{font-size:13px;color:var(--muted);min-height:19px}
+
+/* ---------- settings ---------- */
+.opts{display:flex;flex-wrap:wrap;gap:18px}
+.opt{display:grid;gap:5px}
+.seg{display:flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;width:fit-content}
+.seg button{
+  background:var(--panel);border:0;border-left:1px solid var(--line);
+  padding:6px 12px;font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--muted);
+}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"]{background:var(--amber);color:var(--panel)}
+:root[data-theme="dark"] .seg button[aria-pressed="true"]{color:#0A101B}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .seg button[aria-pressed="true"]{color:#0A101B}}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2);cursor:pointer}
+input[type=checkbox]{accent-color:var(--amber);width:15px;height:15px}
+
+/* ---------- log ---------- */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line-soft);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:14px}
+.stats div{background:var(--panel);padding:10px 12px}
+.stats .v{font-family:"IBM Plex Mono",monospace;font-size:18px;margin-top:2px}
+.logs{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.logs li{
+  display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:baseline;
+  padding:8px 0;border-top:1px dashed var(--line);font-size:14px;
+}
+.logs li:first-child{border-top:0}
+.logs .st{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--amber);letter-spacing:.04em}
+.logs .dt{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted)}
+.empty{font-size:14px;color:var(--muted)}
+.foot{margin-top:22px;font-size:13px;color:var(--muted);text-align:center}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="topbar">
+    <div class="brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 15.5v-2l-8-4.5V3.7c0-.9-.7-1.7-1.5-1.7s-1.5.8-1.5 1.7V9l-8 4.5v2l8-2.4v4.6l-2.2 1.5V21l3.7-1 3.7 1v-1.8L13 17.7v-4.6l8 2.4z"/></svg>
+      <b>Uçuş Modu</b>
+    </div>
+    <div class="tailno">
+      <span id="flightNo">TK—</span>
+      <button class="ghost" id="soundBtn" aria-pressed="true">Kabin sesi</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <div class="col">
+      <section class="panel mapwrap" aria-label="Uçuş rotası ekranı">
+        <canvas id="map"></canvas>
+        <div class="hud hud-o"><div class="code" id="oCode">IST</div><div class="city" id="oCity">İstanbul</div></div>
+        <div class="hud hud-d"><div class="code" id="dCode">JFK</div><div class="city" id="dCity">New York</div></div>
+        <div class="status"><span class="dot" id="stDot"></span><span id="stText">Kalkışa hazır</span></div>
+        <div class="readout">
+          <div class="cell"><div class="label">Kat edilen</div><div class="v" id="rFlown">0<small>km</small></div></div>
+          <div class="cell"><div class="label">Kalan</div><div class="v" id="rLeft">0<small>km</small></div></div>
+          <div class="cell"><div class="label">İrtifa</div><div class="v" id="rAlt">0<small>m</small></div></div>
+          <div class="cell"><div class="label">Varışa</div><div class="v" id="rEta">0<small>pom</small></div></div>
+        </div>
+      </section>
+
+      <section class="panel timer">
+        <div class="phase" id="phase">Odak · Seyir</div>
+        <div class="clock" id="clock">25:00</div>
+        <div class="subline" id="subline">Sayacı başlat, uçak rotada ilerlemeye başlasın.</div>
+        <div class="controls">
+          <button class="btn btn-go" id="goBtn">Kalkış</button>
+          <button class="btn" id="skipBtn">Atla</button>
+          <button class="btn" id="resetBtn">Sıfırla</button>
+        </div>
+        <div class="cycle" id="cycle" aria-hidden="true"></div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel pad">
+        <div class="head"><h2>Uçuş planı</h2><span class="aux" id="legAux">0 / 0</span></div>
+        <div class="legs" id="legs"></div>
+        <div class="legnote" id="legNote"></div>
+      </section>
+
+      <section class="panel">
+        <div class="pad" style="padding-bottom:6px"><div class="head" style="margin:0"><h2>Rota seç</h2></div></div>
+        <div id="routeList"></div>
+        <div class="custom">
+          <div class="label">Kendi rotanı kur</div>
+          <div class="selrow">
+            <select id="selFrom" aria-label="Kalkış havalimanı"></select>
+            <span class="arrow" aria-hidden="true">→</span>
+            <select id="selTo" aria-label="Varış havalimanı"></select>
+          </div>
+          <button class="btn" id="loadBtn" style="width:100%">Rotayı yükle</button>
+          <div class="msg" id="msg"></div>
+        </div>
+      </section>
+
+      <section class="panel pad">
+        <div class="head"><h2>Ayarlar</h2></div>
+        <div class="opts">
+          <div class="opt">
+            <span class="label">Odak</span>
+            <div class="seg" id="segFocus" role="group" aria-label="Odak süresi">
+              <button data-v="15" aria-pressed="false">15</button>
+              <button data-v="25" aria-pressed="true">25</button>
+              <button data-v="50" aria-pressed="false">50</button>
+            </div>
+          </div>
+          <div class="opt">
+            <span class="label">Mola</span>
+            <div class="seg" id="segBreak" role="group" aria-label="Mola süresi">
+              <button data-v="5" aria-pressed="true">5</button>
+              <button data-v="10" aria-pressed="false">10</button>
+            </div>
+          </div>
+        </div>
+        <label class="check" style="margin-top:14px">
+          <input type="checkbox" id="autoBreak" checked> Molalar kendiliğinden başlasın
+        </label>
+      </section>
+
+      <section class="panel pad">
+        <div class="head"><h2>Uçuş günlüğü</h2><button class="ghost" id="clearBtn">Temizle</button></div>
+        <div class="stats">
+          <div><div class="label">Toplam odak</div><div class="v" id="sHours">0 sa</div></div>
+          <div><div class="label">Kat edilen yol</div><div class="v" id="sKm">0 km</div></div>
+        </div>
+        <ul class="logs" id="logs"></ul>
+        <div class="empty" id="logEmpty">Henüz tamamlanmış uçuş yok. İlk rotanı bitirdiğinde buraya damga düşecek.</div>
+      </section>
+    </div>
+  </main>
+
+  <p class="foot">Bir pomodoro ≈ 850 km seyir. İlerleme bu tarayıcıda saklanır.</p>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = s => document.querySelector(s);
+const RAD = Math.PI/180, DEG = 180/Math.PI, KM_PER_POMO = 850;
+
+/* ---------------- data ---------------- */
+const AP = {
+  IST:["İstanbul",41.28,28.75],   ESB:["Ankara",40.13,32.99],     ADB:["İzmir",38.29,27.16],
+  AYT:["Antalya",36.90,30.79],    LHR:["Londra",51.47,-0.45],     CDG:["Paris",49.01,2.55],
+  FCO:["Roma",41.80,12.25],       BER:["Berlin",52.36,13.50],     MAD:["Madrid",40.47,-3.56],
+  KEF:["Reykjavík",63.99,-22.62], SVO:["Moskova",55.97,37.41],    CMN:["Kazablanka",33.37,-7.59],
+  CAI:["Kahire",30.11,31.41],     NBO:["Nairobi",-1.32,36.93],    CPT:["Cape Town",-33.97,18.60],
+  DXB:["Dubai",25.25,55.36],      DOH:["Doha",25.27,51.61],       DEL:["Delhi",28.56,77.10],
+  BKK:["Bangkok",13.69,100.75],   SIN:["Singapur",1.36,103.99],   HKG:["Hong Kong",22.31,113.91],
+  PEK:["Pekin",40.08,116.58],     ICN:["Seul",37.46,126.44],      HND:["Tokyo",35.55,139.78],
+  SYD:["Sidney",-33.94,151.18],   AKL:["Auckland",-37.01,174.79], HNL:["Honolulu",21.32,-157.92],
+  LAX:["Los Angeles",33.94,-118.41], JFK:["New York",40.64,-73.78], YYZ:["Toronto",43.68,-79.63],
+  MEX:["Meksiko",19.44,-99.07],   GRU:["São Paulo",-23.43,-46.47],EZE:["Buenos Aires",-34.82,-58.54],
+  SCL:["Santiago",-33.39,-70.79]
+};
+const PRESETS = [
+  ["IST","ESB","Kısa iç hat"],
+  ["IST","LHR","Avrupa hattı"],
+  ["IST","JFK","Atlantik geçişi"],
+  ["CDG","HND","Kuzey kutbu üzerinden"],
+  ["SCL","AKL","Pasifik boşluğu"],
+  ["IST","SYD","Kanguru rotası"]
+];
+
+/* ---------------- geo ---------------- */
+const vec = (la,lo)=>{const p=la*RAD,l=lo*RAD;return [Math.cos(p)*Math.cos(l),Math.cos(p)*Math.sin(l),Math.sin(p)];};
+const ll = v => [Math.asin(Math.max(-1,Math.min(1,v[2])))*DEG, Math.atan2(v[1],v[0])*DEG];
+function slerp(a,b,t){
+  const d=Math.max(-1,Math.min(1,a[0]*b[0]+a[1]*b[1]+a[2]*b[2])), w=Math.acos(d);
+  if(w<1e-8) return a.slice();
+  const s=Math.sin(w), k1=Math.sin((1-t)*w)/s, k2=Math.sin(t*w)/s;
+  return [a[0]*k1+b[0]*k2, a[1]*k1+b[1]*k2, a[2]*k1+b[2]*k2];
+}
+function haversine(a,b){
+  const dLa=(b[1]-a[1])*RAD, dLo=(b[2]-a[2])*RAD;
+  const h=Math.sin(dLa/2)**2+Math.cos(a[1]*RAD)*Math.cos(b[1]*RAD)*Math.sin(dLo/2)**2;
+  return 2*6371*Math.asin(Math.sqrt(h));
+}
+
+/* ---------------- persisted state ---------------- */
+const KEY="ucus-modu-v1";
+let db = {route:"IST-JFK", progress:{}, log:[], focusMin:25, breakMin:5, autoBreak:true,
+          sound:true, cycle:0, totalMs:0, totalKm:0};
+try{ const raw=localStorage.getItem(KEY); if(raw) Object.assign(db, JSON.parse(raw)); }catch(e){}
+const save = () => { try{ localStorage.setItem(KEY, JSON.stringify(db)); }catch(e){} };
+
+/* ---------------- route model ---------------- */
+let R = {};
+function setRoute(key, quiet){
+  const [o,d] = key.split("-");
+  if(!AP[o]||!AP[d]||o===d) return false;
+  const A=[o,AP[o][1],AP[o][2]], B=[d,AP[d][1],AP[d][2]];
+  const km = haversine(A,B);
+  R = { key, o, d, oName:AP[o][0], dName:AP[d][0],
+        a:vec(A[1],A[2]), b:vec(B[1],B[2]), km,
+        legs:Math.max(1,Math.round(km/KM_PER_POMO)) };
+  R.center = ll(slerp(R.a,R.b,0.5));
+  db.route = key;
+  if(!quiet){ stop(); T.remaining = db.focusMin*60000; T.phase="focus"; }
+  let n=0; for(let i=0;i<key.length;i++) n=(n*31+key.charCodeAt(i))%9000;
+  $("#flightNo").textContent = "TK"+(1000+n);
+  save(); renderAll();
+  return true;
+}
+const done = () => Math.min(db.progress[R.key]||0, R.legs);
+const arrived = () => done() >= R.legs;
+
+/* ---------------- timer ---------------- */
+const T = { phase:"focus", running:false, remaining:db.focusMin*60000, endAt:0 };
+function dur(p){ return (p==="focus"? db.focusMin : p==="long"? 15 : db.breakMin)*60000; }
+function start(){
+  if(T.phase==="focus" && arrived()) return;
+  T.running = true; T.endAt = Date.now() + T.remaining; renderControls();
+}
+function stop(){
+  if(T.running){ T.remaining = Math.max(0, T.endAt-Date.now()); }
+  T.running = false; renderControls();
+}
+function setPhase(p){ T.phase=p; T.remaining=dur(p); T.running=false; }
+
+function finishPhase(){
+  if(T.phase==="focus"){
+    db.progress[R.key] = done()+1;
+    db.totalMs += dur("focus");
+    db.totalKm += R.km / R.legs;
+    db.cycle = (db.cycle+1)%4;
+    if(arrived()) db.log.unshift({r:R.key, km:Math.round(R.km), t:Date.now()});
+    chime(arrived() ? "land" : "level");
+    setPhase(db.cycle===0 ? "long" : "break");
+    if(db.autoBreak) start();
+  } else {
+    chime("boarding");
+    setPhase("focus");
+  }
+  save(); renderAll();
+}
+
+/* ---------------- cabin chime ---------------- */
+let actx=null;
+function chime(kind){
+  if(!db.sound) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==="suspended") actx.resume();
+    const seq = kind==="land" ? [[659,0],[523,.22],[392,.44]]
+              : kind==="level" ? [[880,0],[659,.26]]
+              : [[659,0],[880,.24]];
+    for(const [f,at] of seq){
+      const t0=actx.currentTime+at, o=actx.createOscillator(), g=actx.createGain();
+      o.type="triangle"; o.frequency.value=f;
+      g.gain.setValueAtTime(0,t0);
+      g.gain.linearRampToValueAtTime(.16,t0+.012);
+      g.gain.exponentialRampToValueAtTime(.0008,t0+.9);
+      o.connect(g).connect(actx.destination); o.start(t0); o.stop(t0+1);
+    }
+  }catch(e){}
+}
+
+/* ---------------- canvas ---------------- */
+const cv=$("#map"), ctx=cv.getContext("2d");
+let W=0,H=0,C={};
+function readTokens(){
+  const s=getComputedStyle(document.documentElement);
+  C={}; for(const k of ["space","globe-a","globe-b","grat","limb","amber","teal","ink","muted","panel"])
+    C[k]=s.getPropertyValue("--"+k).trim();
+}
+function sizeCanvas(){
+  const r=cv.getBoundingClientRect(); if(!r.width) return;
+  const dpr=Math.min(window.devicePixelRatio||1, 2);
+  W=r.width; H=r.height;
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+function proj(la,lo,c){
+  const p=la*RAD,l=lo*RAD,p0=c.la*RAD,l0=c.lo*RAD;
+  const cosc=Math.sin(p0)*Math.sin(p)+Math.cos(p0)*Math.cos(p)*Math.cos(l-l0);
+  return { x:c.cx + c.r*Math.cos(p)*Math.sin(l-l0),
+           y:c.cy - c.r*(Math.cos(p0)*Math.sin(p)-Math.sin(p0)*Math.cos(p)*Math.cos(l-l0)),
+           vis:cosc>=0 };
+}
+function polyline(pts,c){
+  let on=false;
+  ctx.beginPath();
+  for(const [la,lo] of pts){
+    const q=proj(la,lo,c);
+    if(!q.vis){ on=false; continue; }
+    if(on) ctx.lineTo(q.x,q.y); else { ctx.moveTo(q.x,q.y); on=true; }
+  }
+  ctx.stroke();
+}
+function draw(frac){
+  if(!W) return;
+  const c={ la:R.center[0], lo:R.center[1], cx:W/2, cy:H/2-14, r:Math.min(W,H)*0.40 };
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle=C.space; ctx.fillRect(0,0,W,H);
+
+  // globe body
+  const g=ctx.createRadialGradient(c.cx-c.r*.35,c.cy-c.r*.4,c.r*.1,c.cx,c.cy,c.r);
+  g.addColorStop(0,C["globe-a"]); g.addColorStop(1,C["globe-b"]);
+  ctx.beginPath(); ctx.arc(c.cx,c.cy,c.r,0,7); ctx.fillStyle=g; ctx.fill();
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(c.cx,c.cy,c.r,0,7); ctx.clip();
+
+  // graticule
+  ctx.lineWidth=1; ctx.strokeStyle=C.grat;
+  for(let la=-80; la<=80; la+=20){
+    const pts=[]; for(let lo=-180; lo<=180; lo+=3) pts.push([la,lo]); polyline(pts,c);
+  }
+  for(let lo=-180; lo<180; lo+=20){
+    const pts=[]; for(let la=-90; la<=90; la+=3) pts.push([la,lo]); polyline(pts,c);
+  }
+  ctx.lineWidth=1.4; ctx.strokeStyle=C.limb;
+  const eq=[]; for(let lo=-180;lo<=180;lo+=2) eq.push([0,lo]); polyline(eq,c);
+  ctx.restore();
+
+  // limb
+  ctx.beginPath(); ctx.arc(c.cx,c.cy,c.r,0,7);
+  ctx.lineWidth=1.4; ctx.strokeStyle=C.limb; ctx.stroke();
+
+  // route
+  const N=240, path=[];
+  for(let i=0;i<=N;i++) path.push(ll(slerp(R.a,R.b,i/N)));
+  const cut=Math.round(frac*N);
+  ctx.lineWidth=1.6; ctx.setLineDash([4,5]); ctx.strokeStyle=C.muted;
+  polyline(path.slice(Math.max(0,cut-1)),c);
+  ctx.setLineDash([]);
+  ctx.lineWidth=2.4; ctx.strokeStyle=C.amber;
+  ctx.shadowColor=C.amber; ctx.shadowBlur=10;
+  polyline(path.slice(0,cut+1),c);
+  ctx.shadowBlur=0;
+
+  // endpoints
+  const ends=[[R.o,path[0],C.teal],[R.d,path[N],C.teal]];
+  for(const [code,p,col] of ends){
+    const q=proj(p[0],p[1],c); if(!q.vis) continue;
+    ctx.beginPath(); ctx.arc(q.x,q.y,4.5,0,7); ctx.strokeStyle=col; ctx.lineWidth=2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(q.x,q.y,1.6,0,7); ctx.fillStyle=col; ctx.fill();
+    ctx.font='500 11px "IBM Plex Mono", monospace';
+    ctx.fillStyle=C.ink; ctx.textAlign="center";
+    ctx.fillText(code, q.x, q.y-11);
+  }
+
+  // aircraft
+  const t=Math.min(0.9999,frac), pv=ll(slerp(R.a,R.b,t)), nv=ll(slerp(R.a,R.b,Math.min(1,t+0.004)));
+  const p1=proj(pv[0],pv[1],c), p2=proj(nv[0],nv[1],c);
+  if(p1.vis){
+    const ang=Math.atan2(p2.y-p1.y, p2.x-p1.x);
+    ctx.save(); ctx.translate(p1.x,p1.y); ctx.rotate(ang);
+    ctx.shadowColor=C.amber; ctx.shadowBlur=14;
+    ctx.fillStyle=C.amber; ctx.beginPath();
+    ctx.moveTo(11,0); ctx.lineTo(-5,7); ctx.lineTo(-1.5,0); ctx.lineTo(-5,-7);
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+}
+
+/* ---------------- rendering ---------------- */
+const nf = n => Math.round(n).toLocaleString("tr-TR");
+function frac(){
+  let f = done()/R.legs;
+  if(T.phase==="focus" && !arrived()){
+    const el = 1 - T.remaining/dur("focus");
+    f += Math.max(0,Math.min(1,el))/R.legs;
+  }
+  return Math.max(0,Math.min(1,f));
+}
+function fmt(ms){
+  const s=Math.max(0,Math.ceil(ms/1000));
+  return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
+}
+function renderControls(){
+  $("#goBtn").textContent = T.running ? "Beklet"
+    : (T.phase==="focus" ? (done()>0 ? "Devam" : "Kalkış") : "Molayı başlat");
+  $("#goBtn").disabled = T.phase==="focus" && arrived();
+}
+function renderHud(){
+  const f=frac(), flown=R.km*f;
+  $("#oCode").textContent=R.o; $("#oCity").textContent=R.oName;
+  $("#dCode").textContent=R.d; $("#dCity").textContent=R.dName;
+  $("#rFlown").innerHTML = nf(flown)+'<small>km</small>';
+  $("#rLeft").innerHTML  = nf(R.km-flown)+'<small>km</small>';
+  const climb=Math.min(1, f/0.06), desc=Math.min(1,(1-f)/0.06);
+  const alt = arrived()||f===0 ? 0 : Math.round(11300*Math.min(climb,desc)/100)*100;
+  $("#rAlt").innerHTML = nf(alt)+'<small>m</small>';
+  const left = Math.max(0, R.legs-done());
+  $("#rEta").innerHTML = left+'<small>pomodoro</small>';
+
+  const dot=$("#stDot"), st=$("#stText");
+  dot.className="dot";
+  if(arrived()){ st.textContent="İniş yapıldı · "+R.dName; }
+  else if(T.running && T.phase==="focus"){ dot.classList.add("live"); st.textContent="Seyir halinde · 850 km/pom"; }
+  else if(T.running){ dot.classList.add("rest"); st.textContent="Mola · kabin ışıkları kısık"; }
+  else if(done()>0){ st.textContent="Beklemede · rotada tutuluyor"; }
+  else { st.textContent="Kalkışa hazır"; }
+}
+function renderTimer(){
+  $("#clock").textContent = fmt(T.remaining);
+  const p = T.phase==="focus" ? "Odak · Seyir" : T.phase==="long" ? "Uzun mola · Aktarma" : "Mola · Kabin";
+  $("#phase").textContent = p;
+  let sub;
+  if(arrived() && T.phase==="focus") sub = R.dName+"'a indin. Günlüğe damga düştü — yeni bir rota seç.";
+  else if(T.phase==="focus") sub = "Bu pomodoro "+nf(R.km/R.legs)+" km taşıyor.";
+  else sub = "Uçak rotada bekliyor; mola bitince seyre devam.";
+  $("#subline").textContent = sub;
+  const cy=$("#cycle"); cy.innerHTML="";
+  for(let i=0;i<4;i++){ const el=document.createElement("i"); if(i<db.cycle) el.className="on"; cy.appendChild(el); }
+  document.title = T.running ? fmt(T.remaining)+" · Uçuş Modu" : "Uçuş Modu";
+  renderControls();
+}
+function renderLegs(){
+  const box=$("#legs"); box.innerHTML="";
+  const d=done();
+  for(let i=0;i<R.legs;i++){
+    const el=document.createElement("i");
+    if(i<d) el.className="done";
+    else if(i===d && T.running && T.phase==="focus") el.className="now";
+    box.appendChild(el);
+  }
+  $("#legAux").textContent = d+" / "+R.legs;
+  $("#legNote").textContent = arrived()
+    ? "Rota tamamlandı · "+nf(R.km)+" km"
+    : (R.legs-d)+" pomodoro sonra "+R.dName+"'a iniyorsun · toplam "+nf(R.km)+" km";
+}
+function renderRoutes(){
+  const list=$("#routeList"); list.innerHTML="";
+  for(const [o,d,nick] of PRESETS){
+    const key=o+"-"+d, km=haversine([o,AP[o][1],AP[o][2]],[d,AP[d][1],AP[d][2]]);
+    const legs=Math.max(1,Math.round(km/KM_PER_POMO));
+    const pr=Math.min(db.progress[key]||0, legs);
+    const b=document.createElement("button");
+    b.className="route"; b.setAttribute("aria-current", key===R.key ? "true":"false");
+    b.innerHTML = '<span class="pair">'+o+'<span>→</span>'+d+'</span>'+
+      '<span class="nick">'+nick+'</span>'+
+      '<span class="km">'+nf(km)+' km · '+legs+' pom'+(pr?' · '+pr+'✓':'')+'</span>';
+    b.addEventListener("click",()=>{ setRoute(key); $("#msg").textContent=""; });
+    list.appendChild(b);
+  }
+}
+function renderLog(){
+  const ul=$("#logs"); ul.innerHTML="";
+  $("#logEmpty").style.display = db.log.length ? "none" : "block";
+  for(const e of db.log.slice(0,8)){
+    const [o,d]=e.r.split("-");
+    const li=document.createElement("li");
+    li.innerHTML='<span class="st">'+o+'→'+d+'</span>'+
+      '<span>'+(AP[d]?AP[d][0]:d)+'</span>'+
+      '<span class="dt">'+new Date(e.t).toLocaleDateString("tr-TR")+'</span>';
+    ul.appendChild(li);
+  }
+  $("#sHours").textContent = (db.totalMs/3600000).toFixed(1).replace(".",",")+" sa";
+  $("#sKm").textContent = nf(db.totalKm)+" km";
+}
+function renderAll(){ renderHud(); renderTimer(); renderLegs(); renderRoutes(); renderLog(); }
+
+/* ---------------- loop ---------------- */
+function loop(){
+  if(T.running){
+    T.remaining = T.endAt - Date.now();
+    if(T.remaining<=0){ T.remaining=0; finishPhase(); }
+    else { renderTimer(); renderHud(); renderLegs(); }
+  }
+  draw(frac());
+  requestAnimationFrame(loop);
+}
+
+/* ---------------- wiring ---------------- */
+$("#goBtn").addEventListener("click",()=>{ T.running ? stop() : start(); renderAll(); });
+$("#resetBtn").addEventListener("click",()=>{ stop(); T.remaining=dur(T.phase); renderAll(); });
+$("#skipBtn").addEventListener("click",()=>{ stop(); finishPhase(); });
+$("#soundBtn").addEventListener("click",e=>{
+  db.sound=!db.sound; save();
+  e.currentTarget.setAttribute("aria-pressed", String(db.sound));
+  e.currentTarget.textContent = db.sound ? "Kabin sesi" : "Sessiz";
+});
+$("#clearBtn").addEventListener("click",()=>{
+  db.log=[]; db.progress={}; db.totalMs=0; db.totalKm=0; db.cycle=0;
+  stop(); T.phase="focus"; T.remaining=dur("focus"); save(); renderAll();
+});
+$("#autoBreak").addEventListener("change",e=>{ db.autoBreak=e.currentTarget.checked; save(); });
+function seg(id, key){
+  const box=$(id);
+  box.addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b) return;
+    db[key]=+b.dataset.v; save();
+    [...box.children].forEach(x=>x.setAttribute("aria-pressed", String(x===b)));
+    if(!T.running && ((key==="focusMin"&&T.phase==="focus")||(key==="breakMin"&&T.phase==="break")))
+      T.remaining=dur(T.phase);
+    renderAll();
+  });
+  [...box.children].forEach(x=>x.setAttribute("aria-pressed", String(+x.dataset.v===db[key])));
+}
+seg("#segFocus","focusMin"); seg("#segBreak","breakMin");
+
+const codes=Object.keys(AP).sort((a,b)=>AP[a][0].localeCompare(AP[b][0],"tr"));
+for(const sel of [$("#selFrom"),$("#selTo")]){
+  sel.innerHTML = codes.map(c=>'<option value="'+c+'">'+AP[c][0]+' ('+c+')</option>').join("");
+}
+$("#loadBtn").addEventListener("click",()=>{
+  const o=$("#selFrom").value, d=$("#selTo").value;
+  if(o===d){ $("#msg").textContent="Kalkış ve varış aynı olamaz — başka bir varış seç."; return; }
+  const km=haversine([o,AP[o][1],AP[o][2]],[d,AP[d][1],AP[d][2]]);
+  setRoute(o+"-"+d);
+  $("#msg").textContent = AP[o][0]+" → "+AP[d][0]+" yüklendi · "+nf(km)+" km · "+R.legs+" pomodoro.";
+});
+
+document.addEventListener("keydown",e=>{
+  if(e.target.matches("input,select,button")) return;
+  if(e.code==="Space"){ e.preventDefault(); T.running?stop():start(); renderAll(); }
+});
+
+const ro=new ResizeObserver(()=>{ sizeCanvas(); draw(frac()); });
+ro.observe(cv);
+const mm=window.matchMedia("(prefers-color-scheme: dark)");
+mm.addEventListener("change",()=>{ readTokens(); });
+new MutationObserver(()=>readTokens()).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+
+/* ---------------- boot ---------------- */
+$("#autoBreak").checked = db.autoBreak;
+$("#soundBtn").setAttribute("aria-pressed", String(db.sound));
+$("#soundBtn").textContent = db.sound ? "Kabin sesi" : "Sessiz";
+readTokens(); sizeCanvas();
+if(!setRoute(db.route,true)) setRoute("IST-JFK",true);
+$("#selFrom").value=R.o; $("#selTo").value=R.d;
+T.remaining = dur("focus");
+renderAll();
+requestAnimationFrame(loop);
+})();
+</script>
