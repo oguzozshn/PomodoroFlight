@@ -1,0 +1,605 @@
+package com.oguzozsahin.ucusmodu.ui
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.oguzozsahin.ucusmodu.R
+import com.oguzozsahin.ucusmodu.data.Airports
+import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.Phase
+import com.oguzozsahin.ucusmodu.data.Presets
+import com.oguzozsahin.ucusmodu.data.Route
+import com.oguzozsahin.ucusmodu.data.formatClock
+import com.oguzozsahin.ucusmodu.data.formatDate
+import com.oguzozsahin.ucusmodu.data.formatHours
+import com.oguzozsahin.ucusmodu.data.formatNumber
+import com.oguzozsahin.ucusmodu.ui.theme.BarlowCondensed
+import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
+import com.oguzozsahin.ucusmodu.ui.theme.LocalFlightColors
+import com.oguzozsahin.ucusmodu.ui.theme.labelStyle
+import com.oguzozsahin.ucusmodu.ui.theme.monoStyle
+
+/** Ekranin disariya actigi eylemler. */
+data class FlightActions(
+    val onToggle: () -> Unit,
+    val onSkip: () -> Unit,
+    val onReset: () -> Unit,
+    val onRoute: (String) -> Unit,
+    val onFocusMin: (Int) -> Unit,
+    val onBreakMin: (Int) -> Unit,
+    val onAutoBreak: (Boolean) -> Unit,
+    val onSound: (Boolean) -> Unit,
+    val onClearLog: () -> Unit,
+)
+
+@Composable
+fun FlightScreen(
+    state: FlightUiState,
+    actions: FlightActions,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LocalFlightColors.current
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(colors.ground)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 14.dp)
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        TopBar(state, colors, actions)
+        MapPanel(state, colors)
+        TimerPanel(state, colors, actions)
+        FlightPlanPanel(state, colors)
+        RoutePanel(state, colors, actions)
+        SettingsPanel(state, colors, actions)
+        LogPanel(state, colors, actions)
+
+        Text(
+            text = "Bir pomodoro ≈ 850 km seyir. İlerleme bu cihazda saklanır.",
+            style = monoStyle(colors.muted, 11),
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun TopBar(state: FlightUiState, colors: FlightColors, actions: FlightActions) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_plane),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(colors.amber),
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "UÇUŞ MODU",
+            style = labelStyle(colors.ink).copy(
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 3.sp,
+            ),
+        )
+        Spacer(Modifier.weight(1f))
+        Text(state.route.flightNo, style = monoStyle(colors.muted, 12))
+        Spacer(Modifier.width(8.dp))
+        GhostButton(
+            text = if (state.sound) "Kabin sesi" else "Sessiz",
+            colors = colors,
+        ) { actions.onSound(!state.sound) }
+    }
+}
+
+@Composable
+private fun MapPanel(state: FlightUiState, colors: FlightColors) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(0.92f)
+            .background(colors.space, PanelShape)
+            .border(1.dp, colors.line, PanelShape),
+    ) {
+        GlobeMap(
+            route = state.route,
+            fraction = state.fraction,
+            colors = colors,
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        HudCorner(
+            code = state.route.origin.code,
+            city = state.route.origin.city,
+            colors = colors,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(12.dp),
+        )
+        HudCorner(
+            code = state.route.dest.code,
+            city = state.route.dest.city,
+            colors = colors,
+            alignEnd = true,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(12.dp),
+        )
+
+        Column(modifier = Modifier.align(Alignment.BottomCenter)) {
+            StatusPill(state, colors, Modifier.padding(start = 12.dp, bottom = 10.dp))
+            Readout(state, colors)
+        }
+    }
+}
+
+@Composable
+private fun HudCorner(
+    code: String,
+    city: String,
+    colors: FlightColors,
+    modifier: Modifier = Modifier,
+    alignEnd: Boolean = false,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
+    ) {
+        Text(
+            code,
+            style = labelStyle(colors.ink).copy(
+                fontFamily = BarlowCondensed,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 26.sp,
+                letterSpacing = 1.6.sp,
+            ),
+        )
+        Text(city, style = monoStyle(colors.muted, 11))
+    }
+}
+
+@Composable
+private fun StatusPill(state: FlightUiState, colors: FlightColors, modifier: Modifier = Modifier) {
+    val dotColor = when {
+        state.running && state.phase == Phase.FOCUS -> colors.amber
+        state.running -> colors.teal
+        else -> colors.muted
+    }
+    val text = when {
+        state.arrived -> "İniş yapıldı · ${state.route.dest.city}"
+        state.running && state.phase == Phase.FOCUS -> "Seyir halinde · 850 km/pom"
+        state.running -> "Mola · kabin ışıkları kısık"
+        state.done > 0 -> "Beklemede · rotada tutuluyor"
+        else -> "Kalkışa hazır"
+    }
+
+    Row(
+        modifier = modifier
+            .background(colors.panel.copy(alpha = 0.86f), PanelShape)
+            .border(1.dp, colors.line, PanelShape)
+            .padding(horizontal = 9.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .background(dotColor, CircleShape),
+        )
+        Spacer(Modifier.width(7.dp))
+        Text(text, style = monoStyle(colors.ink2, 11))
+    }
+}
+
+@Composable
+private fun Readout(state: FlightUiState, colors: FlightColors) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.panel.copy(alpha = 0.94f))
+            .border(1.dp, colors.lineSoft),
+    ) {
+        ReadoutCell("Kat edilen", formatNumber(state.flownKm), "km", colors, Modifier.weight(1f))
+        ReadoutCell("Kalan", formatNumber(state.route.km - state.flownKm), "km", colors, Modifier.weight(1f))
+        ReadoutCell("İrtifa", formatNumber(state.altitudeM.toDouble()), "m", colors, Modifier.weight(1f))
+        ReadoutCell("Varışa", state.legsLeft.toString(), "pom", colors, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun ReadoutCell(
+    label: String,
+    value: String,
+    unit: String,
+    colors: FlightColors,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.padding(vertical = 8.dp, horizontal = 6.dp)) {
+        Text(label.uppercase(), style = labelStyle(colors.muted).copy(fontSize = 10.sp))
+        Spacer(Modifier.height(2.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(value, style = monoStyle(colors.ink, 14))
+            Text(unit, style = monoStyle(colors.muted, 10), modifier = Modifier.padding(start = 2.dp))
+        }
+    }
+}
+
+@Composable
+private fun TimerPanel(state: FlightUiState, colors: FlightColors, actions: FlightActions) {
+    val phaseText = when (state.phase) {
+        Phase.FOCUS -> "Odak · Seyir"
+        Phase.BREAK -> "Mola · Kabin"
+        Phase.LONG -> "Uzun mola · Aktarma"
+    }
+    val subline = when {
+        state.arrived && state.phase == Phase.FOCUS ->
+            "${state.route.dest.city}'a indin. Günlüğe damga düştü — yeni bir rota seç."
+        state.phase == Phase.FOCUS ->
+            "Bu pomodoro ${formatNumber(state.route.kmPerLeg)} km taşıyor."
+        else -> "Uçak rotada bekliyor; mola bitince seyre devam."
+    }
+    val primaryLabel = when {
+        state.running -> "Beklet"
+        state.phase == Phase.FOCUS && state.done > 0 -> "Devam"
+        state.phase == Phase.FOCUS -> "Kalkış"
+        else -> "Molayı başlat"
+    }
+
+    Panel(colors) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                phaseText.uppercase(),
+                style = labelStyle(colors.amber).copy(fontSize = 12.sp, letterSpacing = 2.6.sp),
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                formatClock(state.remainingMs),
+                style = monoStyle(colors.ink, 68, FontWeight.Light),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                subline,
+                style = monoStyle(colors.muted, 12),
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(18.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlightButton(
+                    text = primaryLabel,
+                    colors = colors,
+                    primary = true,
+                    enabled = !(state.phase == Phase.FOCUS && state.arrived),
+                    onClick = actions.onToggle,
+                )
+                FlightButton("Atla", colors, onClick = actions.onSkip)
+                FlightButton("Sıfırla", colors, onClick = actions.onReset)
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repeat(4) { index ->
+                    Box(
+                        modifier = Modifier
+                            .size(width = 18.dp, height = 3.dp)
+                            .background(
+                                if (index < state.cycle) colors.amber else colors.line,
+                                RoundedCornerShape(1.dp),
+                            ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FlightPlanPanel(state: FlightUiState, colors: FlightColors) {
+    Panel(colors) {
+        Column(Modifier.padding(14.dp)) {
+            PanelHead("Uçuş planı", colors) {
+                Text("${state.done} / ${state.route.legs}", style = monoStyle(colors.muted, 12))
+            }
+            Spacer(Modifier.height(12.dp))
+            LegTicks(state, colors)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = if (state.arrived) {
+                    "Rota tamamlandı · ${formatNumber(state.route.km)} km"
+                } else {
+                    "${state.legsLeft} pomodoro sonra ${state.route.dest.city}'a iniyorsun · " +
+                        "toplam ${formatNumber(state.route.km)} km"
+                },
+                style = monoStyle(colors.muted, 11),
+            )
+        }
+    }
+}
+
+@Composable
+private fun LegTicks(state: FlightUiState, colors: FlightColors) {
+    // Bacaklar satira sigmazsa alt satira dokulur.
+    val perRow = 12
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        for (rowStart in 0 until state.route.legs step perRow) {
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                for (i in rowStart until minOf(rowStart + perRow, state.route.legs)) {
+                    val tick = when {
+                        i < state.done -> TickState.DONE
+                        i == state.done && state.running && state.phase == Phase.FOCUS -> TickState.NOW
+                        else -> TickState.TODO
+                    }
+                    Tick(tick, colors)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoutePanel(state: FlightUiState, colors: FlightColors, actions: FlightActions) {
+    Panel(colors) {
+        Column(Modifier.padding(14.dp)) {
+            PanelHead("Rota seç", colors)
+            Spacer(Modifier.height(10.dp))
+
+            for (preset in Presets.list) {
+                val presetRoute = remember(preset.key) { Route.of(preset.key) } ?: continue
+                val km = presetRoute.km
+                val legs = presetRoute.legs
+                val progress = (state.progress[preset.key] ?: 0).coerceAtMost(legs)
+                val active = preset.key == state.route.key
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp)
+                        .background(if (active) colors.amber.copy(alpha = 0.10f) else colors.panel2, PanelShape)
+                        .border(1.dp, if (active) colors.amber else colors.line, PanelShape)
+                        .clickable { actions.onRoute(preset.key) }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${preset.from} → ${preset.to}",
+                            style = monoStyle(if (active) colors.amber else colors.ink, 13, FontWeight.Medium),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(preset.nick, style = labelStyle(colors.ink2).copy(fontSize = 12.sp))
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        "${formatNumber(km)} km · $legs pom" + if (progress > 0) " · $progress✓" else "",
+                        style = monoStyle(colors.muted, 11),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(color = colors.lineSoft)
+            Spacer(Modifier.height(12.dp))
+            CustomRoutePicker(state, colors, actions)
+        }
+    }
+}
+
+@Composable
+private fun CustomRoutePicker(
+    state: FlightUiState,
+    colors: FlightColors,
+    actions: FlightActions,
+) {
+    var from by remember(state.route.key) { mutableStateOf(state.route.origin.code) }
+    var to by remember(state.route.key) { mutableStateOf(state.route.dest.code) }
+    var message by remember { mutableStateOf("") }
+
+    Text("KENDİ ROTANI KUR", style = labelStyle(colors.muted).copy(fontSize = 11.sp))
+    Spacer(Modifier.height(8.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        AirportDropdown(from, colors, Modifier.weight(1f)) { from = it }
+        Text("→", style = monoStyle(colors.muted, 14), modifier = Modifier.padding(horizontal = 8.dp))
+        AirportDropdown(to, colors, Modifier.weight(1f)) { to = it }
+    }
+    Spacer(Modifier.height(10.dp))
+    FlightButton(
+        text = "Rotayı yükle",
+        colors = colors,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        if (from == to) {
+            message = "Kalkış ve varış aynı olamaz — başka bir varış seç."
+        } else {
+            val route = Route.of(from, to)
+            if (route == null) {
+                message = "Bu rota kurulamadı."
+            } else {
+                actions.onRoute(route.key)
+                message = "${route.origin.city} → ${route.dest.city} yüklendi · " +
+                    "${formatNumber(route.km)} km · ${route.legs} pomodoro."
+            }
+        }
+    }
+    if (message.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Text(message, style = monoStyle(colors.ink2, 11))
+    }
+}
+
+@Composable
+private fun AirportDropdown(
+    code: String,
+    colors: FlightColors,
+    modifier: Modifier = Modifier,
+    onSelect: (String) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    val airport = Airports[code]
+
+    Box(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(colors.panel2, PanelShape)
+                .border(1.dp, colors.line, PanelShape)
+                .clickable { open = true }
+                .padding(horizontal = 10.dp, vertical = 9.dp),
+        ) {
+            Text(airport?.city ?: code, style = monoStyle(colors.ink, 12))
+            Text(code, style = monoStyle(colors.muted, 10))
+        }
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            modifier = Modifier
+                .background(colors.panel)
+                .height(360.dp),
+        ) {
+            for (item in Airports.codesByCity) {
+                val ap = Airports[item] ?: continue
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            "${ap.city} (${ap.code})",
+                            style = monoStyle(if (item == code) colors.amber else colors.ink2, 12),
+                        )
+                    },
+                    onClick = {
+                        onSelect(item)
+                        open = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsPanel(state: FlightUiState, colors: FlightColors, actions: FlightActions) {
+    Panel(colors) {
+        Column(Modifier.padding(14.dp)) {
+            PanelHead("Ayarlar", colors)
+            Spacer(Modifier.height(12.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("ODAK", style = labelStyle(colors.ink2).copy(fontSize = 12.sp))
+                Spacer(Modifier.weight(1f))
+                SegmentedOptions(listOf(15, 25, 50), state.focusMin, colors, onSelect = actions.onFocusMin)
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("MOLA", style = labelStyle(colors.ink2).copy(fontSize = 12.sp))
+                Spacer(Modifier.weight(1f))
+                SegmentedOptions(listOf(5, 10), state.breakMin, colors, onSelect = actions.onBreakMin)
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Molalar kendiliğinden başlasın",
+                    style = monoStyle(colors.ink2, 12),
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = state.autoBreak,
+                    onCheckedChange = actions.onAutoBreak,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = colors.panel,
+                        checkedTrackColor = colors.amber,
+                        uncheckedThumbColor = colors.muted,
+                        uncheckedTrackColor = colors.panel2,
+                        uncheckedBorderColor = colors.line,
+                    ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogPanel(state: FlightUiState, colors: FlightColors, actions: FlightActions) {
+    Panel(colors) {
+        Column(Modifier.padding(14.dp)) {
+            PanelHead("Uçuş günlüğü", colors) {
+                GhostButton("Temizle", colors, onClick = actions.onClearLog)
+            }
+            Spacer(Modifier.height(12.dp))
+            Row {
+                Column(Modifier.weight(1f)) {
+                    Text("TOPLAM ODAK", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
+                    Text(formatHours(state.totalMs), style = monoStyle(colors.ink, 17))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("KAT EDİLEN YOL", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
+                    Text("${formatNumber(state.totalKm)} km", style = monoStyle(colors.ink, 17))
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+
+            if (state.log.isEmpty()) {
+                Text(
+                    "Henüz tamamlanmış uçuş yok. İlk rotanı bitirdiğinde buraya damga düşecek.",
+                    style = monoStyle(colors.muted, 11),
+                )
+            } else {
+                for (entry in state.log.take(8)) {
+                    val parts = entry.routeKey.split("-")
+                    val destCity = Airports[parts.getOrNull(1) ?: ""]?.city ?: parts.getOrNull(1).orEmpty()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(entry.routeKey.replace("-", "→"), style = monoStyle(colors.amber, 12))
+                        Spacer(Modifier.width(10.dp))
+                        Text(destCity, style = monoStyle(colors.ink2, 12), modifier = Modifier.weight(1f))
+                        Text(formatDate(entry.time), style = monoStyle(colors.muted, 11))
+                    }
+                    HorizontalDivider(color = colors.lineSoft)
+                }
+            }
+        }
+    }
+}
