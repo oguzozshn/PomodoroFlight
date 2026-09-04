@@ -23,9 +23,10 @@ import com.oguzozsahin.ucusmodu.data.Airport
 import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.PlaceRegistry
 import com.oguzozsahin.ucusmodu.data.Places
+import com.oguzozsahin.ucusmodu.data.issueTicket
 
 /** Uygulamanin ucus gunu akisi: terminal -> rota -> ucus. */
-enum class Stage { WELCOME, ROUTE, FLIGHT }
+enum class Stage { WELCOME, ROUTE, TICKET, FLIGHT }
 
 private const val STAGE_MS = 420
 
@@ -47,7 +48,11 @@ fun FlightRoot(
     }
 
     BackHandler(enabled = stage != Stage.WELCOME) {
-        stage = if (stage == Stage.FLIGHT) Stage.ROUTE else Stage.WELCOME
+        stage = when (stage) {
+            Stage.FLIGHT -> Stage.ROUTE
+            Stage.TICKET -> Stage.ROUTE
+            else -> Stage.WELCOME
+        }
     }
 
     AnimatedContent(
@@ -79,6 +84,15 @@ fun FlightRoot(
                 actions = actions,
                 places = places,
                 onBack = { stage = Stage.WELCOME },
+                onDeparture = { stage = Stage.TICKET },
+            )
+
+            Stage.TICKET -> TicketScreen(
+                ticket = remember(state.route.key, state.done, state.focusMin) {
+                    issueTicket(state)
+                },
+                onBack = { stage = Stage.ROUTE },
+                onPrint = actions.onTicketPrinted,
                 onDeparture = {
                     actions.onStart()
                     stage = Stage.FLIGHT

@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -36,8 +38,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,8 +70,11 @@ data class FlightActions(
     val onAutoBreak: (Boolean) -> Unit,
     val onSound: (Boolean) -> Unit,
     val onClearLog: () -> Unit,
-    /** Sayaci dogrudan baslatir (rota ekranindaki "Uçuşa başlat" icin). */
+    /** Sayaci dogrudan baslatir (bilet ekranindaki "Uçuşa başla" icin). */
     val onStart: () -> Unit,
+    val onPassenger: (String) -> Unit,
+    /** Bilet basilirken kisa titresim. */
+    val onTicketPrinted: () -> Unit,
 )
 
 @Composable
@@ -434,6 +441,30 @@ private fun SettingsPanel(state: FlightUiState, colors: FlightColors, actions: F
                 Spacer(Modifier.weight(1f))
                 SegmentedOptions(listOf(5, 10), state.breakMin, colors, onSelect = actions.onBreakMin)
             }
+            Spacer(Modifier.height(14.dp))
+            Text("YOLCU ADI", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
+            Spacer(Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(colors.panel2, PanelShape)
+                    .border(1.dp, colors.line, PanelShape)
+                    .padding(horizontal = 10.dp, vertical = 9.dp),
+            ) {
+                if (state.passenger.isEmpty()) {
+                    Text("biletinizde görünecek ad", style = monoStyle(colors.muted, 12))
+                }
+                BasicTextField(
+                    value = state.passenger,
+                    onValueChange = actions.onPassenger,
+                    singleLine = true,
+                    textStyle = monoStyle(colors.ink, 12),
+                    cursorBrush = SolidColor(colors.amber),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
             Spacer(Modifier.height(14.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

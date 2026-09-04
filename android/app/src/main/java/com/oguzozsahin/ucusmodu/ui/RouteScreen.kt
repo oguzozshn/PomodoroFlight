@@ -484,7 +484,7 @@ private fun RouteSummary(state: FlightUiState, colors: FlightColors, onDeparture
 
             Spacer(Modifier.height(18.dp))
             FlightButton(
-                text = if (state.arrived) "Bu rota tamamlandı" else "Uçuşa başlat",
+                text = if (state.arrived) "Bu rota tamamlandı" else "Bilet kes",
                 colors = colors,
                 primary = true,
                 enabled = !state.arrived,

@@ -149,6 +149,29 @@ class FlightEngine private constructor(context: Context) {
         publish()
     }
 
+    fun setPassenger(name: String) {
+        data = data.copy(passenger = name.take(28))
+        persist()
+        publish()
+    }
+
+    /** Bilet basilirken kisa bir tik: yazici hissi. */
+    fun vibrateTicket() {
+        val device = vibrator ?: return
+        if (!device.hasVibrator()) return
+        try {
+            device.vibrate(
+                VibrationEffect.createWaveform(
+                    longArrayOf(0, 18, 60, 18, 60, 18, 60, 26),
+                    intArrayOf(0, 90, 0, 90, 0, 90, 0, 120),
+                    -1,
+                ),
+            )
+        } catch (e: Exception) {
+            // titresim desteklenmiyorsa sessizce gec
+        }
+    }
+
     fun setSound(enabled: Boolean) {
         data = data.copy(sound = enabled)
         persist()
@@ -317,6 +340,7 @@ class FlightEngine private constructor(context: Context) {
         breakMin = data.breakMin,
         autoBreak = data.autoBreak,
         sound = data.sound,
+        passenger = data.passenger,
         cycle = data.cycle,
         totalMs = data.totalMs,
         totalKm = data.totalKm,

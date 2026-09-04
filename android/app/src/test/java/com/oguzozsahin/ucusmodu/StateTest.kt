@@ -26,6 +26,7 @@ class StateTest {
         breakMin = 5,
         autoBreak = true,
         sound = true,
+        passenger = "",
         cycle = 0,
         totalMs = 0,
         totalKm = 0.0,

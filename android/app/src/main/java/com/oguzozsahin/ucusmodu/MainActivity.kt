@@ -39,6 +39,8 @@ class MainActivity : ComponentActivity() {
             onSound = engine::setSound,
             onClearLog = engine::clearLog,
             onStart = engine::start,
+            onPassenger = engine::setPassenger,
+            onTicketPrinted = engine::vibrateTicket,
         )
 
         setContent {

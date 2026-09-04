@@ -12,6 +12,7 @@ data class FlightUiState(
     val breakMin: Int,
     val autoBreak: Boolean,
     val sound: Boolean,
+    val passenger: String,
     val cycle: Int,
     val totalMs: Long,
     val totalKm: Double,

@@ -42,8 +42,14 @@ Gerçek bir uçuş günü gibi üç adım:
    arama kutusundan kalkış ve varış seçilir; hazır rotalar da duruyor. Biniş
    kartında uçuş no, kapı, kalkış ve tahmini varış saati, odakta geçecek süre
    ve gerçek uçuş süresi yazar. **Uçuşa başlat**.
-3. **Uçuş** (`ui/FlightScreen.kt`) — küre, sayaç, uçuş planı, ayarlar ve günlük.
-   Üstteki **Rota** düğmesi ikinci adıma döner.
+3. **Bilet** (`ui/TicketScreen.kt`) — "Bilet kes" denince biniş kartı yazıcı
+   yuvasından aşağı doğru basılarak çıkar (ekrana dokunmak animasyonu atlar).
+   Kartta yolcu adı, uçuş numarası, kapı, koltuk, biniş/kalkış/varış saatleri,
+   mesafe ve dekoratif barkod var. Koltuk rotaya ve güne sabitlenmiştir: aynı
+   gün aynı rota aynı koltuğu verir, ertesi gün yenisini.
+4. **Uçuş** (`ui/FlightScreen.kt`) — küre, sayaç, uçuş planı, ayarlar ve günlük.
+   Üstteki **Rota** düğmesi ikinci adıma döner. Yolcu adı buradaki ayarlardan
+   giriliyor; boş bırakılırsa bilette "YOLCU" yazar.
 
 Geri tuşu bu zinciri tersten yürür; sayaç hangi ekranda olursanız olun işlemeye
 devam eder.
@@ -143,7 +149,7 @@ python3 tools/build_coastline.py ne_110m_coastline.geojson \
 
 ```bash
 cd android
-./gradlew test          # 41 birim test, JVM'de çalışır, cihaz gerekmez
+./gradlew test          # 47 birim test, JVM'de çalışır, cihaz gerekmez
 ```
 
 `app/src/test/` altında saf mantık katmanının tamamı sınanıyor: küre
@@ -151,7 +157,8 @@ geometrisi (web sürümünün ürettiği sayılara karşı), rota kurulumu ve u�
 numarası üretimi, uçuş süresi ve mola takvimi hesapları, Türkçe biçimlendirme,
 güneş konumu (gündönümü ve ekinokslara karşı), durum türevleri (ilerleme oranı,
 irtifa, kalan bacak), ikili varlık biçimleri ve Türkçe duyarlı arama
-(Gaziemir → İzmir, Munich → Münih).
+(Gaziemir → İzmir, Munich → Münih) ve bilet üretimi (koltuk kararlılığı,
+saat sıralaması, barkod deseni).
 
 ## Derlemeden önce
 
