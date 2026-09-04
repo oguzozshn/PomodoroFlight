@@ -14,6 +14,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -57,10 +58,10 @@ private const val TRANSITION_MS = 760
 private const val FINE_DETAIL_ZOOM = 2.2f
 
 /** Ayni anda kurede en fazla kac yer isaretlenir. */
-private const val MAX_MARKERS = 90
+private const val MAX_MARKERS = 140
 
 /** Bunlarin kacinin adi yazilir. */
-private const val MAX_LABELS = 20
+private const val MAX_LABELS = 22
 
 /**
  * Kameranin bakis yonunden turetilen taban: dogu, kuzey ve yukari birim vektorleri.
@@ -126,6 +127,7 @@ fun GlobeMap(
     val context = LocalContext.current
     // Isaretcilerin ekran konumu, dokunusu eslestirmek icin cizim sirasinda yazilir.
     val markers = remember { MarkerHits() }
+    val gestureScope = rememberCoroutineScope()
     val zoom = state?.zoom ?: 1f
 
     // Rota noktalari yalnizca rota degisince yeniden hesaplanir.
@@ -181,7 +183,18 @@ fun GlobeMap(
             .pointerInput(Unit) {
                 val reach = 26.dp.toPx()
                 detectTapGestures(
-                    onDoubleTap = { state.toggleZoom() },
+                    onDoubleTap = { offset ->
+                        // Cift dokunus, kameranin merkezine degil, dokunulan yere yaklasir.
+                        val target = markers.locate(offset.x, offset.y)
+                        if (target == null) {
+                            state.toggleZoom()
+                        } else {
+                            val nextZoom = if (state.zoom < 2f) 3.5f else GLOBE_MIN_ZOOM
+                            gestureScope.launch {
+                                state.flyTo(target.lat, target.lon, targetZoom = nextZoom, durationMs = 480)
+                            }
+                        }
+                    },
                     onTap = { offset ->
                         markers.nearest(offset.x, offset.y, reach)?.let { onPlaceTap?.invoke(it) }
                     },
@@ -294,6 +307,7 @@ fun GlobeMap(
         drawEndpoint(proj, routePoints.last(), route.dest.code, colors, textMeasurer, reveal.value)
 
         // yerler
+        markers.setCamera(proj.cx, proj.cy, proj.r, camera.lat, camera.lon)
         markers.items = if (places.isEmpty()) {
             emptyList()
         } else {
@@ -322,9 +336,48 @@ fun GlobeMap(
     }
 }
 
-/** Cizim sirasinda doldurulan, dokunus eslestirmede kullanilan isaretci listesi. */
+/**
+ * Cizim sirasinda doldurulan kare bilgisi: isaretcilerin ekran konumu ve
+ * dokunulan noktayi cografi koordinata cevirmek icin kamera.
+ */
 private class MarkerHits {
     var items: List<Marker> = emptyList()
+
+    private var cx = 0f
+    private var cy = 0f
+    private var radius = 0f
+    private var centerLat = 0.0
+    private var centerLon = 0.0
+
+    fun setCamera(cx: Float, cy: Float, radius: Float, lat: Double, lon: Double) {
+        this.cx = cx
+        this.cy = cy
+        this.radius = radius
+        this.centerLat = lat
+        this.centerLon = lon
+    }
+
+    /** Ekrandaki noktanin kure uzerindeki karsiligi; kurenin disiysa null. */
+    fun locate(x: Float, y: Float): LatLon? {
+        if (radius <= 0f) return null
+        val dx = (x - cx) / radius
+        val dy = (cy - y) / radius
+        val rho = kotlin.math.sqrt(dx * dx + dy * dy)
+        if (rho > 1f) return null
+        if (rho < 1e-4f) return LatLon(centerLat, centerLon)
+
+        val c = kotlin.math.asin(rho.toDouble().coerceIn(-1.0, 1.0))
+        val phi0 = Math.toRadians(centerLat)
+        val lat = kotlin.math.asin(
+            (kotlin.math.cos(c) * sin(phi0) + dy * kotlin.math.sin(c) * cos(phi0) / rho)
+                .coerceIn(-1.0, 1.0),
+        )
+        val lon = Math.toRadians(centerLon) + atan2(
+            dx * kotlin.math.sin(c),
+            rho * kotlin.math.cos(c) * cos(phi0) - dy * kotlin.math.sin(c) * sin(phi0),
+        )
+        return LatLon(Math.toDegrees(lat), Math.toDegrees(lon))
+    }
 
     fun nearest(x: Float, y: Float, reach: Float): Airport? {
         var best: Marker? = null
@@ -343,6 +396,14 @@ private class MarkerHits {
 }
 
 private class Marker(val x: Float, val y: Float, val place: Airport)
+
+private class Candidate(
+    val x: Float,
+    val y: Float,
+    val place: Airport,
+    val chosen: Boolean,
+    val distanceSq: Float,
+)
 
 /**
  * Yerleri onem sirasina gore isaretler: uzaktan yalnizca buyuk havalimanlari,
@@ -363,29 +424,43 @@ private fun DrawScope.drawPlaces(
     }
     val dot = 2.4.dp.toPx()
     val labelGap = 5.dp.toPx()
-    val shown = ArrayList<Marker>(MAX_MARKERS)
+    val midX = size.width / 2f
+    val midY = size.height / 2f
 
+    // Once ekrana dusen tum adaylar toplanir; butce sonra ekranin ortasina
+    // en yakin olanlara dagitilir. Aksi halde bütce veri setinin sirasina
+    // gore harcanir ve baktiginiz sehir isaretlenmeden kalir.
+    val candidates = ArrayList<Candidate>(256)
     for (place in places) {
         val chosen = place.code in highlighted
-        if (!chosen) {
-            if (place.rank > maxRank) continue
-            if (shown.size >= MAX_MARKERS) continue
-        }
+        if (!chosen && place.rank > maxRank) continue
         val p = proj.at(LatLon(place.lat, place.lon))
         if (!p.visible) continue
         if (p.x < 0f || p.y < 0f || p.x > size.width || p.y > size.height) continue
+        val dx = p.x - midX
+        val dy = p.y - midY
+        candidates += Candidate(p.x, p.y, place, chosen, dx * dx + dy * dy)
+    }
+    candidates.sortWith(
+        compareBy({ if (it.chosen) 0 else 1 }, { it.place.rank }, { it.distanceSq }),
+    )
 
+    val shown = ArrayList<Marker>(MAX_MARKERS)
+    for (candidate in candidates) {
+        if (!candidate.chosen && shown.size >= MAX_MARKERS) break
+        val chosen = candidate.chosen
         val color = if (chosen) colors.amber else colors.teal
-        drawCircle(color, radius = if (chosen) dot * 1.6f else dot, center = Offset(p.x, p.y))
+        val center = Offset(candidate.x, candidate.y)
+        drawCircle(color, radius = if (chosen) dot * 1.6f else dot, center = center)
         if (chosen) {
             drawCircle(
                 color.copy(alpha = 0.35f),
                 radius = dot * 3.2f,
-                center = Offset(p.x, p.y),
+                center = center,
                 style = Stroke(1.4.dp.toPx()),
             )
         }
-        shown += Marker(p.x, p.y, place)
+        shown += Marker(candidate.x, candidate.y, candidate.place)
     }
 
     // Adlar yalnizca ilk birkac yer icin; kalabalik olmasin.
@@ -393,7 +468,6 @@ private fun DrawScope.drawPlaces(
     for (marker in shown) {
         val chosen = marker.place.code in highlighted
         if (!chosen && labelled >= MAX_LABELS) continue
-        if (!chosen && zoom < 1.35f && marker.place.rank > 0) continue
         labelled++
         val layout = measurer.measure(
             AnnotatedString(marker.place.city),

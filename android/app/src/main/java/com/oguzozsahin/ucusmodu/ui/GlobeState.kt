@@ -60,6 +60,7 @@ class GlobeState(initialLat: Float, initialLon: Float) {
         resetTouch: Boolean = false,
         durationMs: Int = 620,
     ) {
+        if (!resetTouch) untouched = false
         val fromLat = lat
         val fromLon = lon
         val fromZoom = zoom
