@@ -216,6 +216,14 @@ fun RouteScreen(
                 ZoomButton("+", colors, enabled = globe.canZoomIn) {
                     scope.launch { globe.animateZoomTo(globe.zoom * 1.7f) }
                 }
+                // Fareyle de surukelenebilen kol: cimdiklemenin calismadigi
+                // ortamlarda surekli yakinlastirmanin garanti yolu.
+                ZoomSlider(
+                    zoom = globe.zoom,
+                    minZoom = GLOBE_MIN_ZOOM,
+                    maxZoom = GLOBE_MAX_ZOOM,
+                    colors = colors,
+                ) { globe.setZoom(it) }
                 ZoomButton("−", colors, enabled = globe.canZoomOut) {
                     scope.launch { globe.animateZoomTo(globe.zoom / 1.7f) }
                 }

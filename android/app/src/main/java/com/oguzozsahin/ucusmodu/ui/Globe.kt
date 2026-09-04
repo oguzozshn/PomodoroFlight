@@ -465,6 +465,15 @@ private class MarkerHits {
 
 private class Marker(val x: Float, val y: Float, val place: Airport)
 
+/** Isaretlenmeye aday yer: ekran konumu ve ekranin ortasina uzakligi. */
+private class Candidate(
+    val x: Float,
+    val y: Float,
+    val place: Airport,
+    val chosen: Boolean,
+    val distanceSq: Float,
+)
+
 /**
  * Yakinlastirmayi ekranin ortasina degil, parmagin (ya da imlecin) altindaki
  * noktaya sabitler: once orada hangi koordinatin durdugu bulunur, sonra yeni

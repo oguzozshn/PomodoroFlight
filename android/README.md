@@ -67,10 +67,14 @@ Rota ekranında küre kaydırılabilir alanın dışında, sabit bir bölgede du
 aksi halde sürükleme jestini sayfa kaydırma kapar ve küre dönmez.
 
 - **Döndürme:** sürükleme
-- **Yakınlaştırma:** ekrandaki +/− düğmeleri, çimdikleme, fare tekerleği —
-  ölçek 0,55×–18×. Emülatörde çimdikleme için Ctrl basılı tutup sürükleyin.
-  Tekerlek olayı `PointerEventPass.Initial` aşamasında yakalanıyor; Main
-  aşamasına bırakılırsa başka bir bileşen tüketip yutabiliyor.
+- **Yakınlaştırma:** kürenin kenarındaki +/− düğmeleri ve dikey zoom kolu,
+  çimdikleme, fare tekerleği — ölçek 0,55×–18×.
+  - Zoom kolu fareyle de sürüklenebildiği için çimdiklemenin çalışmadığı
+    ortamlarda (emülatör, masaüstü) sürekli yakınlaştırmanın garanti yolu.
+    Ölçek logaritmik dağıtılır: her piksel eşit oranda büyütür.
+  - Emülatörde çimdikleme için Ctrl basılı tutup sürükleyin.
+  - Tekerlek olayı `PointerEventPass.Initial` aşamasında yakalanıyor, ama
+    emülatör fareyi parmak gibi taklit ettiği için olayı hiç iletmeyebilir.
 - **Çift dokunuş:** dokunulan noktaya yaklaşır
 - **Rotaya dön:** kamerayı rotanın merkezine geri getirir
 

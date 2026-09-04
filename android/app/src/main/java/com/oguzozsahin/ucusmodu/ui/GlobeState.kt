@@ -58,6 +58,12 @@ class GlobeState(initialLat: Float, initialLon: Float) {
         zoom = (zoom * factor).coerceIn(GLOBE_MIN_ZOOM, GLOBE_MAX_ZOOM)
     }
 
+    /** Kolun surdugu dogrudan olcek. */
+    fun setZoom(value: Float) {
+        untouched = false
+        zoom = value.coerceIn(GLOBE_MIN_ZOOM, GLOBE_MAX_ZOOM)
+    }
+
     fun toggleZoom() {
         untouched = false
         zoom = if (zoom < 2f) 3.5f else GLOBE_FIT_ZOOM

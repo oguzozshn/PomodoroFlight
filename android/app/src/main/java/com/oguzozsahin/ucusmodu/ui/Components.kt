@@ -6,6 +6,12 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -30,7 +36,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.ui.theme.BarlowCondensed
@@ -38,6 +46,8 @@ import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.headStyle
 import com.oguzozsahin.ucusmodu.ui.theme.labelStyle
 import com.oguzozsahin.ucusmodu.ui.theme.monoStyle
+import kotlin.math.exp
+import kotlin.math.ln
 
 val PanelShape = RoundedCornerShape(4.dp)
 
@@ -169,6 +179,79 @@ fun ZoomButton(
             symbol,
             style = monoStyle(colors.ink, 20, FontWeight.Light),
         )
+    }
+}
+
+/**
+ * Kure kenarindaki dikey yakinlastirma kolu. Fareyle de surukelenebildigi icin
+ * cimdiklemenin calismadigi ortamlarda (emulator, masaustu) surekli yakinlastirma
+ * saglar. Olcek logaritmik dagitilir: her piksel esit oranda buyutur.
+ */
+@Composable
+fun ZoomSlider(
+    zoom: Float,
+    minZoom: Float,
+    maxZoom: Float,
+    colors: FlightColors,
+    modifier: Modifier = Modifier,
+    trackHeight: Dp = 116.dp,
+    onZoom: (Float) -> Unit,
+) {
+    val logMin = ln(minZoom)
+    val logMax = ln(maxZoom)
+    val fraction = ((ln(zoom.coerceIn(minZoom, maxZoom)) - logMin) / (logMax - logMin))
+        .coerceIn(0f, 1f)
+
+    fun zoomAt(y: Float, height: Float): Float {
+        val t = (1f - (y / height)).coerceIn(0f, 1f)
+        return exp(logMin + t * (logMax - logMin))
+    }
+
+    Box(
+        modifier = modifier
+            .width(38.dp)
+            .height(trackHeight)
+            .background(colors.panel.copy(alpha = 0.92f), PanelShape)
+            .border(1.dp, colors.line, PanelShape)
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    onZoom(zoomAt(offset.y, size.height.toFloat()))
+                }
+            }
+            .pointerInput(Unit) {
+                detectDragGestures { change, _ ->
+                    onZoom(zoomAt(change.position.y, size.height.toFloat()))
+                    change.consume()
+                }
+            },
+    ) {
+        // iz
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .width(2.dp)
+                .fillMaxHeight()
+                .padding(vertical = 10.dp)
+                .background(colors.line, RoundedCornerShape(1.dp)),
+        )
+        // tutamak
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(vertical = 10.dp)
+                .align(Alignment.Center),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            BoxWithConstraints {
+                val travel = maxHeight - 12.dp
+                Box(
+                    modifier = Modifier
+                        .offset(y = travel * (1f - fraction))
+                        .size(12.dp)
+                        .background(colors.amber, RoundedCornerShape(2.dp)),
+                )
+            }
+        }
     }
 }
 
