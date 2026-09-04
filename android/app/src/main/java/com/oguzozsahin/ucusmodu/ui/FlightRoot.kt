@@ -93,6 +93,7 @@ fun FlightRoot(
                 },
                 onBack = { stage = Stage.ROUTE },
                 onPrint = actions.onTicketPrinted,
+                onTearTick = actions.onTearTick,
                 onDeparture = {
                     actions.onStart()
                     stage = Stage.FLIGHT

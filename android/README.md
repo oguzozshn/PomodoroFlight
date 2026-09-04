@@ -43,10 +43,13 @@ Gerçek bir uçuş günü gibi üç adım:
    kartında uçuş no, kapı, kalkış ve tahmini varış saati, odakta geçecek süre
    ve gerçek uçuş süresi yazar. **Uçuşa başlat**.
 3. **Bilet** (`ui/TicketScreen.kt`) — "Bilet kes" denince biniş kartı yazıcı
-   yuvasından aşağı doğru basılarak çıkar (ekrana dokunmak animasyonu atlar).
-   Kartta yolcu adı, uçuş numarası, kapı, koltuk, biniş/kalkış/varış saatleri,
-   mesafe ve dekoratif barkod var. Koltuk rotaya ve güne sabitlenmiştir: aynı
-   gün aynı rota aynı koltuğu verir, ertesi gün yenisini.
+   yuvasından duraklayarak beslenir, sonra **parmakla koparılır**: perforasyon
+   üzerinde sağa kaydırdıkça yırtık ilerler, koparılan parça açıyla sarkar ve
+   her tırtıkta kısa bir titreşim gelir. Yarıdan azken bırakılırsa geri yapışır.
+   Uçuş ancak bilet koparılınca başlayabilir.
+   Koçanda havayolu ve rota, koparılan parçada yolcu adı, uçuş numarası, kapı,
+   koltuk, biniş/kalkış/varış saatleri, mesafe ve dekoratif barkod var. Koltuk
+   rotaya ve güne sabitlenmiştir: aynı gün aynı rota aynı koltuğu verir.
 4. **Uçuş** (`ui/FlightScreen.kt`) — küre, sayaç, uçuş planı, ayarlar ve günlük.
    Üstteki **Rota** düğmesi ikinci adıma döner. Yolcu adı buradaki ayarlardan
    giriliyor; boş bırakılırsa bilette "YOLCU" yazar.

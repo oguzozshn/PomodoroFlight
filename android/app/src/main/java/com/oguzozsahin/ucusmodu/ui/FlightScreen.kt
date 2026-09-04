@@ -75,6 +75,8 @@ data class FlightActions(
     val onPassenger: (String) -> Unit,
     /** Bilet basilirken kisa titresim. */
     val onTicketPrinted: () -> Unit,
+    /** Bilet koparilirken her tirtikta tik. */
+    val onTearTick: () -> Unit,
 )
 
 @Composable

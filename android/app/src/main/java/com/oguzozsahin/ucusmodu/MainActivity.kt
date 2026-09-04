@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity() {
             onStart = engine::start,
             onPassenger = engine::setPassenger,
             onTicketPrinted = engine::vibrateTicket,
+            onTearTick = engine::vibrateTick,
         )
 
         setContent {

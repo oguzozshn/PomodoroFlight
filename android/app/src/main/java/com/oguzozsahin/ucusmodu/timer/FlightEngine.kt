@@ -172,6 +172,17 @@ class FlightEngine private constructor(context: Context) {
         }
     }
 
+    /** Bilet koparilirken her tirtikta kisa bir tik. */
+    fun vibrateTick() {
+        val device = vibrator ?: return
+        if (!device.hasVibrator()) return
+        try {
+            device.vibrate(VibrationEffect.createOneShot(12L, 70))
+        } catch (e: Exception) {
+            // titresim desteklenmiyorsa sessizce gec
+        }
+    }
+
     fun setSound(enabled: Boolean) {
         data = data.copy(sound = enabled)
         persist()
