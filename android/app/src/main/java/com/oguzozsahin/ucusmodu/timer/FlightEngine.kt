@@ -5,6 +5,9 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import com.oguzozsahin.ucusmodu.audio.Chime
 import com.oguzozsahin.ucusmodu.audio.ChimeKind
 import com.oguzozsahin.ucusmodu.data.FlightUiState
@@ -197,7 +200,9 @@ class FlightEngine private constructor(context: Context) {
                 cycle = (data.cycle + 1) % 4,
             )
             if (notify) {
-                chime(if (arrivedNow) ChimeKind.LAND else ChimeKind.LEVEL)
+                val kind = if (arrivedNow) ChimeKind.LAND else ChimeKind.LEVEL
+                chime(kind)
+                buzz(kind)
                 if (arrivedNow) {
                     Notifications.alert(
                         app,
@@ -224,6 +229,7 @@ class FlightEngine private constructor(context: Context) {
         } else {
             if (notify) {
                 chime(ChimeKind.BOARDING)
+                buzz(ChimeKind.BOARDING)
                 Notifications.alert(app, "Mola bitti", "Kabin hazır — seyre devam edebilirsin.")
             }
             setPhase(Phase.FOCUS)
@@ -245,6 +251,33 @@ class FlightEngine private constructor(context: Context) {
     private fun chime(kind: ChimeKind) {
         if (!data.sound) return
         scope.launch(Dispatchers.Default) { Chime.play(kind) }
+    }
+
+    private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        (app.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        app.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    }
+
+    /**
+     * Faz degisiminde kisa bir titresim. Ses kapaliyken de calisir: kabin
+     * anonsunun sessiz karsiligi.
+     */
+    private fun buzz(kind: ChimeKind) {
+        val device = vibrator ?: return
+        if (!device.hasVibrator()) return
+        val timings = when (kind) {
+            ChimeKind.LAND -> longArrayOf(0, 90, 80, 90, 80, 160)
+            ChimeKind.LEVEL -> longArrayOf(0, 70, 90, 70)
+            ChimeKind.BOARDING -> longArrayOf(0, 120)
+        }
+        val amplitudes = IntArray(timings.size) { if (it % 2 == 0) 0 else 160 }
+        try {
+            device.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+        } catch (e: Exception) {
+            // titresim desteklenmiyorsa sessizce gec
+        }
     }
 
     private fun startTicker() {

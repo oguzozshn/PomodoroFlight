@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -30,9 +31,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.R
 import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.EARTH_CIRCUMFERENCE_KM
+import com.oguzozsahin.ucusmodu.data.currentLapFraction
 import com.oguzozsahin.ucusmodu.data.formatHours
 import com.oguzozsahin.ucusmodu.data.formatNumber
 import com.oguzozsahin.ucusmodu.data.formatTimeOfDay
+import com.oguzozsahin.ucusmodu.data.worldLaps
 import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.LocalFlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.labelStyle
@@ -147,12 +151,58 @@ fun WelcomeScreen(
         }
 
         Panel(colors) {
-            Row(Modifier.padding(14.dp)) {
-                Stat("Toplam odak", formatHours(state.totalMs), colors, Modifier.weight(1f))
-                Stat("Kat edilen yol", "${formatNumber(state.totalKm)} km", colors, Modifier.weight(1f))
-                Stat("Tamamlanan", "${state.log.size} uçuş", colors, Modifier.weight(1f))
+            Column(Modifier.padding(14.dp)) {
+                Row {
+                    Stat("Toplam odak", formatHours(state.totalMs), colors, Modifier.weight(1f))
+                    Stat("Kat edilen yol", "${formatNumber(state.totalKm)} km", colors, Modifier.weight(1f))
+                    Stat("Tamamlanan", "${state.log.size} uçuş", colors, Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(16.dp))
+                WorldTour(state.totalKm, colors)
             }
         }
+    }
+}
+
+/** Dunyanin cevresine gore ilerleme: 40.075 km bir tur. */
+@Composable
+private fun WorldTour(totalKm: Double, colors: FlightColors) {
+    val laps = worldLaps(totalKm)
+    val fraction = currentLapFraction(totalKm)
+    val completed = laps.toInt()
+
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("DÜNYA TURU", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (completed > 0) {
+                    "$completed tur · %${(fraction * 100).toInt()}"
+                } else {
+                    "%${(fraction * 100).toInt()}"
+                },
+                style = monoStyle(colors.amber, 12, FontWeight.Medium),
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .background(colors.panel2, RoundedCornerShape(3.dp)),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                    .height(6.dp)
+                    .background(colors.amber, RoundedCornerShape(3.dp)),
+            )
+        }
+        Spacer(Modifier.height(5.dp))
+        Text(
+            "${formatNumber(totalKm)} / ${formatNumber(EARTH_CIRCUMFERENCE_KM)} km",
+            style = monoStyle(colors.muted, 10),
+        )
     }
 }
 

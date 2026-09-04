@@ -50,3 +50,16 @@ fun gateOf(routeKey: String): String {
     val letter = "ABCD"[n % 4]
     return "$letter${1 + n / 4 % 30}"
 }
+
+/** Dunyanin ekvator cevresi; toplam yolun kac tur ettigini olcmek icin. */
+const val EARTH_CIRCUMFERENCE_KM = 40_075.0
+
+/** Toplam kat edilen yolun kac dunya turu ettigi. */
+fun worldLaps(km: Double): Double = km / EARTH_CIRCUMFERENCE_KM
+
+/** Suren turun tamamlanma orani (0..1). */
+fun currentLapFraction(km: Double): Float {
+    if (km <= 0.0) return 0f
+    val laps = worldLaps(km)
+    return (laps - kotlin.math.floor(laps)).toFloat()
+}

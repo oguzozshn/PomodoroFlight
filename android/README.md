@@ -93,6 +93,10 @@ her ölçekte kayma tam olarak sıfır piksel çıktı.
   kiriş artefaktıydı, o da yayı %2 taşırıp küreye kırpılarak giderildi.
 - **İzler:** tamamlanan uçuşlar kürede soluk çizgiler olarak kalır.
 
+Terminal ekranında toplam yolun kaç **dünya turu** ettiği de gösteriliyor
+(40.075 km bir tur). Faz değişimlerinde kısa bir titreşim veriliyor; ses
+kapalıyken de çalışır, kabin anonsunun sessiz karşılığıdır.
+
 Diğer ekranlarda küre etkileşimsizdir ve rotayı takip eder.
 
 ## Yerler
@@ -127,6 +131,20 @@ python3 tools/build_coastline.py ne_110m_coastline.geojson \
   faz bitiminde kabin anonsu (Android 13+ için bildirim izni istenir).
 - **Açık/koyu tema:** sistem temasını izler, renkler web sürümündeki CSS
   değişkenlerinin birebir karşılığıdır.
+
+## Testler
+
+```bash
+cd android
+./gradlew test          # 41 birim test, JVM'de çalışır, cihaz gerekmez
+```
+
+`app/src/test/` altında saf mantık katmanının tamamı sınanıyor: küre
+geometrisi (web sürümünün ürettiği sayılara karşı), rota kurulumu ve uçuş
+numarası üretimi, uçuş süresi ve mola takvimi hesapları, Türkçe biçimlendirme,
+güneş konumu (gündönümü ve ekinokslara karşı), durum türevleri (ilerleme oranı,
+irtifa, kalan bacak), ikili varlık biçimleri ve Türkçe duyarlı arama
+(Gaziemir → İzmir, Munich → Münih).
 
 ## Derlemeden önce
 
