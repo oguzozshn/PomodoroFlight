@@ -29,6 +29,7 @@ data class FlightColors(
     val globeB: Color,
     val grat: Color,
     val limb: Color,
+    val land: Color,
 )
 
 val LightFlightColors = FlightColors(
@@ -48,6 +49,7 @@ val LightFlightColors = FlightColors(
     globeB = Color(0xFFD5DFE9),
     grat = Color(0xFFC3CFDB),
     limb = Color(0xFFA9B8C7),
+    land = Color(0xFF7C8FA3),
 )
 
 val DarkFlightColors = FlightColors(
@@ -67,6 +69,7 @@ val DarkFlightColors = FlightColors(
     globeB = Color(0xFF0A121E),
     grat = Color(0xFF1F2F47),
     limb = Color(0xFF31445F),
+    land = Color(0xFF4C6E93),
 )
 
 val LocalFlightColors = staticCompositionLocalOf { LightFlightColors }

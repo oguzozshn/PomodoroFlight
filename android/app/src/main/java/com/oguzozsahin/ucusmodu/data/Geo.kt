@@ -46,25 +46,3 @@ fun haversine(aLat: Double, aLon: Double, bLat: Double, bLon: Double): Double {
         cos(Math.toRadians(aLat)) * cos(Math.toRadians(bLat)) * sin(dLon / 2) * sin(dLon / 2)
     return 2 * EARTH_R * asin(sqrt(h).coerceIn(0.0, 1.0))
 }
-
-/** Ortografik izdusum: kurenin gorunen yuzune dusen ekran koordinati. */
-fun project(
-    lat: Double,
-    lon: Double,
-    centerLat: Double,
-    centerLon: Double,
-    cx: Float,
-    cy: Float,
-    r: Float,
-): ProjectedPoint {
-    val p = Math.toRadians(lat)
-    val l = Math.toRadians(lon)
-    val p0 = Math.toRadians(centerLat)
-    val l0 = Math.toRadians(centerLon)
-    val cosC = sin(p0) * sin(p) + cos(p0) * cos(p) * cos(l - l0)
-    val x = cx + r * (cos(p) * sin(l - l0)).toFloat()
-    val y = cy - r * (cos(p0) * sin(p) - sin(p0) * cos(p) * cos(l - l0)).toFloat()
-    return ProjectedPoint(x, y, cosC >= 0)
-}
-
-data class ProjectedPoint(val x: Float, val y: Float, val visible: Boolean)

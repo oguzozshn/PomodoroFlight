@@ -6,12 +6,15 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -24,6 +27,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -31,30 +36,72 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.oguzozsahin.ucusmodu.data.CoastDetail
+import com.oguzozsahin.ucusmodu.data.CoastlineShapes
+import com.oguzozsahin.ucusmodu.data.Coastlines
 import com.oguzozsahin.ucusmodu.data.LatLon
 import com.oguzozsahin.ucusmodu.data.Route
-import com.oguzozsahin.ucusmodu.data.project
 import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.PlexMono
 import kotlinx.coroutines.launch
 import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.min
+import kotlin.math.sin
 
 private const val ROUTE_STEPS = 240
 private const val TRANSITION_MS = 760
 
-/** Kurenin merkezi ve olcegi. */
-private data class Projection(
-    val centerLat: Double,
-    val centerLon: Double,
+/** Bu yakinlastirmadan sonra ince kiyi seridine gecilir. */
+private const val FINE_DETAIL_ZOOM = 2.2f
+
+/**
+ * Kameranin bakis yonunden turetilen taban: dogu, kuzey ve yukari birim vektorleri.
+ * Noktalari izdusurmek icin trigonometri degil, yalnizca ic carpim gerekir.
+ */
+private class Projection(
+    centerLat: Double,
+    centerLon: Double,
     val cx: Float,
     val cy: Float,
     val r: Float,
-)
+) {
+    private val phi = Math.toRadians(centerLat)
+    private val lambda = Math.toRadians(centerLon)
+
+    val eastX = (-sin(lambda)).toFloat()
+    val eastY = cos(lambda).toFloat()
+    val eastZ = 0f
+
+    val northX = (-sin(phi) * cos(lambda)).toFloat()
+    val northY = (-sin(phi) * sin(lambda)).toFloat()
+    val northZ = cos(phi).toFloat()
+
+    val upX = (cos(phi) * cos(lambda)).toFloat()
+    val upY = (cos(phi) * sin(lambda)).toFloat()
+    val upZ = sin(phi).toFloat()
+
+    fun screenX(x: Float, y: Float, z: Float) = cx + r * (x * eastX + y * eastY + z * eastZ)
+    fun screenY(x: Float, y: Float, z: Float) = cy - r * (x * northX + y * northY + z * northZ)
+    fun visible(x: Float, y: Float, z: Float) = x * upX + y * upY + z * upZ >= 0f
+
+    fun at(point: LatLon): ProjectedPoint {
+        val p = Math.toRadians(point.lat)
+        val l = Math.toRadians(point.lon)
+        val x = (cos(p) * cos(l)).toFloat()
+        val y = (cos(p) * sin(l)).toFloat()
+        val z = sin(p).toFloat()
+        return ProjectedPoint(screenX(x, y, z), screenY(x, y, z), visible(x, y, z))
+    }
+}
+
+private class ProjectedPoint(val x: Float, val y: Float, val visible: Boolean)
 
 /**
- * Ortografik kure: paralel/meridyen agi, buyuk daire rotasi ve rotadaki ucak.
- * Web surumundeki canvas ciziminin Compose karsiligi.
+ * Ortografik kure: kiyi seritleri, paralel/meridyen agi, buyuk daire rotasi ve ucak.
+ *
+ * [interactive] acikken kure surukleyerek dondurulur, cimdikleyerek yakinlastirilir;
+ * bu durumda kamera rotayi takip etmeyi birakir ve [state] uzerinden geri ortalanir.
  */
 @Composable
 fun GlobeMap(
@@ -62,8 +109,13 @@ fun GlobeMap(
     fraction: Float,
     colors: FlightColors,
     modifier: Modifier = Modifier,
+    interactive: Boolean = false,
+    state: GlobeState? = null,
 ) {
     val textMeasurer = rememberTextMeasurer()
+    val context = LocalContext.current
+    val fallbackState = rememberGlobeState()
+    val globe = state ?: fallbackState
 
     // Rota noktalari yalnizca rota degisince yeniden hesaplanir.
     val routePoints = remember(route.key) {
@@ -71,11 +123,24 @@ fun GlobeMap(
     }
     val graticule = remember { buildGraticule() }
 
+    // Kiyi seritleri: kaba katman hemen, ince katman yakinlasinca yuklenir.
+    var coarse by remember { mutableStateOf<CoastlineShapes?>(null) }
+    var fine by remember { mutableStateOf<CoastlineShapes?>(null) }
+    val wantsFine = globe.zoom >= FINE_DETAIL_ZOOM
+
+    LaunchedEffect(Unit) {
+        coarse = Coastlines.load(context, CoastDetail.COARSE)
+    }
+    LaunchedEffect(wantsFine) {
+        if (wantsFine && fine == null) fine = Coastlines.load(context, CoastDetail.FINE)
+    }
+    val coastlines = if (wantsFine) fine ?: coarse else coarse
+
     // Kamera: rota degisince kure yeni merkeze donerek gider, zaplamaz.
     val cameraFrom = remember { mutableStateOf(route.center) }
     val cameraTo = remember { mutableStateOf(route.center) }
     val spin = remember { Animatable(1f) }
-    val camera by remember {
+    val routeCamera by remember {
         derivedStateOf { lerpCenter(cameraFrom.value, cameraTo.value, spin.value) }
     }
     // Yeni rota bastan cizilerek belirir.
@@ -83,7 +148,7 @@ fun GlobeMap(
 
     LaunchedEffect(route.key) {
         if (cameraTo.value == route.center) return@LaunchedEffect
-        cameraFrom.value = camera
+        cameraFrom.value = routeCamera
         cameraTo.value = route.center
         spin.snapTo(0f)
         reveal.snapTo(0f)
@@ -98,11 +163,33 @@ fun GlobeMap(
         label = "ucus-orani",
     )
 
-    Canvas(modifier) {
-        val r = min(size.width, size.height) * 0.40f
+    val gestures = if (!interactive) {
+        Modifier
+    } else {
+        Modifier
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = { globe.toggleZoom() })
+            }
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoomChange, _ ->
+                    val radius = min(size.width, size.height) * 0.40f * globe.zoom
+                    if (radius > 1f) {
+                        globe.rotateBy(
+                            deltaLat = Math.toDegrees((pan.y / radius).toDouble()).toFloat(),
+                            deltaLon = -Math.toDegrees((pan.x / radius).toDouble()).toFloat(),
+                        )
+                    }
+                    globe.zoomBy(zoomChange)
+                }
+            }
+    }
+
+    Canvas(modifier.then(gestures)) {
+        val baseRadius = min(size.width, size.height) * 0.40f
+        val r = baseRadius * globe.zoom
         val proj = Projection(
-            centerLat = camera.lat,
-            centerLon = camera.lon,
+            centerLat = (routeCamera.lat + globe.latOffset).coerceIn(-89.0, 89.0),
+            centerLon = routeCamera.lon + globe.lonOffset,
             cx = size.width / 2f,
             cy = size.height / 2f - 8.dp.toPx(),
             r = r,
@@ -122,8 +209,8 @@ fun GlobeMap(
             center = center,
         )
 
-        // paralel / meridyen agi
         clipPath(Path().apply { addOval(Rect(center, r)) }) {
+            // paralel / meridyen agi
             for (line in graticule) {
                 drawPath(
                     path = proj.pathOf(line),
@@ -136,6 +223,20 @@ fun GlobeMap(
                 color = colors.limb,
                 style = Stroke(width = 1.4.dp.toPx()),
             )
+
+            // kiyi seritleri
+            coastlines?.let { shapes ->
+                val path = proj.coastPath(shapes)
+                drawPath(
+                    path = path,
+                    color = colors.land,
+                    style = Stroke(
+                        width = 1.3.dp.toPx(),
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round,
+                    ),
+                )
+            }
         }
 
         // kure kenari
@@ -238,9 +339,6 @@ private fun planePath(unit: Float): Path = Path().apply {
     close()
 }
 
-private fun Projection.at(p: LatLon) =
-    project(p.lat, p.lon, centerLat, centerLon, cx, cy, r)
-
 /** Kurenin arkasina dusen parcalari kopararak yol olusturur. */
 private fun Projection.pathOf(points: List<LatLon>): Path {
     val path = Path()
@@ -251,12 +349,55 @@ private fun Projection.pathOf(points: List<LatLon>): Path {
             drawing = false
             continue
         }
-        if (drawing) path.lineTo(q.x, q.y) else {
+        if (drawing) {
+            path.lineTo(q.x, q.y)
+        } else {
             path.moveTo(q.x, q.y)
             drawing = true
         }
     }
     return path
+}
+
+/** Tum kiyi seritlerini tek bir yola toplar; arkada kalan parcalar elenir. */
+private fun Projection.coastPath(shapes: CoastlineShapes): Path {
+    val path = Path()
+    for (shape in shapes.shapes) {
+        if (shape.isHidden(upX, upY, upZ)) continue
+        val xyz = shape.xyz
+        var drawing = false
+        var i = 0
+        while (i < xyz.size) {
+            val x = xyz[i]
+            val y = xyz[i + 1]
+            val z = xyz[i + 2]
+            if (!visible(x, y, z)) {
+                drawing = false
+            } else {
+                val sx = screenX(x, y, z)
+                val sy = screenY(x, y, z)
+                if (drawing) {
+                    path.lineTo(sx, sy)
+                } else {
+                    path.moveTo(sx, sy)
+                    drawing = true
+                }
+            }
+            i += 3
+        }
+    }
+    return path
+}
+
+/** Kamera gecisi: boylamda kisa yoldan donerek yumusak bir kure hareketi. */
+private fun lerpCenter(from: LatLon, to: LatLon, t: Float): LatLon {
+    var dLon = to.lon - from.lon
+    if (dLon > 180.0) dLon -= 360.0
+    if (dLon < -180.0) dLon += 360.0
+    return LatLon(
+        lat = from.lat + (to.lat - from.lat) * t,
+        lon = from.lon + dLon * t,
+    )
 }
 
 private fun buildGraticule(): List<List<LatLon>> {
@@ -284,17 +425,6 @@ private fun buildGraticule(): List<List<LatLon>> {
         lon += 20
     }
     return lines
-}
-
-/** Kamera gecisi: boylamda kisa yoldan donerek yumusak bir kure hareketi. */
-private fun lerpCenter(from: LatLon, to: LatLon, t: Float): LatLon {
-    var dLon = to.lon - from.lon
-    if (dLon > 180.0) dLon -= 360.0
-    if (dLon < -180.0) dLon += 360.0
-    return LatLon(
-        lat = from.lat + (to.lat - from.lat) * t,
-        lon = from.lon + dLon * t,
-    )
 }
 
 private fun equator(): List<LatLon> {

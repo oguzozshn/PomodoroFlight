@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,7 @@ import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.LocalFlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.labelStyle
 import com.oguzozsahin.ucusmodu.ui.theme.monoStyle
+import kotlinx.coroutines.launch
 
 /**
  * Ikinci adim: rotayi sec, ozetini gor, ucusa basla.
@@ -64,6 +66,8 @@ fun RouteScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalFlightColors.current
+    val globe = rememberGlobeState()
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = modifier
@@ -88,11 +92,11 @@ fun RouteScreen(
             )
         }
 
-        // Secim degistikce donen kure: hangi rotayi kurdugun aninda gorunur.
+        // Secim degistikce donen kure; suruklenerek dondurulur, cimdiklenerek yakinlasir.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1.25f)
+                .aspectRatio(1.15f)
                 .background(colors.space, PanelShape)
                 .border(1.dp, colors.line, PanelShape),
         ) {
@@ -101,7 +105,29 @@ fun RouteScreen(
                 fraction = state.fraction,
                 colors = colors,
                 modifier = Modifier.fillMaxSize(),
+                interactive = true,
+                state = globe,
             )
+
+            if (globe.adjusted) {
+                GhostButton(
+                    text = "Rotaya dön",
+                    colors = colors,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp),
+                ) {
+                    scope.launch { globe.recenter() }
+                }
+            } else {
+                Text(
+                    "sürükle · çimdikle · çift dokun",
+                    style = monoStyle(colors.muted, 10),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 10.dp),
+                )
+            }
         }
 
         RouteSummary(state, colors, onDeparture)

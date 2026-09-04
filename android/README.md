@@ -47,6 +47,32 @@ Gerçek bir uçuş günü gibi üç adım:
 Geri tuşu bu zinciri tersten yürür; sayaç hangi ekranda olursanız olun işlemeye
 devam eder.
 
+## Küre
+
+Kıyı şeritleri Natural Earth'ün kamu malı verisinden geliyor; `tools/build_coastline.py`
+GeoJSON'u kompakt bir ikili biçime çeviriyor (int16 kuantalama, yeryüzünde en fazla
+~340 m sapma):
+
+| Varlık | Kaynak | Boyut | Ne zaman |
+|---|---|---|---|
+| `coastline_110m.bin` | ne_110m_coastline | 21 KB | her zaman |
+| `coastline_50m.bin` | ne_50m_coastline | 242 KB | yakınlaştırınca (zoom ≥ 2,2) |
+
+Noktalar birim küre üzerinde (x, y, z) olarak saklanıyor; böylece her karede
+trigonometri yerine yalnızca iç çarpım hesaplanıyor, arkada kalan parçalar da
+tek bir karşılaştırmayla eleniyor.
+
+Rota ekranındaki küre sürüklenerek döndürülür, çimdiklenerek yakınlaştırılır,
+çift dokunuşla yaklaşır; **Rotaya dön** düğmesi kamerayı rotanın merkezine
+geri getirir. Diğer ekranlarda küre etkileşimsizdir ve rotayı takip eder.
+
+Varlıkları yeniden üretmek için:
+
+```bash
+python3 tools/build_coastline.py ne_110m_coastline.geojson \
+    android/app/src/main/assets/coastline_110m.bin
+```
+
 ## Native olarak eklenenler
 
 - **Arka planda doğru sayaç:** süre duvar saatinden (`endAt`) türetilir, ekran
