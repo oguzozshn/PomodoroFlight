@@ -63,7 +63,9 @@ Noktalar birim küre üzerinde (x, y, z) olarak saklanıyor; böylece her karede
 trigonometri yerine yalnızca iç çarpım hesaplanıyor, arkada kalan parçalar da
 tek bir karşılaştırmayla eleniyor.
 
-Rota ekranındaki küre sürüklenerek döndürülür, çimdiklenerek yakınlaştırılır,
+Rota ekranında küre kaydırılabilir alanın dışında, sabit bir bölgede durur —
+aksi halde sürükleme jestini sayfa kaydırma kapar ve küre dönmez. Küre
+sürüklenerek döndürülür, çimdiklenerek yakınlaştırılır,
 çift dokunuşla yaklaşır; **Rotaya dön** düğmesi kamerayı rotanın merkezine
 geri getirir. Diğer ekranlarda küre etkileşimsizdir ve rotayı takip eder.
 

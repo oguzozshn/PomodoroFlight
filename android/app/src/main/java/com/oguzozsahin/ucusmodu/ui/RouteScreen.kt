@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -130,19 +129,18 @@ fun RouteScreen(
         }
     }
 
+    // Kure kaydirilabilir alanin disinda duruyor: aksi halde surukleme jestini
+    // sayfa kaydirma kapiyor ve kure donmuyor.
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.ground)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 14.dp)
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .background(colors.ground),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 14.dp),
+                .padding(horizontal = 14.dp)
+                .padding(top = 14.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             GhostButton("← Geri", colors, onClick = onBack)
@@ -157,7 +155,8 @@ fun RouteScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1.05f)
+                .padding(horizontal = 14.dp)
+                .height(300.dp)
                 .background(colors.space, PanelShape)
                 .border(1.dp, colors.line, PanelShape),
         ) {
@@ -201,38 +200,47 @@ fun RouteScreen(
             }
         }
 
-        SlotRow(
-            from = PlaceRegistry.find(from),
-            to = PlaceRegistry.find(to),
-            active = active,
-            colors = colors,
-            onSelect = { active = it },
-        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp)
+                .padding(top = 12.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SlotRow(
+                from = PlaceRegistry.find(from),
+                to = PlaceRegistry.find(to),
+                active = active,
+                colors = colors,
+                onSelect = { active = it },
+            )
 
-        SearchCard(
-            query = query,
-            results = results,
-            active = active,
-            colors = colors,
-            onQuery = { query = it },
-            onPick = { choose(it) },
-        )
+            SearchCard(
+                query = query,
+                results = results,
+                active = active,
+                colors = colors,
+                onQuery = { query = it },
+                onPick = { choose(it) },
+            )
 
-        if (message.isNotEmpty()) {
-            Text(message, style = monoStyle(colors.amber, 11))
-        }
+            if (message.isNotEmpty()) {
+                Text(message, style = monoStyle(colors.amber, 11))
+            }
 
-        RouteSummary(state, colors, onDeparture)
+            RouteSummary(state, colors, onDeparture)
 
-        PresetList(state, colors) { preset ->
-            from = preset.from
-            to = preset.to
-            active = Slot.FROM
-            message = ""
-            actions.onRoute(preset.key)
-            Route.of(preset.key)?.let { route ->
-                scope.launch {
-                    globe.flyTo(route.center.lat, route.center.lon, targetZoom = 1f, resetTouch = true)
+            PresetList(state, colors) { preset ->
+                from = preset.from
+                to = preset.to
+                active = Slot.FROM
+                message = ""
+                actions.onRoute(preset.key)
+                Route.of(preset.key)?.let { route ->
+                    scope.launch {
+                        globe.flyTo(route.center.lat, route.center.lon, targetZoom = 1f, resetTouch = true)
+                    }
                 }
             }
         }
