@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -48,6 +49,7 @@ import com.oguzozsahin.ucusmodu.ui.theme.PlexMono
 import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -201,15 +203,30 @@ fun GlobeMap(
                 )
             }
             .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoomChange, _ ->
+                detectTransformGestures { centroid, pan, zoomChange, _ ->
                     val radius = min(size.width, size.height) * 0.40f * state.zoom
-                    if (radius > 1f) {
+                    if (radius > 1f && (pan.x != 0f || pan.y != 0f)) {
                         state.rotateBy(
                             deltaLat = Math.toDegrees((pan.y / radius).toDouble()).toFloat(),
                             deltaLon = -Math.toDegrees((pan.x / radius).toDouble()).toFloat(),
                         )
                     }
-                    state.zoomBy(zoomChange)
+                    zoomAnchored(state, markers, centroid.x, centroid.y, zoomChange)
+                }
+            }
+            .pointerInput(Unit) {
+                // Fare tekerlegi: emulatorde ve tarayici benzeri girdilerde yakinlastirir.
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        if (event.type != PointerEventType.Scroll) continue
+                        val change = event.changes.firstOrNull() ?: continue
+                        val delta = change.scrollDelta.y
+                        if (delta == 0f) continue
+                        val factor = exp(-delta * 0.22f)
+                        zoomAnchored(state, markers, change.position.x, change.position.y, factor)
+                        event.changes.forEach { it.consume() }
+                    }
                 }
             }
     }
@@ -357,8 +374,12 @@ private class MarkerHits {
         this.centerLon = lon
     }
 
-    /** Ekrandaki noktanin kure uzerindeki karsiligi; kurenin disiysa null. */
-    fun locate(x: Float, y: Float): LatLon? {
+    /**
+     * Ekrandaki noktanin kure uzerindeki karsiligi; kurenin disiysa null.
+     * [radiusScale] yakinlastirmayi cizimden once denemek icin kullanilir.
+     */
+    fun locate(x: Float, y: Float, radiusScale: Float = 1f): LatLon? {
+        val radius = radius * radiusScale
         if (radius <= 0f) return null
         val dx = (x - cx) / radius
         val dy = (cy - y) / radius
@@ -379,6 +400,39 @@ private class MarkerHits {
         return LatLon(Math.toDegrees(lat), Math.toDegrees(lon))
     }
 
+    /**
+     * [anchor] koordinatini, olcek [radiusScale] katina ciktiginda hala (x, y)
+     * pikselinde tutan kamera merkezini cozer. Boyle bir kamera yoksa null.
+     *
+     * Kamera tabaninda nokta (dogu, kuzey, yukari) = (a, d, s) bilesenlerine
+     * sahiptir; buradan enlem tek bir sinus denklemiyle, boylam da yatay
+     * bilesenin donme aciyla cozulur.
+     */
+    fun solveCamera(anchor: LatLon, x: Float, y: Float, radiusScale: Float): LatLon? {
+        val r = radius * radiusScale
+        if (r <= 0f) return null
+        val a = ((x - cx) / r).toDouble()
+        val d = ((cy - y) / r).toDouble()
+        val rho2 = a * a + d * d
+        if (rho2 > 1.0) return null
+        val s = kotlin.math.sqrt(1.0 - rho2)
+
+        val p = Math.toRadians(anchor.lat)
+        val l = Math.toRadians(anchor.lon)
+        val px = cos(p) * cos(l)
+        val py = cos(p) * sin(l)
+        val pz = sin(p)
+
+        val rr = kotlin.math.sqrt(s * s + d * d)
+        if (rr < 1e-9 || kotlin.math.abs(pz) > rr) return null
+
+        val phi0 = kotlin.math.asin((pz / rr).coerceIn(-1.0, 1.0)) - atan2(d, s)
+        val b = s * cos(phi0) - d * sin(phi0)
+        if (kotlin.math.abs(a) < 1e-12 && kotlin.math.abs(b) < 1e-12) return null
+        val lambda0 = atan2(py, px) - atan2(a, b)
+        return LatLon(Math.toDegrees(phi0), Math.toDegrees(lambda0))
+    }
+
     fun nearest(x: Float, y: Float, reach: Float): Airport? {
         var best: Marker? = null
         var bestDistance = reach * reach
@@ -397,18 +451,31 @@ private class MarkerHits {
 
 private class Marker(val x: Float, val y: Float, val place: Airport)
 
-private class Candidate(
-    val x: Float,
-    val y: Float,
-    val place: Airport,
-    val chosen: Boolean,
-    val distanceSq: Float,
-)
-
 /**
- * Yerleri onem sirasina gore isaretler: uzaktan yalnizca buyuk havalimanlari,
- * yakinlastikca kucukleri de gorunur. Secili olanlar her zaman cizilir.
+ * Yakinlastirmayi ekranin ortasina degil, parmagin (ya da imlecin) altindaki
+ * noktaya sabitler: once orada hangi koordinatin durdugu bulunur, sonra yeni
+ * olcekte ayni koordinati ayni piksele getiren kamera dogrudan cozulur.
  */
+private fun zoomAnchored(
+    state: GlobeState,
+    markers: MarkerHits,
+    x: Float,
+    y: Float,
+    factor: Float,
+) {
+    if (factor == 1f) return
+    val anchor = markers.locate(x, y)
+    val zoomBefore = state.zoom
+    state.zoomBy(factor)
+    val applied = state.zoom / zoomBefore
+    if (applied == 1f || anchor == null) return
+
+    // Cozum yoksa (uzaklasirken nokta kurenin disina dusuyorsa) merkeze gore
+    // yakinlastirmakla yetinilir.
+    val camera = markers.solveCamera(anchor, x, y, applied) ?: return
+    state.moveTo(camera.lat, camera.lon)
+}
+
 private fun DrawScope.drawPlaces(
     proj: Projection,
     places: List<Airport>,

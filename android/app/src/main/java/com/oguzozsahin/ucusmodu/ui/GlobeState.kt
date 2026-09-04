@@ -12,8 +12,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.oguzozsahin.ucusmodu.data.LatLon
 
-const val GLOBE_MIN_ZOOM = 1f
-const val GLOBE_MAX_ZOOM = 9f
+/** Kure cerceveden kucuk gorunecek kadar uzaklasabilir, sehir olceginde yakinlasabilir. */
+const val GLOBE_MIN_ZOOM = 0.55f
+const val GLOBE_MAX_ZOOM = 18f
+
+/** Rotayi cerceveye oturtan varsayilan olcek. */
+const val GLOBE_FIT_ZOOM = 1f
 
 /**
  * Kullanicinin surdugu kamera: kurenin baktigi nokta ve yakinlastirma.
@@ -28,7 +32,7 @@ class GlobeState(initialLat: Float, initialLon: Float) {
     var lon by mutableFloatStateOf(initialLon)
         private set
 
-    var zoom by mutableFloatStateOf(GLOBE_MIN_ZOOM)
+    var zoom by mutableFloatStateOf(GLOBE_FIT_ZOOM)
         private set
 
     /** Kullanici kureyi kendisi oynatmadiysa dogru. */
@@ -41,6 +45,13 @@ class GlobeState(initialLat: Float, initialLon: Float) {
         lon = wrapLongitude(lon + deltaLon)
     }
 
+    /** Kamerayi dogrudan verilen noktaya tasir (sabitlemeli yakinlastirma icin). */
+    fun moveTo(newLat: Double, newLon: Double) {
+        untouched = false
+        lat = newLat.toFloat().coerceIn(-89f, 89f)
+        lon = wrapLongitude(newLon.toFloat())
+    }
+
     fun zoomBy(factor: Float) {
         if (factor == 1f) return
         untouched = false
@@ -49,7 +60,22 @@ class GlobeState(initialLat: Float, initialLon: Float) {
 
     fun toggleZoom() {
         untouched = false
-        zoom = if (zoom < 2f) 3f else GLOBE_MIN_ZOOM
+        zoom = if (zoom < 2f) 3.5f else GLOBE_FIT_ZOOM
+    }
+
+    /** Dugmelerle kademeli yakinlastirma. */
+    suspend fun animateZoomTo(target: Float, durationMs: Int = 240) {
+        untouched = false
+        val from = zoom
+        val to = target.coerceIn(GLOBE_MIN_ZOOM, GLOBE_MAX_ZOOM)
+        animate(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = tween(durationMs, easing = FastOutSlowInEasing),
+        ) { t, _ ->
+            zoom = from + (to - from) * t
+        }
+        zoom = to
     }
 
     /** Hedefe yumusak bir donusle gider. */
@@ -84,6 +110,9 @@ class GlobeState(initialLat: Float, initialLon: Float) {
     }
 
     val center: LatLon get() = LatLon(lat.toDouble(), lon.toDouble())
+
+    val canZoomIn: Boolean get() = zoom < GLOBE_MAX_ZOOM - 0.01f
+    val canZoomOut: Boolean get() = zoom > GLOBE_MIN_ZOOM + 0.01f
 }
 
 private fun wrapLongitude(value: Float): Float {

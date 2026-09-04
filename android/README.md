@@ -64,10 +64,21 @@ trigonometri yerine yalnızca iç çarpım hesaplanıyor, arkada kalan parçalar
 tek bir karşılaştırmayla eleniyor.
 
 Rota ekranında küre kaydırılabilir alanın dışında, sabit bir bölgede durur —
-aksi halde sürükleme jestini sayfa kaydırma kapar ve küre dönmez. Küre
-sürüklenerek döndürülür, çimdiklenerek yakınlaştırılır,
-çift dokunuşla yaklaşır; **Rotaya dön** düğmesi kamerayı rotanın merkezine
-geri getirir. Diğer ekranlarda küre etkileşimsizdir ve rotayı takip eder.
+aksi halde sürükleme jestini sayfa kaydırma kapar ve küre dönmez.
+
+- **Döndürme:** sürükleme
+- **Yakınlaştırma:** çimdikleme, fare tekerleği, ekrandaki +/− düğmeleri
+  (emülatörde çimdikleme için Ctrl basılı tutup sürükleyin) — ölçek 0,55×–18×
+- **Çift dokunuş:** dokunulan noktaya yaklaşır
+- **Rotaya dön:** kamerayı rotanın merkezine geri getirir
+
+Çimdikleme ve tekerlek, parmağın altındaki coğrafi noktayı yerinde tutar.
+Bunun için yaklaşım yapmak yerine kamera doğrudan çözülüyor: nokta kamera
+tabanında (doğu, kuzey, yukarı) bileşenlerine ayrılıp enlem tek bir sinüs
+denkleminden, boylam da yatay bileşenin dönme açısından bulunuyor. Denemede
+her ölçekte kayma tam olarak sıfır piksel çıktı.
+
+Diğer ekranlarda küre etkileşimsizdir ve rotayı takip eder.
 
 ## Yerler
 

@@ -191,12 +191,33 @@ fun RouteScreen(
                 }
             } else {
                 Text(
-                    "sürükle · çimdikle · şehre dokun",
+                    "sürükle · çift dokun · şehre dokun",
                     style = monoStyle(colors.muted, 10),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 10.dp),
                 )
+            }
+
+            // Cimdiklemenin zor oldugu yerler icin (emulator, fare) acik dugmeler.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalAlignment = Alignment.End,
+            ) {
+                Text(
+                    "%.1f×".format(globe.zoom),
+                    style = monoStyle(colors.muted, 10),
+                    modifier = Modifier.padding(end = 2.dp, bottom = 2.dp),
+                )
+                GhostButton("+", colors) {
+                    scope.launch { globe.animateZoomTo(globe.zoom * 1.7f) }
+                }
+                GhostButton("−", colors) {
+                    scope.launch { globe.animateZoomTo(globe.zoom / 1.7f) }
+                }
             }
         }
 
