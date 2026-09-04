@@ -223,7 +223,7 @@ fun RouteScreen(
                     minZoom = GLOBE_MIN_ZOOM,
                     maxZoom = GLOBE_MAX_ZOOM,
                     colors = colors,
-                ) { globe.setZoom(it) }
+                ) { globe.snapZoomTo(it) }
                 ZoomButton("−", colors, enabled = globe.canZoomOut) {
                     scope.launch { globe.animateZoomTo(globe.zoom / 1.7f) }
                 }

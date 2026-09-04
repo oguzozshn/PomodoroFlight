@@ -58,8 +58,11 @@ class GlobeState(initialLat: Float, initialLon: Float) {
         zoom = (zoom * factor).coerceIn(GLOBE_MIN_ZOOM, GLOBE_MAX_ZOOM)
     }
 
-    /** Kolun surdugu dogrudan olcek. */
-    fun setZoom(value: Float) {
+    /**
+     * Kolun surdugu dogrudan olcek. Adi setZoom olamaz: "var zoom" zaten
+     * JVM'de setZoom(Float) uretiyor ve imzalar cakisiyor.
+     */
+    fun snapZoomTo(value: Float) {
         untouched = false
         zoom = value.coerceIn(GLOBE_MIN_ZOOM, GLOBE_MAX_ZOOM)
     }

@@ -119,6 +119,22 @@ python3 tools/build_coastline.py ne_110m_coastline.geojson \
 - **Açık/koyu tema:** sistem temasını izler, renkler web sürümündeki CSS
   değişkenlerinin birebir karşılığıdır.
 
+## Derlemeden önce
+
+Depoda Android SDK olmadığı için Compose katmanı burada derlenemiyor.
+`tools/lint_kotlin.py` derleyici olmadan yakalanabilen üç hata sınıfını tarar:
+dengesiz ayraçlar, tanımsız tür/fonksiyon adları ve JVM imza çakışmaları
+(`var zoom` ile `fun setZoom` aynı imzayı üretir).
+
+```bash
+python3 tools/lint_kotlin.py android/app/src/main/java
+```
+
+Saf mantık katmanı (geometri, rota, biçimlendirme, yer ve kıyı şeridi
+ayrıştırıcıları) Android'e bağlı olmadığı için JVM'de derlenip
+çalıştırılabiliyor; sayısal çıktılar orijinal JavaScript sürümüne karşı
+karşılaştırılıyor.
+
 ## Bilinen sınırlar
 
 - Bu depo Android SDK'sız bir ortamda hazırlandı; APK derlemesi ilk kez
