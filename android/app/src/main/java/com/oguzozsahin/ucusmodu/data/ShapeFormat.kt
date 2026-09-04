@@ -7,11 +7,11 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Tek bir kiyi seridi parcasi. Noktalar birim kure uzerinde (x, y, z) uclusu olarak
+ * Tek bir kara/kiyi parcasi (poligon halkasi ya da cizgi). Noktalar birim kure uzerinde (x, y, z) uclusu olarak
  * saklanir; boylece her karede trigonometri yapmadan, yalnizca ic carpimla izdusum
  * alinabilir.
  */
-class CoastShape(
+class WorldShape(
     val xyz: FloatArray,
     private val cx: Float,
     private val cy: Float,
@@ -25,25 +25,25 @@ class CoastShape(
         cx * ux + cy * uy + cz * uz < -sinRadius
 }
 
-class CoastlineShapes(val shapes: List<CoastShape>) {
+class ShapeSet(val shapes: List<WorldShape>) {
     val pointCount: Int get() = shapes.sumOf { it.pointCount }
 }
 
 /** tools/build_coastline.py ile uretilen ikili bicimi okur. */
-object CoastlineFormat {
+object ShapeFormat {
 
     private const val MAGIC = "UMC1"
     private const val LON_SCALE = 180f / 32767f
     private const val LAT_SCALE = 90f / 32767f
 
     /** tools/build_coastline.py ile uretilen ikili bicimi okur. */
-    fun parse(bytes: ByteArray): CoastlineShapes {
+    fun parse(bytes: ByteArray): ShapeSet {
         val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
         val magic = ByteArray(4).also { buffer.get(it) }.toString(Charsets.US_ASCII)
         require(magic == MAGIC) { "Beklenmeyen kiyi seridi bicimi: $magic" }
 
         val lineCount = buffer.int
-        val shapes = ArrayList<CoastShape>(lineCount)
+        val shapes = ArrayList<WorldShape>(lineCount)
         repeat(lineCount) {
             val pointCount = buffer.int
             val xyz = FloatArray(pointCount * 3)
@@ -67,15 +67,15 @@ object CoastlineFormat {
             }
             shapes += buildShape(xyz, sx, sy, sz)
         }
-        return CoastlineShapes(shapes)
+        return ShapeSet(shapes)
     }
 
     /** Parcanin merkezini ve kapsadigi acisal yaricapi hesaplar (eleme icin). */
-    private fun buildShape(xyz: FloatArray, sx: Double, sy: Double, sz: Double): CoastShape {
+    private fun buildShape(xyz: FloatArray, sx: Double, sy: Double, sz: Double): WorldShape {
         val length = sqrt(sx * sx + sy * sy + sz * sz)
         if (length < 1e-6) {
             // Kureyi bastan basa gecen parca: elenmesin.
-            return CoastShape(xyz, 0f, 0f, 1f, 1f)
+            return WorldShape(xyz, 0f, 0f, 1f, 1f)
         }
         val cx = (sx / length).toFloat()
         val cy = (sy / length).toFloat()
@@ -90,6 +90,6 @@ object CoastlineFormat {
         }
         val cosR = minDot.coerceIn(-1f, 1f)
         val sinR = sqrt((1f - cosR * cosR).coerceAtLeast(0f))
-        return CoastShape(xyz, cx, cy, cz, sinR)
+        return WorldShape(xyz, cx, cy, cz, sinR)
     }
 }

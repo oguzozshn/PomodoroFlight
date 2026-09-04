@@ -4,23 +4,24 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Kaba (110m) ve ince (50m) kiyi seridi varliklarinin adlari. */
-enum class CoastDetail(val asset: String) {
-    COARSE("coastline_110m.bin"),
-    FINE("coastline_50m.bin"),
+/** Kurede cizilen alanlar: kara parcalari ve goller. */
+enum class WorldAsset(val asset: String) {
+    LAND_COARSE("land_110m.bin"),
+    LAND_FINE("land_50m.bin"),
+    LAKES("lakes_110m.bin"),
 }
 
-/** Kiyi seritlerini varliklardan okur ve bellekte tutar. */
-object Coastlines {
+/** Dunya sekillerini varliklardan okur ve bellekte tutar. */
+object WorldShapes {
 
-    private val cache = HashMap<CoastDetail, CoastlineShapes>()
+    private val cache = HashMap<WorldAsset, ShapeSet>()
 
-    suspend fun load(context: Context, detail: CoastDetail): CoastlineShapes? =
+    suspend fun load(context: Context, detail: WorldAsset): ShapeSet? =
         withContext(Dispatchers.IO) {
             synchronized(cache) { cache[detail] }?.let { return@withContext it }
             val parsed = try {
                 context.applicationContext.assets.open(detail.asset).use {
-                    CoastlineFormat.parse(it.readBytes())
+                    ShapeFormat.parse(it.readBytes())
                 }
             } catch (e: Exception) {
                 null

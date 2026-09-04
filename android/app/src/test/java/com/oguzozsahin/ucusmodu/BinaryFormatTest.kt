@@ -1,6 +1,6 @@
 package com.oguzozsahin.ucusmodu
 
-import com.oguzozsahin.ucusmodu.data.CoastlineFormat
+import com.oguzozsahin.ucusmodu.data.ShapeFormat
 import com.oguzozsahin.ucusmodu.data.PlaceFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -26,7 +26,7 @@ class BinaryFormatTest {
         write(ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN).putShort(value.toShort()).array())
 
     @Test
-    fun `kiyi seridi bicimi cozulur`() {
+    fun `sekil bicimi cozulur`() {
         val data = bytes {
             write("UMC1".toByteArray())
             int(1)
@@ -35,7 +35,7 @@ class BinaryFormatTest {
             short(0); short(0)
             short(16383); short(0)
         }
-        val shapes = CoastlineFormat.parse(data)
+        val shapes = ShapeFormat.parse(data)
         assertEquals(1, shapes.shapes.size)
         assertEquals(2, shapes.pointCount)
 
@@ -86,11 +86,17 @@ class BinaryFormatTest {
             assertEquals(parsed.size, parsed.map { it.code }.toSet().size)
             assertTrue(parsed.any { it.code == "IST" })
         }
-        val coastline = File("src/main/assets/coastline_110m.bin")
-        if (coastline.exists()) {
-            val parsed = CoastlineFormat.parse(coastline.readBytes())
-            assertEquals(134, parsed.shapes.size)
-            assertEquals(5128, parsed.pointCount)
+        val land = File("src/main/assets/land_110m.bin")
+        if (land.exists()) {
+            val parsed = ShapeFormat.parse(land.readBytes())
+            assertEquals(128, parsed.shapes.size)
+            assertEquals(5143, parsed.pointCount)
+        }
+        val lakes = File("src/main/assets/lakes_110m.bin")
+        if (lakes.exists()) {
+            val parsed = ShapeFormat.parse(lakes.readBytes())
+            assertEquals(24, parsed.shapes.size)
+            assertEquals(465, parsed.pointCount)
         }
     }
 }

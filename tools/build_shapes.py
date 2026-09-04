@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """
-Natural Earth kiyi seridi GeoJSON'unu uygulamanin okudugu kompakt ikili bicime cevirir.
+Natural Earth GeoJSON'unu uygulamanin okudugu kompakt ikili bicime cevirir.
+
+Cizgi (LineString) ve alan (Polygon) geometrilerinin ikisini de okur; alanlarda
+her halka ayri bir parca olarak yazilir, uygulama tarafi bunlari even-odd
+kuralyla doldurup delikleri kendiliginden birakir.
 
 Kullanim:
-    python3 tools/build_coastline.py ne_110m_coastline.geojson android/app/src/main/assets/coastline_110m.bin
+    python3 tools/build_shapes.py ne_110m_land.geojson android/app/src/main/assets/land_110m.bin
 
 Bicim (little-endian):
     "UMC1"            4 bayt sihirli sayi
@@ -29,13 +33,20 @@ def quantize(value: float, scale: float) -> int:
 
 
 def lines_of(geojson: dict):
+    """Her geometriden cizilebilir nokta dizilerini cikarir."""
     for feature in geojson["features"]:
         geometry = feature["geometry"]
-        if geometry["type"] == "LineString":
-            yield geometry["coordinates"]
-        elif geometry["type"] == "MultiLineString":
-            for part in geometry["coordinates"]:
-                yield part
+        kind = geometry["type"]
+        coordinates = geometry["coordinates"]
+        if kind == "LineString":
+            yield coordinates
+        elif kind == "MultiLineString":
+            yield from coordinates
+        elif kind == "Polygon":
+            yield from coordinates
+        elif kind == "MultiPolygon":
+            for polygon in coordinates:
+                yield from polygon
 
 
 def main(src: str, dst: str) -> None:
@@ -56,7 +67,7 @@ def main(src: str, dst: str) -> None:
     with open(dst, "wb") as handle:
         handle.write(out)
 
-    print(f"{dst}: {len(lines)} cizgi, {total} nokta, {len(out) / 1024:.0f} KB")
+    print(f"{dst}: {len(lines)} parca, {total} nokta, {len(out) / 1024:.0f} KB")
 
 
 if __name__ == "__main__":

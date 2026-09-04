@@ -50,14 +50,21 @@ devam eder.
 
 ## Küre
 
-Kıyı şeritleri Natural Earth'ün kamu malı verisinden geliyor; `tools/build_coastline.py`
+Kara parçaları Natural Earth'ün kamu malı verisinden geliyor; `tools/build_shapes.py`
 GeoJSON'u kompakt bir ikili biçime çeviriyor (int16 kuantalama, yeryüzünde en fazla
 ~340 m sapma):
 
 | Varlık | Kaynak | Boyut | Ne zaman |
 |---|---|---|---|
-| `coastline_110m.bin` | ne_110m_coastline | 21 KB | her zaman |
-| `coastline_50m.bin` | ne_50m_coastline | 242 KB | yakınlaştırınca (zoom ≥ 2,2) |
+| `land_110m.bin` | ne_110m_land | 21 KB | her zaman |
+| `land_50m.bin` | ne_50m_land | 243 KB | yakınlaştırınca (zoom ≥ 2,2) |
+| `lakes_110m.bin` | ne_110m_lakes | 2 KB | her zaman |
+
+Kara poligonları hem dolgu hem kıyı çizgisi için kullanılıyor. Dolguda küre
+arkasına düşen noktalar ufka yapıştırılıp aradaki boşluk ufuk boyunca
+dolduruluyor; böylece kenardan taşan kıtaların silueti ufku takip ediyor,
+delikler de even-odd kuralıyla açılıyor. Kıyı çizgisi yalnızca görünen
+parçalardan çiziliyor, ufuk boyunca çizgi çekilmiyor.
 
 Noktalar birim küre üzerinde (x, y, z) olarak saklanıyor; böylece her karede
 trigonometri yerine yalnızca iç çarpım hesaplanıyor, arkada kalan parçalar da

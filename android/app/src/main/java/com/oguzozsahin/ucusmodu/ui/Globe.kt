@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -43,9 +44,9 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.data.Airport
-import com.oguzozsahin.ucusmodu.data.CoastDetail
-import com.oguzozsahin.ucusmodu.data.CoastlineShapes
-import com.oguzozsahin.ucusmodu.data.Coastlines
+import com.oguzozsahin.ucusmodu.data.WorldAsset
+import com.oguzozsahin.ucusmodu.data.ShapeSet
+import com.oguzozsahin.ucusmodu.data.WorldShapes
 import com.oguzozsahin.ucusmodu.data.LatLon
 import com.oguzozsahin.ucusmodu.data.Route
 import com.oguzozsahin.ucusmodu.data.Sun
@@ -166,18 +167,20 @@ fun GlobeMap(
         }
     }
 
-    // Kiyi seritleri: kaba katman hemen, ince katman yakinlasinca yuklenir.
-    var coarse by remember { mutableStateOf<CoastlineShapes?>(null) }
-    var fine by remember { mutableStateOf<CoastlineShapes?>(null) }
+    // Kara parcalari: kaba katman hemen, ince katman yakinlasinca yuklenir.
+    var coarse by remember { mutableStateOf<ShapeSet?>(null) }
+    var fine by remember { mutableStateOf<ShapeSet?>(null) }
+    var lakes by remember { mutableStateOf<ShapeSet?>(null) }
     val wantsFine = (state?.zoom ?: 1f) >= FINE_DETAIL_ZOOM
 
     LaunchedEffect(Unit) {
-        coarse = Coastlines.load(context, CoastDetail.COARSE)
+        coarse = WorldShapes.load(context, WorldAsset.LAND_COARSE)
+        lakes = WorldShapes.load(context, WorldAsset.LAKES)
     }
     LaunchedEffect(wantsFine) {
-        if (wantsFine && fine == null) fine = Coastlines.load(context, CoastDetail.FINE)
+        if (wantsFine && fine == null) fine = WorldShapes.load(context, WorldAsset.LAND_FINE)
     }
-    val coastlines = if (wantsFine) fine ?: coarse else coarse
+    val landShapes = if (wantsFine) fine ?: coarse else coarse
 
     // Kamera: rota degisince kure yeni merkeze donerek gider, zaplamaz.
     val cameraFrom = remember { mutableStateOf(route.center) }
@@ -312,33 +315,38 @@ fun GlobeMap(
         )
 
         clipPath(Path().apply { addOval(Rect(center, r)) }) {
-            // paralel / meridyen agi
-            for (line in graticule) {
-                drawPath(
-                    path = proj.pathOf(line),
-                    color = colors.grat,
-                    style = Stroke(width = 1.dp.toPx()),
-                )
+            // kara parcalari: dolgu, sonra goller, sonra kiyi cizgisi
+            landShapes?.let { shapes ->
+                drawPath(proj.areaPath(shapes), colors.land)
             }
-            drawPath(
-                path = proj.pathOf(equator()),
-                color = colors.limb,
-                style = Stroke(width = 1.4.dp.toPx()),
-            )
-
-            // kiyi seritleri
-            coastlines?.let { shapes ->
-                val path = proj.coastPath(shapes)
+            lakes?.let { shapes ->
+                drawPath(proj.areaPath(shapes), colors.lake)
+            }
+            landShapes?.let { shapes ->
                 drawPath(
-                    path = path,
-                    color = colors.land,
+                    path = proj.outlinePath(shapes),
+                    color = colors.coast,
                     style = Stroke(
-                        width = 1.3.dp.toPx(),
+                        width = 1.1.dp.toPx(),
                         cap = StrokeCap.Round,
                         join = StrokeJoin.Round,
                     ),
                 )
             }
+
+            // paralel / meridyen agi karanin uzerinde, soluk
+            for (line in graticule) {
+                drawPath(
+                    path = proj.pathOf(line),
+                    color = colors.grat.copy(alpha = 0.5f),
+                    style = Stroke(width = 1.dp.toPx()),
+                )
+            }
+            drawPath(
+                path = proj.pathOf(equator()),
+                color = colors.limb.copy(alpha = 0.55f),
+                style = Stroke(width = 1.2.dp.toPx()),
+            )
 
             // gunduz/gece: dunyanin karanlik yarisi
             drawNight(proj, sun, colors)
@@ -821,8 +829,66 @@ private fun Projection.pathOf(points: List<LatLon>): Path {
     return path
 }
 
-/** Tum kiyi seritlerini tek bir yola toplar; arkada kalan parcalar elenir. */
-private fun Projection.coastPath(shapes: CoastlineShapes): Path {
+/**
+ * Kara parcalarini doldurulabilir tek bir yola toplar. Kurenin arkasina dusen
+ * noktalar ufka yapistirilir, aralarindaki bosluk da ufuk boyunca doldurulur;
+ * boylece kenardan tasan kitalarin silueti ufku takip eder. Delikler even-odd
+ * kuraliyla kendiliginden acilir.
+ */
+private fun Projection.areaPath(shapes: ShapeSet): Path {
+    val path = Path()
+    path.fillType = PathFillType.EvenOdd
+    val twoPi = (2.0 * Math.PI).toFloat()
+    for (shape in shapes.shapes) {
+        if (shape.isHidden(upX, upY, upZ)) continue
+        val xyz = shape.xyz
+        var started = false
+        var clampedAngle = Float.NaN
+        var i = 0
+        while (i < xyz.size) {
+            val x = xyz[i]
+            val y = xyz[i + 1]
+            val z = xyz[i + 2]
+            val east = x * eastX + y * eastY + z * eastZ
+            val north = x * northX + y * northY + z * northZ
+
+            if (visible(x, y, z)) {
+                val sx = cx + r * east
+                val sy = cy - r * north
+                if (started) path.lineTo(sx, sy) else { path.moveTo(sx, sy); started = true }
+                clampedAngle = Float.NaN
+            } else {
+                val length = kotlin.math.sqrt(east * east + north * north)
+                if (length > 1e-6f) {
+                    val angle = atan2(north.toDouble(), east.toDouble()).toFloat()
+                    if (started && !clampedAngle.isNaN()) {
+                        var delta = angle - clampedAngle
+                        while (delta > Math.PI) delta -= twoPi
+                        while (delta < -Math.PI) delta += twoPi
+                        val steps = (kotlin.math.abs(delta) / 0.08f).toInt()
+                        for (k in 1 until steps) {
+                            val between = clampedAngle + delta * k / steps
+                            path.lineTo(
+                                cx + r * cos(between.toDouble()).toFloat(),
+                                cy - r * sin(between.toDouble()).toFloat(),
+                            )
+                        }
+                    }
+                    val sx = cx + r * cos(angle.toDouble()).toFloat()
+                    val sy = cy - r * sin(angle.toDouble()).toFloat()
+                    if (started) path.lineTo(sx, sy) else { path.moveTo(sx, sy); started = true }
+                    clampedAngle = angle
+                }
+            }
+            i += 3
+        }
+        if (started) path.close()
+    }
+    return path
+}
+
+/** Kiyi cizgisi: yalnizca gorunen parcalar, ufuk boyunca cizgi cizilmez. */
+private fun Projection.outlinePath(shapes: ShapeSet): Path {
     val path = Path()
     for (shape in shapes.shapes) {
         if (shape.isHidden(upX, upY, upZ)) continue

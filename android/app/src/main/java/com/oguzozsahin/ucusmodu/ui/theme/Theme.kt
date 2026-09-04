@@ -29,7 +29,11 @@ data class FlightColors(
     val globeB: Color,
     val grat: Color,
     val limb: Color,
+    /** Kara dolgusu. */
     val land: Color,
+    /** Kiyi cizgisi. */
+    val coast: Color,
+    val lake: Color,
     val night: Color,
 )
 
@@ -46,11 +50,13 @@ val LightFlightColors = FlightColors(
     amber = Color(0xFFB5670C),
     amber2 = Color(0xFFD98A26),
     teal = Color(0xFF0E6B85),
-    globeA = Color(0xFFE7EDF3),
-    globeB = Color(0xFFD5DFE9),
+    globeA = Color(0xFFDCEAF4),
+    globeB = Color(0xFFB4CCDF),
     grat = Color(0xFFC3CFDB),
     limb = Color(0xFFA9B8C7),
-    land = Color(0xFF7C8FA3),
+    land = Color(0xFFDFE3CE),
+    coast = Color(0xFF9AA894),
+    lake = Color(0xFFC2D7E6),
     night = Color(0x38102338),
 )
 
@@ -67,11 +73,13 @@ val DarkFlightColors = FlightColors(
     amber = Color(0xFFF2B457),
     amber2 = Color(0xFFFFCC7A),
     teal = Color(0xFF58A8C9),
-    globeA = Color(0xFF101C2E),
-    globeB = Color(0xFF0A121E),
+    globeA = Color(0xFF0E2136),
+    globeB = Color(0xFF06121F),
     grat = Color(0xFF1F2F47),
     limb = Color(0xFF31445F),
-    land = Color(0xFF4C6E93),
+    land = Color(0xFF1F3442),
+    coast = Color(0xFF4A6C8C),
+    lake = Color(0xFF0F2B42),
     night = Color(0x59000814),
 )
 
