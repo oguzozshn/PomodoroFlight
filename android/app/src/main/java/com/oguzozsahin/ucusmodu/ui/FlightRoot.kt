@@ -11,13 +11,18 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
+import com.oguzozsahin.ucusmodu.data.Airport
 import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.PlaceRegistry
+import com.oguzozsahin.ucusmodu.data.Places
 
 /** Uygulamanin ucus gunu akisi: terminal -> rota -> ucus. */
 enum class Stage { WELCOME, ROUTE, FLIGHT }
@@ -32,6 +37,14 @@ fun FlightRoot(
 ) {
     // Sayac zaten isliyorsa uygulama dogrudan ucus ekranina acilir.
     var stage by remember { mutableStateOf(if (state.running) Stage.FLIGHT else Stage.WELCOME) }
+
+    // Ucus yapilabilen yerler bir kez okunur; liste hazir olunca kure onlari isaretler.
+    val context = LocalContext.current
+    var places by remember { mutableStateOf<List<Airport>>(PlaceRegistry.all()) }
+    LaunchedEffect(Unit) {
+        Places.ensureLoaded(context)
+        places = PlaceRegistry.all()
+    }
 
     BackHandler(enabled = stage != Stage.WELCOME) {
         stage = if (stage == Stage.FLIGHT) Stage.ROUTE else Stage.WELCOME
@@ -64,6 +77,7 @@ fun FlightRoot(
             Stage.ROUTE -> RouteScreen(
                 state = state,
                 actions = actions,
+                places = places,
                 onBack = { stage = Stage.WELCOME },
                 onDeparture = {
                     actions.onStart()

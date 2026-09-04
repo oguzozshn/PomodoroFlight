@@ -1,6 +1,19 @@
 package com.oguzozsahin.ucusmodu.data
 
-data class Airport(val code: String, val city: String, val lat: Double, val lon: Double)
+/**
+ * Ucus yapilabilen bir yer. [rank] havalimaninin buyuklugu (0 buyuk, 1 orta, 2 kucuk);
+ * kurede hangi yakinlikta gorunecegini ve arama siralamasini belirler.
+ */
+data class Airport(
+    val code: String,
+    val city: String,
+    val lat: Double,
+    val lon: Double,
+    val country: String = "",
+    val rank: Int = 0,
+    /** Havalimaninin kendi adi; sehir adi ilceyi gosterdiginde ayirt edici olur. */
+    val airportName: String = "",
+)
 
 data class Preset(val from: String, val to: String, val nick: String) {
     val key: String get() = "$from-$to"

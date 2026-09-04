@@ -32,8 +32,8 @@ data class Route(
         }
 
         fun of(from: String, to: String): Route? {
-            val o = Airports[from] ?: return null
-            val d = Airports[to] ?: return null
+            val o = PlaceRegistry.find(from) ?: return null
+            val d = PlaceRegistry.find(to) ?: return null
             if (o.code == d.code) return null
             val km = haversine(o.lat, o.lon, d.lat, d.lon)
             val a = vecOf(o.lat, o.lon)

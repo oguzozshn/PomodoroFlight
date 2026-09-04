@@ -7,65 +7,91 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.oguzozsahin.ucusmodu.data.LatLon
 
-/** Kurenin en fazla ne kadar yakinlastirilabilecegi. */
-private const val MAX_ZOOM = 8f
-private const val MIN_ZOOM = 1f
+const val GLOBE_MIN_ZOOM = 1f
+const val GLOBE_MAX_ZOOM = 9f
 
 /**
- * Kullanicinin kureye verdigi sapma: rota merkezinin uzerine binen donme ve
- * yakinlastirma. Sifirlaninca kure yeniden rotayi takip eder.
+ * Kullanicinin surdugu kamera: kurenin baktigi nokta ve yakinlastirma.
+ * Rota ekraninda kure bunu izler; diger ekranlarda kamera rotaya kilitlidir.
  */
 @Stable
-class GlobeState {
+class GlobeState(initialLat: Float, initialLon: Float) {
 
-    var latOffset by mutableFloatStateOf(0f)
-        internal set
+    var lat by mutableFloatStateOf(initialLat)
+        private set
 
-    var lonOffset by mutableFloatStateOf(0f)
-        internal set
+    var lon by mutableFloatStateOf(initialLon)
+        private set
 
-    var zoom by mutableFloatStateOf(1f)
-        internal set
+    var zoom by mutableFloatStateOf(GLOBE_MIN_ZOOM)
+        private set
 
-    /** Kullanici kureye dokunmus mu (geri ortala dugmesi bunun icin). */
-    val adjusted: Boolean
-        get() = latOffset != 0f || lonOffset != 0f || zoom != 1f
+    /** Kullanici kureyi kendisi oynatmadiysa dogru. */
+    var untouched by mutableStateOf(true)
+        private set
 
     fun rotateBy(deltaLat: Float, deltaLon: Float) {
-        latOffset = (latOffset + deltaLat).coerceIn(-120f, 120f)
-        lonOffset += deltaLon
+        untouched = false
+        lat = (lat + deltaLat).coerceIn(-89f, 89f)
+        lon = wrapLongitude(lon + deltaLon)
     }
 
     fun zoomBy(factor: Float) {
-        zoom = (zoom * factor).coerceIn(MIN_ZOOM, MAX_ZOOM)
+        if (factor == 1f) return
+        untouched = false
+        zoom = (zoom * factor).coerceIn(GLOBE_MIN_ZOOM, GLOBE_MAX_ZOOM)
     }
 
     fun toggleZoom() {
-        zoom = if (zoom < 2f) 3f else MIN_ZOOM
+        untouched = false
+        zoom = if (zoom < 2f) 3f else GLOBE_MIN_ZOOM
     }
 
-    /** Rotanin merkezine yumusak bir donusle geri gider. */
-    suspend fun recenter() {
-        val fromLat = latOffset
-        val fromLon = lonOffset
+    /** Hedefe yumusak bir donusle gider. */
+    suspend fun flyTo(
+        targetLat: Double,
+        targetLon: Double,
+        targetZoom: Float = zoom,
+        resetTouch: Boolean = false,
+        durationMs: Int = 620,
+    ) {
+        val fromLat = lat
+        val fromLon = lon
         val fromZoom = zoom
+        var delta = targetLon.toFloat() - fromLon
+        if (delta > 180f) delta -= 360f
+        if (delta < -180f) delta += 360f
+
         animate(
             initialValue = 0f,
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+            animationSpec = tween(durationMs, easing = FastOutSlowInEasing),
         ) { t, _ ->
-            latOffset = fromLat * (1f - t)
-            lonOffset = fromLon * (1f - t)
-            zoom = fromZoom + (MIN_ZOOM - fromZoom) * t
+            lat = fromLat + (targetLat.toFloat() - fromLat) * t
+            lon = wrapLongitude(fromLon + delta * t)
+            zoom = fromZoom + (targetZoom - fromZoom) * t
         }
-        latOffset = 0f
-        lonOffset = 0f
-        zoom = MIN_ZOOM
+        lat = targetLat.toFloat()
+        lon = wrapLongitude(targetLon.toFloat())
+        zoom = targetZoom
+        if (resetTouch) untouched = true
     }
+
+    val center: LatLon get() = LatLon(lat.toDouble(), lon.toDouble())
+}
+
+private fun wrapLongitude(value: Float): Float {
+    var v = value
+    while (v > 180f) v -= 360f
+    while (v < -180f) v += 360f
+    return v
 }
 
 @Composable
-fun rememberGlobeState(): GlobeState = remember { GlobeState() }
+fun rememberGlobeState(center: LatLon): GlobeState =
+    remember { GlobeState(center.lat.toFloat(), center.lon.toFloat()) }

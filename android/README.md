@@ -38,9 +38,10 @@ Gerçek bir uçuş günü gibi üç adım:
 
 1. **Terminal** (`ui/WelcomeScreen.kt`) — saat, küre, toplam istatistikler ve
    **Yolculuğa başla**. Yarım kalmış bir rota varsa doğrudan devam edilebilir.
-2. **Rota seç** (`ui/RouteScreen.kt`) — hazır rotalar ya da kendi rotan; seçim
-   anında küreye yansır. Biniş kartında uçuş no, kapı, kalkış ve tahmini varış
-   saati, odakta geçecek süre ve gerçek uçuş süresi yazar. **Uçuşa başlat**.
+2. **Rota seç** (`ui/RouteScreen.kt`) — küreyi çevirip şehre dokunarak ya da
+   arama kutusundan kalkış ve varış seçilir; hazır rotalar da duruyor. Biniş
+   kartında uçuş no, kapı, kalkış ve tahmini varış saati, odakta geçecek süre
+   ve gerçek uçuş süresi yazar. **Uçuşa başlat**.
 3. **Uçuş** (`ui/FlightScreen.kt`) — küre, sayaç, uçuş planı, ayarlar ve günlük.
    Üstteki **Rota** düğmesi ikinci adıma döner.
 
@@ -65,6 +66,22 @@ tek bir karşılaştırmayla eleniyor.
 Rota ekranındaki küre sürüklenerek döndürülür, çimdiklenerek yakınlaştırılır,
 çift dokunuşla yaklaşır; **Rotaya dön** düğmesi kamerayı rotanın merkezine
 geri getirir. Diğer ekranlarda küre etkileşimsizdir ve rotayı takip eder.
+
+## Yerler
+
+Uçuş yapılabilen yerler OurAirports'un kamu malı verisinden geliyor:
+tarifeli seferi, IATA kodu ve şehir adı olan **3.941 havalimanı / 3.858 şehir**.
+`tools/build_places.py` bunu 137 KB'lık `places.bin` dosyasına indiriyor
+(`assets/places.bin`, biçim `UMP2`).
+
+- Küre yakınlaştıkça daha küçük havalimanları beliriyor (uzakta yalnızca büyük
+  havalimanları, zoom ≥ 1,7'de orta, ≥ 3'te küçük olanlar).
+- Arama şehir adını, havalimanı adını ve IATA kodunu birlikte tarıyor; Türkçe
+  büyük/küçük harf ve aksan farkları normalleştiriliyor ("izmir" → İzmir).
+- `data/TurkishCities.kt` veri setindeki adları Türkçeye çeviriyor (Munich →
+  Münih, London → Londra) ve OurAirports'un ilçe yazdığı yerleri düzeltiyor
+  (Gaziemir → İzmir, "Pendik, Istanbul" → İstanbul).
+- Ülke adları Android'in kendi yerelleştirmesinden geliyor (`countryName`).
 
 Varlıkları yeniden üretmek için:
 

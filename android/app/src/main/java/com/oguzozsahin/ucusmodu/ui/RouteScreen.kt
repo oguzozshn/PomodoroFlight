@@ -20,9 +20,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,13 +33,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.oguzozsahin.ucusmodu.data.Airports
+import com.oguzozsahin.ucusmodu.data.Airport
 import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.PlaceRegistry
+import com.oguzozsahin.ucusmodu.data.Preset
 import com.oguzozsahin.ucusmodu.data.Presets
 import com.oguzozsahin.ucusmodu.data.Route
+import com.oguzozsahin.ucusmodu.data.countryName
 import com.oguzozsahin.ucusmodu.data.focusMinutesFor
 import com.oguzozsahin.ucusmodu.data.formatDuration
 import com.oguzozsahin.ucusmodu.data.formatNumber
@@ -49,25 +54,81 @@ import com.oguzozsahin.ucusmodu.data.realFlightMinutes
 import com.oguzozsahin.ucusmodu.data.remainingScheduleMinutes
 import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.LocalFlightColors
+import com.oguzozsahin.ucusmodu.ui.theme.PlexMono
 import com.oguzozsahin.ucusmodu.ui.theme.labelStyle
 import com.oguzozsahin.ucusmodu.ui.theme.monoStyle
 import kotlinx.coroutines.launch
 
+/** Kalkis mi varis mi seciliyor. */
+private enum class Slot { FROM, TO }
+
 /**
- * Ikinci adim: rotayi sec, ozetini gor, ucusa basla.
- * Secilen rota aninda kureye yansir; ozet paneli de onunla birlikte degisir.
+ * Ikinci adim: kureden ya da aramadan kalkis ve varis sec, binis kartini gor,
+ * ucusa basla.
  */
 @Composable
 fun RouteScreen(
     state: FlightUiState,
     actions: FlightActions,
+    places: List<Airport>,
     onBack: () -> Unit,
     onDeparture: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalFlightColors.current
-    val globe = rememberGlobeState()
+    val globe = rememberGlobeState(state.route.center)
     val scope = rememberCoroutineScope()
+
+    var from by remember { mutableStateOf(state.route.origin.code) }
+    var to by remember { mutableStateOf(state.route.dest.code) }
+    var active by remember { mutableStateOf(Slot.FROM) }
+    var query by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+
+    val results = remember(query, places) {
+        if (query.isBlank()) emptyList() else PlaceRegistry.search(query, 8)
+    }
+
+    fun flyToPlace(place: Airport) {
+        scope.launch {
+            globe.flyTo(place.lat, place.lon, targetZoom = maxOf(globe.zoom, 2.6f))
+        }
+    }
+
+    fun choose(place: Airport) {
+        message = ""
+        query = ""
+        if (active == Slot.FROM) {
+            from = place.code
+            active = Slot.TO
+            if (from == to) {
+                message = "Kalkış ve varış aynı olamaz — bir varış seç."
+                flyToPlace(place)
+                return
+            }
+        } else {
+            if (place.code == from) {
+                message = "Kalkış ve varış aynı olamaz — başka bir varış seç."
+                return
+            }
+            to = place.code
+            active = Slot.FROM
+        }
+        val route = Route.of(from, to)
+        if (route == null) {
+            message = "Bu rota kurulamadı."
+            return
+        }
+        actions.onRoute(route.key)
+        if (active == Slot.FROM) {
+            // Rota tamamlandi: tumunu gorecek sekilde geri cekil.
+            scope.launch {
+                globe.flyTo(route.center.lat, route.center.lon, targetZoom = 1f, resetTouch = true)
+            }
+        } else {
+            flyToPlace(place)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -92,11 +153,11 @@ fun RouteScreen(
             )
         }
 
-        // Secim degistikce donen kure; suruklenerek dondurulur, cimdiklenerek yakinlasir.
+        // Kure: surukle, cimdikle, sehre dokun.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1.15f)
+                .aspectRatio(1.05f)
                 .background(colors.space, PanelShape)
                 .border(1.dp, colors.line, PanelShape),
         ) {
@@ -107,9 +168,12 @@ fun RouteScreen(
                 modifier = Modifier.fillMaxSize(),
                 interactive = true,
                 state = globe,
+                places = places,
+                highlighted = setOf(from, to),
+                onPlaceTap = { choose(it) },
             )
 
-            if (globe.adjusted) {
+            if (!globe.untouched) {
                 GhostButton(
                     text = "Rotaya dön",
                     colors = colors,
@@ -117,11 +181,18 @@ fun RouteScreen(
                         .align(Alignment.TopEnd)
                         .padding(10.dp),
                 ) {
-                    scope.launch { globe.recenter() }
+                    scope.launch {
+                        globe.flyTo(
+                            state.route.center.lat,
+                            state.route.center.lon,
+                            targetZoom = 1f,
+                            resetTouch = true,
+                        )
+                    }
                 }
             } else {
                 Text(
-                    "sürükle · çimdikle · çift dokun",
+                    "sürükle · çimdikle · şehre dokun",
                     style = monoStyle(colors.muted, 10),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -130,9 +201,176 @@ fun RouteScreen(
             }
         }
 
+        SlotRow(
+            from = PlaceRegistry.find(from),
+            to = PlaceRegistry.find(to),
+            active = active,
+            colors = colors,
+            onSelect = { active = it },
+        )
+
+        SearchCard(
+            query = query,
+            results = results,
+            active = active,
+            colors = colors,
+            onQuery = { query = it },
+            onPick = { choose(it) },
+        )
+
+        if (message.isNotEmpty()) {
+            Text(message, style = monoStyle(colors.amber, 11))
+        }
+
         RouteSummary(state, colors, onDeparture)
-        PresetList(state, colors, actions)
-        CustomRouteCard(state, colors, actions)
+
+        PresetList(state, colors) { preset ->
+            from = preset.from
+            to = preset.to
+            active = Slot.FROM
+            message = ""
+            actions.onRoute(preset.key)
+            Route.of(preset.key)?.let { route ->
+                scope.launch {
+                    globe.flyTo(route.center.lat, route.center.lon, targetZoom = 1f, resetTouch = true)
+                }
+            }
+        }
+    }
+}
+
+/** Kalkis ve varis yuvalari; dokununca hangisinin secildigi degisir. */
+@Composable
+private fun SlotRow(
+    from: Airport?,
+    to: Airport?,
+    active: Slot,
+    colors: FlightColors,
+    onSelect: (Slot) -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        SlotCard("Kalkış", from, active == Slot.FROM, colors, Modifier.weight(1f)) {
+            onSelect(Slot.FROM)
+        }
+        Text(
+            "→",
+            style = monoStyle(colors.muted, 16),
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+        SlotCard("Varış", to, active == Slot.TO, colors, Modifier.weight(1f)) {
+            onSelect(Slot.TO)
+        }
+    }
+}
+
+@Composable
+private fun SlotCard(
+    label: String,
+    place: Airport?,
+    selected: Boolean,
+    colors: FlightColors,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .background(
+                if (selected) colors.amber.copy(alpha = 0.10f) else colors.panel,
+                PanelShape,
+            )
+            .border(1.dp, if (selected) colors.amber else colors.line, PanelShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(
+            label.uppercase(),
+            style = labelStyle(if (selected) colors.amber else colors.muted).copy(fontSize = 10.sp),
+        )
+        Spacer(Modifier.height(3.dp))
+        Text(
+            place?.city ?: "—",
+            style = monoStyle(colors.ink, 15, FontWeight.Medium),
+        )
+        Text(
+            if (place != null) "${place.code} · ${countryName(place.country)}" else "seç",
+            style = monoStyle(colors.muted, 10),
+        )
+    }
+}
+
+@Composable
+private fun SearchCard(
+    query: String,
+    results: List<Airport>,
+    active: Slot,
+    colors: FlightColors,
+    onQuery: (String) -> Unit,
+    onPick: (Airport) -> Unit,
+) {
+    Panel(colors) {
+        Column(Modifier.padding(14.dp)) {
+            Text(
+                if (active == Slot.FROM) "KALKIŞ ŞEHRİ ARA" else "VARIŞ ŞEHRİ ARA",
+                style = labelStyle(colors.muted).copy(fontSize = 11.sp),
+            )
+            Spacer(Modifier.height(8.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(colors.panel2, PanelShape)
+                    .border(1.dp, colors.line, PanelShape)
+                    .padding(horizontal = 10.dp, vertical = 10.dp),
+            ) {
+                if (query.isEmpty()) {
+                    Text(
+                        "şehir ya da kod — örn. Tokyo, ADB",
+                        style = monoStyle(colors.muted, 12),
+                    )
+                }
+                BasicTextField(
+                    value = query,
+                    onValueChange = onQuery,
+                    singleLine = true,
+                    textStyle = monoStyle(colors.ink, 12).copy(fontFamily = PlexMono),
+                    cursorBrush = SolidColor(colors.amber),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            if (results.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                for (place in results) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPick(place) }
+                            .padding(vertical = 8.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                place.city,
+                                style = monoStyle(colors.ink, 13, FontWeight.Medium),
+                            )
+                            Spacer(Modifier.weight(1f))
+                            Text(place.code, style = monoStyle(colors.amber, 12, FontWeight.Medium))
+                        }
+                        Text(
+                            listOfNotNull(
+                                place.airportName.takeIf { it.isNotBlank() },
+                                countryName(place.country),
+                            ).joinToString(" · "),
+                            style = monoStyle(colors.muted, 10),
+                        )
+                    }
+                    HorizontalDivider(color = colors.lineSoft)
+                }
+            } else if (query.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text("Sonuç yok.", style = monoStyle(colors.muted, 11))
+            }
+        }
     }
 }
 
@@ -175,7 +413,7 @@ private fun RouteSummary(state: FlightUiState, colors: FlightColors, onDeparture
                     )
                     Spacer(Modifier.height(3.dp))
                     Text(
-                        "${route.origin.code} — ${route.dest.code} · ${route.flightNo}",
+                        "${countryName(route.origin.country)} → ${countryName(route.dest.country)}",
                         style = monoStyle(colors.muted, 12),
                     )
                 }
@@ -247,7 +485,11 @@ private fun SummaryRow(label: String, value: String, colors: FlightColors) {
 }
 
 @Composable
-private fun PresetList(state: FlightUiState, colors: FlightColors, actions: FlightActions) {
+private fun PresetList(
+    state: FlightUiState,
+    colors: FlightColors,
+    onPick: (Preset) -> Unit,
+) {
     Panel(colors) {
         Column(Modifier.padding(14.dp)) {
             PanelHead("Hazır rotalar", colors)
@@ -256,25 +498,25 @@ private fun PresetList(state: FlightUiState, colors: FlightColors, actions: Flig
             for (preset in Presets.list) {
                 val presetRoute = remember(preset.key) { Route.of(preset.key) } ?: continue
                 val progress = (state.progress[preset.key] ?: 0).coerceAtMost(presetRoute.legs)
-                val active = preset.key == state.route.key
+                val selected = preset.key == state.route.key
 
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 6.dp)
                         .background(
-                            if (active) colors.amber.copy(alpha = 0.10f) else colors.panel2,
+                            if (selected) colors.amber.copy(alpha = 0.10f) else colors.panel2,
                             PanelShape,
                         )
-                        .border(1.dp, if (active) colors.amber else colors.line, PanelShape)
-                        .clickable { actions.onRoute(preset.key) }
+                        .border(1.dp, if (selected) colors.amber else colors.line, PanelShape)
+                        .clickable { onPick(preset) }
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "${preset.from} → ${preset.to}",
                             style = monoStyle(
-                                if (active) colors.amber else colors.ink,
+                                if (selected) colors.amber else colors.ink,
                                 13,
                                 FontWeight.Medium,
                             ),
@@ -289,102 +531,6 @@ private fun PresetList(state: FlightUiState, colors: FlightColors, actions: Flig
                         style = monoStyle(colors.muted, 11),
                     )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CustomRouteCard(state: FlightUiState, colors: FlightColors, actions: FlightActions) {
-    var from by remember(state.route.key) { mutableStateOf(state.route.origin.code) }
-    var to by remember(state.route.key) { mutableStateOf(state.route.dest.code) }
-    var message by remember { mutableStateOf("") }
-
-    Panel(colors) {
-        Column(Modifier.padding(14.dp)) {
-            PanelHead("Kendi rotanı kur", colors)
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                AirportDropdown(from, colors, Modifier.weight(1f)) { from = it }
-                Text(
-                    "→",
-                    style = monoStyle(colors.muted, 14),
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                )
-                AirportDropdown(to, colors, Modifier.weight(1f)) { to = it }
-            }
-            Spacer(Modifier.height(10.dp))
-            FlightButton(
-                text = "Rotayı kur",
-                colors = colors,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (from == to) {
-                    message = "Kalkış ve varış aynı olamaz — başka bir varış seç."
-                } else {
-                    val route = Route.of(from, to)
-                    if (route == null) {
-                        message = "Bu rota kurulamadı."
-                    } else {
-                        actions.onRoute(route.key)
-                        message = ""
-                    }
-                }
-            }
-            if (message.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Text(message, style = monoStyle(colors.ink2, 11))
-            }
-        }
-    }
-}
-
-@Composable
-private fun AirportDropdown(
-    code: String,
-    colors: FlightColors,
-    modifier: Modifier = Modifier,
-    onSelect: (String) -> Unit,
-) {
-    var open by remember { mutableStateOf(false) }
-    val airport = Airports[code]
-
-    Box(modifier = modifier) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(colors.panel2, PanelShape)
-                .border(1.dp, colors.line, PanelShape)
-                .clickable { open = true }
-                .padding(horizontal = 10.dp, vertical = 9.dp),
-        ) {
-            Text(airport?.city ?: code, style = monoStyle(colors.ink, 12))
-            Text(code, style = monoStyle(colors.muted, 10))
-        }
-        DropdownMenu(
-            expanded = open,
-            onDismissRequest = { open = false },
-            modifier = Modifier
-                .background(colors.panel)
-                .height(360.dp),
-        ) {
-            for (item in Airports.codesByCity) {
-                val ap = Airports[item] ?: continue
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            "${ap.city} (${ap.code})",
-                            style = monoStyle(
-                                if (item == code) colors.amber else colors.ink2,
-                                12,
-                            ),
-                        )
-                    },
-                    onClick = {
-                        onSelect(item)
-                        open = false
-                    },
-                )
             }
         }
     }

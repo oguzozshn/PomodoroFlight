@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.oguzozsahin.ucusmodu.data.Airport
 import com.oguzozsahin.ucusmodu.data.CoastDetail
 import com.oguzozsahin.ucusmodu.data.CoastlineShapes
 import com.oguzozsahin.ucusmodu.data.Coastlines
@@ -54,6 +55,12 @@ private const val TRANSITION_MS = 760
 
 /** Bu yakinlastirmadan sonra ince kiyi seridine gecilir. */
 private const val FINE_DETAIL_ZOOM = 2.2f
+
+/** Ayni anda kurede en fazla kac yer isaretlenir. */
+private const val MAX_MARKERS = 90
+
+/** Bunlarin kacinin adi yazilir. */
+private const val MAX_LABELS = 20
 
 /**
  * Kameranin bakis yonunden turetilen taban: dogu, kuzey ve yukari birim vektorleri.
@@ -111,11 +118,15 @@ fun GlobeMap(
     modifier: Modifier = Modifier,
     interactive: Boolean = false,
     state: GlobeState? = null,
+    places: List<Airport> = emptyList(),
+    highlighted: Set<String> = emptySet(),
+    onPlaceTap: ((Airport) -> Unit)? = null,
 ) {
     val textMeasurer = rememberTextMeasurer()
     val context = LocalContext.current
-    val fallbackState = rememberGlobeState()
-    val globe = state ?: fallbackState
+    // Isaretcilerin ekran konumu, dokunusu eslestirmek icin cizim sirasinda yazilir.
+    val markers = remember { MarkerHits() }
+    val zoom = state?.zoom ?: 1f
 
     // Rota noktalari yalnizca rota degisince yeniden hesaplanir.
     val routePoints = remember(route.key) {
@@ -126,7 +137,7 @@ fun GlobeMap(
     // Kiyi seritleri: kaba katman hemen, ince katman yakinlasinca yuklenir.
     var coarse by remember { mutableStateOf<CoastlineShapes?>(null) }
     var fine by remember { mutableStateOf<CoastlineShapes?>(null) }
-    val wantsFine = globe.zoom >= FINE_DETAIL_ZOOM
+    val wantsFine = (state?.zoom ?: 1f) >= FINE_DETAIL_ZOOM
 
     LaunchedEffect(Unit) {
         coarse = Coastlines.load(context, CoastDetail.COARSE)
@@ -163,33 +174,40 @@ fun GlobeMap(
         label = "ucus-orani",
     )
 
-    val gestures = if (!interactive) {
+    val gestures = if (!interactive || state == null) {
         Modifier
     } else {
         Modifier
             .pointerInput(Unit) {
-                detectTapGestures(onDoubleTap = { globe.toggleZoom() })
+                val reach = 26.dp.toPx()
+                detectTapGestures(
+                    onDoubleTap = { state.toggleZoom() },
+                    onTap = { offset ->
+                        markers.nearest(offset.x, offset.y, reach)?.let { onPlaceTap?.invoke(it) }
+                    },
+                )
             }
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoomChange, _ ->
-                    val radius = min(size.width, size.height) * 0.40f * globe.zoom
+                    val radius = min(size.width, size.height) * 0.40f * state.zoom
                     if (radius > 1f) {
-                        globe.rotateBy(
+                        state.rotateBy(
                             deltaLat = Math.toDegrees((pan.y / radius).toDouble()).toFloat(),
                             deltaLon = -Math.toDegrees((pan.x / radius).toDouble()).toFloat(),
                         )
                     }
-                    globe.zoomBy(zoomChange)
+                    state.zoomBy(zoomChange)
                 }
             }
     }
 
     Canvas(modifier.then(gestures)) {
         val baseRadius = min(size.width, size.height) * 0.40f
-        val r = baseRadius * globe.zoom
+        val r = baseRadius * zoom
+        val camera = state?.center ?: routeCamera
         val proj = Projection(
-            centerLat = (routeCamera.lat + globe.latOffset).coerceIn(-89.0, 89.0),
-            centerLon = routeCamera.lon + globe.lonOffset,
+            centerLat = camera.lat.coerceIn(-89.0, 89.0),
+            centerLon = camera.lon,
             cx = size.width / 2f,
             cy = size.height / 2f - 8.dp.toPx(),
             r = r,
@@ -275,6 +293,13 @@ fun GlobeMap(
         drawEndpoint(proj, routePoints.first(), route.origin.code, colors, textMeasurer, reveal.value)
         drawEndpoint(proj, routePoints.last(), route.dest.code, colors, textMeasurer, reveal.value)
 
+        // yerler
+        markers.items = if (places.isEmpty()) {
+            emptyList()
+        } else {
+            drawPlaces(proj, places, highlighted, zoom, colors, textMeasurer)
+        }
+
         // ucak
         val t = (animatedFraction * reveal.value).coerceAtMost(0.9999f).toDouble()
         val here = route.pointAt(t)
@@ -295,6 +320,96 @@ fun GlobeMap(
             }
         }
     }
+}
+
+/** Cizim sirasinda doldurulan, dokunus eslestirmede kullanilan isaretci listesi. */
+private class MarkerHits {
+    var items: List<Marker> = emptyList()
+
+    fun nearest(x: Float, y: Float, reach: Float): Airport? {
+        var best: Marker? = null
+        var bestDistance = reach * reach
+        for (marker in items) {
+            val dx = marker.x - x
+            val dy = marker.y - y
+            val distance = dx * dx + dy * dy
+            if (distance <= bestDistance) {
+                bestDistance = distance
+                best = marker
+            }
+        }
+        return best?.place
+    }
+}
+
+private class Marker(val x: Float, val y: Float, val place: Airport)
+
+/**
+ * Yerleri onem sirasina gore isaretler: uzaktan yalnizca buyuk havalimanlari,
+ * yakinlastikca kucukleri de gorunur. Secili olanlar her zaman cizilir.
+ */
+private fun DrawScope.drawPlaces(
+    proj: Projection,
+    places: List<Airport>,
+    highlighted: Set<String>,
+    zoom: Float,
+    colors: FlightColors,
+    measurer: androidx.compose.ui.text.TextMeasurer,
+): List<Marker> {
+    val maxRank = when {
+        zoom < 1.7f -> 0
+        zoom < 3f -> 1
+        else -> 2
+    }
+    val dot = 2.4.dp.toPx()
+    val labelGap = 5.dp.toPx()
+    val shown = ArrayList<Marker>(MAX_MARKERS)
+
+    for (place in places) {
+        val chosen = place.code in highlighted
+        if (!chosen) {
+            if (place.rank > maxRank) continue
+            if (shown.size >= MAX_MARKERS) continue
+        }
+        val p = proj.at(LatLon(place.lat, place.lon))
+        if (!p.visible) continue
+        if (p.x < 0f || p.y < 0f || p.x > size.width || p.y > size.height) continue
+
+        val color = if (chosen) colors.amber else colors.teal
+        drawCircle(color, radius = if (chosen) dot * 1.6f else dot, center = Offset(p.x, p.y))
+        if (chosen) {
+            drawCircle(
+                color.copy(alpha = 0.35f),
+                radius = dot * 3.2f,
+                center = Offset(p.x, p.y),
+                style = Stroke(1.4.dp.toPx()),
+            )
+        }
+        shown += Marker(p.x, p.y, place)
+    }
+
+    // Adlar yalnizca ilk birkac yer icin; kalabalik olmasin.
+    var labelled = 0
+    for (marker in shown) {
+        val chosen = marker.place.code in highlighted
+        if (!chosen && labelled >= MAX_LABELS) continue
+        if (!chosen && zoom < 1.35f && marker.place.rank > 0) continue
+        labelled++
+        val layout = measurer.measure(
+            AnnotatedString(marker.place.city),
+            style = TextStyle(
+                fontFamily = PlexMono,
+                fontWeight = if (chosen) FontWeight.Medium else FontWeight.Normal,
+                fontSize = if (chosen) 12.sp else 10.sp,
+                color = if (chosen) colors.amber else colors.ink.copy(alpha = 0.72f),
+            ),
+        )
+        drawText(
+            textLayoutResult = layout,
+            topLeft = Offset(marker.x + labelGap, marker.y - layout.size.height / 2f),
+        )
+    }
+    return shown
 }
 
 private fun DrawScope.drawEndpoint(
