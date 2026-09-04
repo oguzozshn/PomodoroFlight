@@ -191,7 +191,7 @@ fun RouteScreen(
                 }
             } else {
                 Text(
-                    "sürükle · çift dokun · şehre dokun",
+                    "sürükle · çift dokun · şehre dokun · +/− yakınlaştırır",
                     style = monoStyle(colors.muted, 10),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -209,13 +209,14 @@ fun RouteScreen(
             ) {
                 Text(
                     "%.1f×".format(globe.zoom),
-                    style = monoStyle(colors.muted, 10),
-                    modifier = Modifier.padding(end = 2.dp, bottom = 2.dp),
+                    style = monoStyle(colors.ink2, 11)
+                        .copy(background = colors.panel.copy(alpha = 0.85f)),
+                    modifier = Modifier.padding(bottom = 4.dp),
                 )
-                GhostButton("+", colors) {
+                ZoomButton("+", colors, enabled = globe.canZoomIn) {
                     scope.launch { globe.animateZoomTo(globe.zoom * 1.7f) }
                 }
-                GhostButton("−", colors) {
+                ZoomButton("−", colors, enabled = globe.canZoomOut) {
                     scope.launch { globe.animateZoomTo(globe.zoom / 1.7f) }
                 }
             }

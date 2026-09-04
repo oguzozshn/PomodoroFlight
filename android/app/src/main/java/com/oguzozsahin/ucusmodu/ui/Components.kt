@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -36,6 +37,7 @@ import com.oguzozsahin.ucusmodu.ui.theme.BarlowCondensed
 import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.headStyle
 import com.oguzozsahin.ucusmodu.ui.theme.labelStyle
+import com.oguzozsahin.ucusmodu.ui.theme.monoStyle
 
 val PanelShape = RoundedCornerShape(4.dp)
 
@@ -143,6 +145,31 @@ fun GhostButton(
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 5.dp),
     )
+}
+
+/** Kure uzerindeki kare yakinlastirma dugmesi; fareyle de rahat basilir. */
+@Composable
+fun ZoomButton(
+    symbol: String,
+    colors: FlightColors,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .size(38.dp)
+            .alpha(if (enabled) 1f else 0.35f)
+            .background(colors.panel.copy(alpha = 0.92f), PanelShape)
+            .border(1.dp, colors.line, PanelShape)
+            .clickable(enabled = enabled) { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            symbol,
+            style = monoStyle(colors.ink, 20, FontWeight.Light),
+        )
+    }
 }
 
 /** 15/25/50 gibi secenek gruplari icin segment dugmeleri. */

@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -215,16 +216,29 @@ fun GlobeMap(
                 }
             }
             .pointerInput(Unit) {
-                // Fare tekerlegi: emulatorde ve tarayici benzeri girdilerde yakinlastirir.
+                // Fare tekerlegi. Olay en bastaki asamada yakalanir; Main asamasina
+                // birakilirsa baska bir bilesen tuketip yutabiliyor.
                 awaitPointerEventScope {
                     while (true) {
-                        val event = awaitPointerEvent()
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
                         if (event.type != PointerEventType.Scroll) continue
-                        val change = event.changes.firstOrNull() ?: continue
-                        val delta = change.scrollDelta.y
+                        var delta = 0f
+                        var position = Offset.Zero
+                        for (change in event.changes) {
+                            // Bazi girdilerde tekerlek yatay eksene dusuyor.
+                            val amount = if (change.scrollDelta.y != 0f) {
+                                change.scrollDelta.y
+                            } else {
+                                change.scrollDelta.x
+                            }
+                            if (amount != 0f) {
+                                delta += amount
+                                position = change.position
+                            }
+                        }
                         if (delta == 0f) continue
-                        val factor = exp(-delta * 0.22f)
-                        zoomAnchored(state, markers, change.position.x, change.position.y, factor)
+                        val factor = exp(-delta.coerceIn(-4f, 4f) * 0.22f)
+                        zoomAnchored(state, markers, position.x, position.y, factor)
                         event.changes.forEach { it.consume() }
                     }
                 }
