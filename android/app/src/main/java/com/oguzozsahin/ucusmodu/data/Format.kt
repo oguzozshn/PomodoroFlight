@@ -25,3 +25,10 @@ fun formatHours(ms: Long): String =
 
 fun formatDate(time: Long): String =
     java.text.SimpleDateFormat("dd.MM.yyyy", TR).format(java.util.Date(time))
+
+/** Gun icindeki saat: "03:25" (ertesi gune tasiyorsa yaninda gun farki). */
+fun formatTimeOfDay(time: Long, now: Long = System.currentTimeMillis()): String {
+    val clock = java.text.SimpleDateFormat("HH:mm", TR).format(java.util.Date(time))
+    val days = ((time / 86_400_000L) - (now / 86_400_000L)).toInt()
+    return if (days > 0) "$clock (+$days gün)" else clock
+}

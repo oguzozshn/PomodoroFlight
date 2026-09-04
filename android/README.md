@@ -32,6 +32,21 @@ Havalimanı tablosu, ön tanımlı rotalar, 850 km/pomodoro ölçeği, `TKxxxx` 
 numarası üretimi ve 4 pomodoroda bir uzun mola döngüsü web sürümüyle birebir
 aynıdır; sayısal çıktılar orijinal JavaScript'e karşı doğrulanmıştır.
 
+## Uygulama akışı
+
+Gerçek bir uçuş günü gibi üç adım:
+
+1. **Terminal** (`ui/WelcomeScreen.kt`) — saat, küre, toplam istatistikler ve
+   **Yolculuğa başla**. Yarım kalmış bir rota varsa doğrudan devam edilebilir.
+2. **Rota seç** (`ui/RouteScreen.kt`) — hazır rotalar ya da kendi rotan; seçim
+   anında küreye yansır. Biniş kartında uçuş no, kapı, kalkış ve tahmini varış
+   saati, odakta geçecek süre ve gerçek uçuş süresi yazar. **Uçuşa başlat**.
+3. **Uçuş** (`ui/FlightScreen.kt`) — küre, sayaç, uçuş planı, ayarlar ve günlük.
+   Üstteki **Rota** düğmesi ikinci adıma döner.
+
+Geri tuşu bu zinciri tersten yürür; sayaç hangi ekranda olursanız olun işlemeye
+devam eder.
+
 ## Native olarak eklenenler
 
 - **Arka planda doğru sayaç:** süre duvar saatinden (`endAt`) türetilir, ekran

@@ -38,8 +38,7 @@ class MainActivity : ComponentActivity() {
             onAutoBreak = engine::setAutoBreak,
             onSound = engine::setSound,
             onClearLog = engine::clearLog,
-            onAutoStart = engine::setAutoStart,
-            consumeAutoStart = engine::consumeAutoStart,
+            onStart = engine::start,
         )
 
         setContent {

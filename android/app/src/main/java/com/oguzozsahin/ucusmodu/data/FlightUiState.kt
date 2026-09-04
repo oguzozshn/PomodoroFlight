@@ -11,7 +11,6 @@ data class FlightUiState(
     val focusMin: Int,
     val breakMin: Int,
     val autoBreak: Boolean,
-    val autoStart: Boolean,
     val sound: Boolean,
     val cycle: Int,
     val totalMs: Long,
