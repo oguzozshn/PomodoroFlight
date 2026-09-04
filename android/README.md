@@ -84,6 +84,15 @@ tabanında (doğu, kuzey, yukarı) bileşenlerine ayrılıp enlem tek bir sinüs
 denkleminden, boylam da yatay bileşenin dönme açısından bulunuyor. Denemede
 her ölçekte kayma tam olarak sıfır piksel çıktı.
 
+- **Atalet:** parmak kalkınca küre sönümlenerek dönmeye devam eder
+- **Gündüz/gece:** dünyanın karanlık yarısı gölgelenir. Alt-güneş noktası
+  `data/Sun.kt` ile hesaplanıyor (21 Haziran +23,44°, 21 Aralık −23,43°,
+  ekinoksta ekvator — astronomiyle doğrulandı). Gece bölgesinin sınırı
+  terminatörün görünen yayı ile onu kapatan ufuk yayından kuruluyor; poligon
+  18.000 noktada gerçekle karşılaştırıldı, tek sapma ufuk çizgisinin dibindeki
+  kiriş artefaktıydı, o da yayı %2 taşırıp küreye kırpılarak giderildi.
+- **İzler:** tamamlanan uçuşlar kürede soluk çizgiler olarak kalır.
+
 Diğer ekranlarda küre etkileşimsizdir ve rotayı takip eder.
 
 ## Yerler

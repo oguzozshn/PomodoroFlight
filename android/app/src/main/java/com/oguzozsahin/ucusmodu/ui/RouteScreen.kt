@@ -169,6 +169,7 @@ fun RouteScreen(
                 state = globe,
                 places = places,
                 highlighted = setOf(from, to),
+                trails = state.log.map { it.routeKey },
                 onPlaceTap = { choose(it) },
             )
 

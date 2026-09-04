@@ -106,6 +106,7 @@ fun WelcomeScreen(
                 route = state.route,
                 fraction = state.fraction,
                 colors = colors,
+                trails = state.log.map { it.routeKey },
                 modifier = Modifier.fillMaxSize(),
             )
         }

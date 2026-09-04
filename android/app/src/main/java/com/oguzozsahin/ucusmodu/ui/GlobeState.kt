@@ -10,6 +10,9 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import kotlin.math.abs
+import kotlin.math.exp
 import com.oguzozsahin.ucusmodu.data.LatLon
 
 /** Kure cerceveden kucuk gorunecek kadar uzaklasabilir, sehir olceginde yakinlasabilir. */
@@ -39,10 +42,50 @@ class GlobeState(initialLat: Float, initialLon: Float) {
     var untouched by mutableStateOf(true)
         private set
 
+    private var velocityLat = 0f
+    private var velocityLon = 0f
+    private var lastRotateNanos = 0L
+
     fun rotateBy(deltaLat: Float, deltaLon: Float) {
         untouched = false
+        // Birakinca donmeye devam etmesi icin anlik hiz olculur (derece/saniye).
+        val now = System.nanoTime()
+        val elapsed = (now - lastRotateNanos) / 1e9f
+        if (lastRotateNanos != 0L && elapsed > 0.001f && elapsed < 0.12f) {
+            velocityLat = 0.6f * velocityLat + 0.4f * (deltaLat / elapsed)
+            velocityLon = 0.6f * velocityLon + 0.4f * (deltaLon / elapsed)
+        }
+        lastRotateNanos = now
+
         lat = (lat + deltaLat).coerceIn(-89f, 89f)
         lon = wrapLongitude(lon + deltaLon)
+    }
+
+    /** Yeni dokunusta atalet kesilir. */
+    fun stopMomentum() {
+        velocityLat = 0f
+        velocityLon = 0f
+        lastRotateNanos = 0L
+    }
+
+    /** Parmak kalkinca kure sonumlenerek donmeye devam eder. */
+    suspend fun flingMomentum() {
+        var vLat = velocityLat
+        var vLon = velocityLon
+        stopMomentum()
+        if (abs(vLat) < 12f && abs(vLon) < 12f) return
+
+        var previous = withFrameNanos { it }
+        while (abs(vLat) > 3f || abs(vLon) > 3f) {
+            val now = withFrameNanos { it }
+            val step = ((now - previous) / 1e9).toFloat().coerceIn(0f, 0.05f)
+            previous = now
+            lat = (lat + vLat * step).coerceIn(-89f, 89f)
+            lon = wrapLongitude(lon + vLon * step)
+            val decay = exp(-3.4f * step)
+            vLat *= decay
+            vLon *= decay
+        }
     }
 
     /** Kamerayi dogrudan verilen noktaya tasir (sabitlemeli yakinlastirma icin). */

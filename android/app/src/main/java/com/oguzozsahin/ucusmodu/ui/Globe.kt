@@ -6,6 +6,8 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.runtime.Composable
@@ -13,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -45,8 +48,11 @@ import com.oguzozsahin.ucusmodu.data.CoastlineShapes
 import com.oguzozsahin.ucusmodu.data.Coastlines
 import com.oguzozsahin.ucusmodu.data.LatLon
 import com.oguzozsahin.ucusmodu.data.Route
+import com.oguzozsahin.ucusmodu.data.Sun
 import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.PlexMono
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -124,12 +130,15 @@ fun GlobeMap(
     state: GlobeState? = null,
     places: List<Airport> = emptyList(),
     highlighted: Set<String> = emptySet(),
+    /** Tamamlanmis ucuslarin rota anahtarlari; kurede soluk iz birakirlar. */
+    trails: List<String> = emptyList(),
     onPlaceTap: ((Airport) -> Unit)? = null,
 ) {
     val textMeasurer = rememberTextMeasurer()
     val context = LocalContext.current
     // Isaretcilerin ekran konumu, dokunusu eslestirmek icin cizim sirasinda yazilir.
     val markers = remember { MarkerHits() }
+    val momentum = remember { MomentumHolder() }
     val gestureScope = rememberCoroutineScope()
     val zoom = state?.zoom ?: 1f
 
@@ -138,6 +147,24 @@ fun GlobeMap(
         List(ROUTE_STEPS + 1) { i -> route.pointAt(i.toDouble() / ROUTE_STEPS) }
     }
     val graticule = remember { buildGraticule() }
+
+    // Tamamlanan ucuslarin izleri
+    val trailPoints = remember(trails) {
+        trails.asSequence()
+            .distinct()
+            .take(24)
+            .mapNotNull { Route.of(it) }
+            .map { route -> List(64) { i -> route.pointAt(i / 63.0) } }
+            .toList()
+    }
+
+    // Gunes konumu dakikada bir tazelenir; gunduz/gece siniri buna gore cizilir.
+    val sun by produceState(initialValue = Sun.subsolarPoint(System.currentTimeMillis())) {
+        while (true) {
+            value = Sun.subsolarPoint(System.currentTimeMillis())
+            delay(60_000L)
+        }
+    }
 
     // Kiyi seritleri: kaba katman hemen, ince katman yakinlasinca yuklenir.
     var coarse by remember { mutableStateOf<CoastlineShapes?>(null) }
@@ -183,6 +210,19 @@ fun GlobeMap(
         Modifier
     } else {
         Modifier
+            .pointerInput(Unit) {
+                // Parmak kalkinca kure sonumlenerek donmeye devam eder.
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    momentum.job?.cancel()
+                    state.stopMomentum()
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        if (event.changes.none { it.pressed }) break
+                    }
+                    momentum.job = gestureScope.launch { state.flingMomentum() }
+                }
+            }
             .pointerInput(Unit) {
                 val reach = 26.dp.toPx()
                 detectTapGestures(
@@ -297,6 +337,18 @@ fun GlobeMap(
                         cap = StrokeCap.Round,
                         join = StrokeJoin.Round,
                     ),
+                )
+            }
+
+            // gunduz/gece: dunyanin karanlik yarisi
+            drawNight(proj, sun, colors)
+
+            // tamamlanan ucuslarin izleri
+            for (points in trailPoints) {
+                drawPath(
+                    path = proj.pathOf(points),
+                    color = colors.amber.copy(alpha = 0.20f),
+                    style = Stroke(width = 1.2.dp.toPx(), cap = StrokeCap.Round),
                 )
             }
         }
@@ -465,6 +517,11 @@ private class MarkerHits {
 
 private class Marker(val x: Float, val y: Float, val place: Airport)
 
+/** Suren atalet animasyonunu tutar; yeni dokunusta iptal edilir. */
+private class MomentumHolder {
+    var job: Job? = null
+}
+
 /** Isaretlenmeye aday yer: ekran konumu ve ekranin ortasina uzakligi. */
 private class Candidate(
     val x: Float,
@@ -497,6 +554,132 @@ private fun zoomAnchored(
     // yakinlastirmakla yetinilir.
     val camera = markers.solveCamera(anchor, x, y, applied) ?: return
     state.moveTo(camera.lat, camera.lon)
+}
+
+/** Terminator yayini ornekleme adimi. */
+private const val TERMINATOR_STEPS = 180
+private const val LIMB_STEPS = 96
+
+/**
+ * Dunyanin gece yarisini golgeler. Gece bolgesinin siniri iki yaydan olusur:
+ * terminatorun gorunen parcasi ve onu kapatan ufuk yayi. Ufuk yayi kurenin
+ * disina biraz tasirilir; kirpma zaten daireye yapildigi icin kenarda ince
+ * bir serit kalmaz.
+ */
+private fun DrawScope.drawNight(proj: Projection, sun: LatLon, colors: FlightColors) {
+    val p = Math.toRadians(sun.lat)
+    val l = Math.toRadians(sun.lon)
+    val sx = (cos(p) * cos(l)).toFloat()
+    val sy = (cos(p) * sin(l)).toFloat()
+    val sz = sin(p).toFloat()
+
+    val sunUp = sx * proj.upX + sy * proj.upY + sz * proj.upZ
+    if (sunUp >= 0.99999f) return
+    val center = Offset(proj.cx, proj.cy)
+    if (sunUp <= -0.99999f) {
+        drawCircle(colors.night, radius = proj.r, center = center)
+        return
+    }
+
+    // terminator duzlemini geren iki dik birim vektor
+    val refX: Float
+    val refY: Float
+    val refZ: Float
+    if (kotlin.math.abs(sz) < 0.9f) {
+        refX = 0f; refY = 0f; refZ = 1f
+    } else {
+        refX = 1f; refY = 0f; refZ = 0f
+    }
+    var ax = sy * refZ - sz * refY
+    var ay = sz * refX - sx * refZ
+    var az = sx * refY - sy * refX
+    var length = kotlin.math.sqrt(ax * ax + ay * ay + az * az)
+    if (length < 1e-6f) return
+    ax /= length; ay /= length; az /= length
+
+    var bx = sy * az - sz * ay
+    var by = sz * ax - sx * az
+    var bz = sx * ay - sy * ax
+    length = kotlin.math.sqrt(bx * bx + by * by + bz * bz)
+    if (length < 1e-6f) return
+    bx /= length; by /= length; bz /= length
+
+    val visible = BooleanArray(TERMINATOR_STEPS)
+    for (i in 0 until TERMINATOR_STEPS) {
+        val t = 2.0 * Math.PI * i / TERMINATOR_STEPS
+        val c = cos(t).toFloat()
+        val s = sin(t).toFloat()
+        val vx = ax * c + bx * s
+        val vy = ay * c + by * s
+        val vz = az * c + bz * s
+        visible[i] = proj.visible(vx, vy, vz)
+    }
+
+    var start = -1
+    for (i in 0 until TERMINATOR_STEPS) {
+        val previous = (i - 1 + TERMINATOR_STEPS) % TERMINATOR_STEPS
+        if (visible[i] && !visible[previous]) {
+            start = i
+            break
+        }
+    }
+    if (start < 0) {
+        if (sunUp < 0f) drawCircle(colors.night, radius = proj.r, center = center)
+        return
+    }
+
+    val path = Path()
+    var firstX = 0f; var firstY = 0f; var firstZ = 0f
+    var lastX = 0f; var lastY = 0f; var lastZ = 0f
+    var count = 0
+    var i = start
+    while (visible[i % TERMINATOR_STEPS] && count <= TERMINATOR_STEPS) {
+        val t = 2.0 * Math.PI * (i % TERMINATOR_STEPS) / TERMINATOR_STEPS
+        val c = cos(t).toFloat()
+        val s = sin(t).toFloat()
+        val vx = ax * c + bx * s
+        val vy = ay * c + by * s
+        val vz = az * c + bz * s
+        val screenX = proj.screenX(vx, vy, vz)
+        val screenY = proj.screenY(vx, vy, vz)
+        if (count == 0) {
+            path.moveTo(screenX, screenY)
+            firstX = vx; firstY = vy; firstZ = vz
+        } else {
+            path.lineTo(screenX, screenY)
+        }
+        lastX = vx; lastY = vy; lastZ = vz
+        count++
+        i++
+    }
+    if (count < 2) return
+
+    // ufuk yayi: son noktadan ilk noktaya, gece tarafindan dolasarak
+    val angleFirst = atan2(
+        (firstX * proj.northX + firstY * proj.northY + firstZ * proj.northZ).toDouble(),
+        (firstX * proj.eastX + firstY * proj.eastY + firstZ * proj.eastZ).toDouble(),
+    )
+    val angleLast = atan2(
+        (lastX * proj.northX + lastY * proj.northY + lastZ * proj.northZ).toDouble(),
+        (lastX * proj.eastX + lastY * proj.eastY + lastZ * proj.eastZ).toDouble(),
+    )
+    var sweep = (angleFirst - angleLast).mod(2.0 * Math.PI)
+    val mid = angleLast + sweep / 2.0
+    val midX = proj.eastX * cos(mid).toFloat() + proj.northX * sin(mid).toFloat()
+    val midY = proj.eastY * cos(mid).toFloat() + proj.northY * sin(mid).toFloat()
+    val midZ = proj.eastZ * cos(mid).toFloat() + proj.northZ * sin(mid).toFloat()
+    if (midX * sx + midY * sy + midZ * sz > 0f) sweep -= 2.0 * Math.PI
+
+    val outer = proj.r * 1.02f
+    for (k in 1..LIMB_STEPS) {
+        val angle = angleLast + sweep * k / LIMB_STEPS
+        path.lineTo(
+            proj.cx + outer * cos(angle).toFloat(),
+            proj.cy - outer * sin(angle).toFloat(),
+        )
+    }
+    path.close()
+    drawPath(path, colors.night)
 }
 
 private fun DrawScope.drawPlaces(
