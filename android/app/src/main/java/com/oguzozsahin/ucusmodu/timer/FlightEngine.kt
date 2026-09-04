@@ -43,6 +43,7 @@ class FlightEngine private constructor(context: Context) {
     private var running: Boolean = false
     private var endAt: Long = 0L
     private var ticker: Job? = null
+    private var autoStartPending: Boolean = true
 
     private val alarmManager: AlarmManager? =
         app.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
@@ -64,6 +65,7 @@ class FlightEngine private constructor(context: Context) {
                 finishPhase(notify = recent)
             }
             if (running) {
+                autoStartPending = false
                 // Yeniden baslatma sonrasi alarm kaybolmus olabilir; tazeliyoruz.
                 scheduleAlarm(endAt)
                 startTicker()
@@ -138,6 +140,23 @@ class FlightEngine private constructor(context: Context) {
         if (!running && phase == Phase.BREAK) remaining = minutes * 60_000L
         persist()
         publish()
+    }
+
+    fun setAutoStart(enabled: Boolean) {
+        data = data.copy(autoStart = enabled)
+        persist()
+        publish()
+    }
+
+    /**
+     * Acilista otomatik kalkis hakkini bir kez verir: surec basina tek sefer,
+     * yalnizca sayac duruyorken ve rota tamamlanmamisken.
+     */
+    fun consumeAutoStart(): Boolean {
+        if (!autoStartPending) return false
+        autoStartPending = false
+        val current = snapshot()
+        return data.autoStart && !current.running && current.phase == Phase.FOCUS && !current.arrived
     }
 
     fun setAutoBreak(enabled: Boolean) {
@@ -283,6 +302,7 @@ class FlightEngine private constructor(context: Context) {
         focusMin = data.focusMin,
         breakMin = data.breakMin,
         autoBreak = data.autoBreak,
+        autoStart = data.autoStart,
         sound = data.sound,
         cycle = data.cycle,
         totalMs = data.totalMs,

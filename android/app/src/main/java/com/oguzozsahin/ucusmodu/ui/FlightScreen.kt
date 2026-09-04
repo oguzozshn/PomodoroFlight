@@ -1,5 +1,13 @@
 package com.oguzozsahin.ucusmodu.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -64,8 +72,11 @@ data class FlightActions(
     val onFocusMin: (Int) -> Unit,
     val onBreakMin: (Int) -> Unit,
     val onAutoBreak: (Boolean) -> Unit,
+    val onAutoStart: (Boolean) -> Unit,
     val onSound: (Boolean) -> Unit,
     val onClearLog: () -> Unit,
+    /** Acilista otomatik kalkis hakkini tuketir; surec basina yalnizca bir kez true doner. */
+    val consumeAutoStart: () -> Boolean,
 )
 
 @Composable
@@ -216,6 +227,8 @@ private fun StatusPill(state: FlightUiState, colors: FlightColors, modifier: Mod
         else -> "Kalkışa hazır"
     }
 
+    val animatedDot by animateColorAsState(dotColor, tween(400), label = "durum-noktasi")
+
     Row(
         modifier = modifier
             .background(colors.panel.copy(alpha = 0.86f), PanelShape)
@@ -226,10 +239,16 @@ private fun StatusPill(state: FlightUiState, colors: FlightColors, modifier: Mod
         Box(
             modifier = Modifier
                 .size(6.dp)
-                .background(dotColor, CircleShape),
+                .background(animatedDot, CircleShape),
         )
         Spacer(Modifier.width(7.dp))
-        Text(text, style = monoStyle(colors.ink2, 11))
+        AnimatedContent(
+            targetState = text,
+            transitionSpec = { fadeIn(tween(220)).togetherWith(fadeOut(tween(180))) },
+            label = "durum-metni",
+        ) { value ->
+            Text(value, style = monoStyle(colors.ink2, 11))
+        }
     }
 }
 
@@ -241,26 +260,32 @@ private fun Readout(state: FlightUiState, colors: FlightColors) {
             .background(colors.panel.copy(alpha = 0.94f))
             .border(1.dp, colors.lineSoft),
     ) {
-        ReadoutCell("Kat edilen", formatNumber(state.flownKm), "km", colors, Modifier.weight(1f))
-        ReadoutCell("Kalan", formatNumber(state.route.km - state.flownKm), "km", colors, Modifier.weight(1f))
-        ReadoutCell("İrtifa", formatNumber(state.altitudeM.toDouble()), "m", colors, Modifier.weight(1f))
-        ReadoutCell("Varışa", state.legsLeft.toString(), "pom", colors, Modifier.weight(1f))
+        ReadoutCell("Kat edilen", state.flownKm.toFloat(), "km", colors, Modifier.weight(1f))
+        ReadoutCell("Kalan", (state.route.km - state.flownKm).toFloat(), "km", colors, Modifier.weight(1f))
+        ReadoutCell("İrtifa", state.altitudeM.toFloat(), "m", colors, Modifier.weight(1f))
+        ReadoutCell("Varışa", state.legsLeft.toFloat(), "pom", colors, Modifier.weight(1f))
     }
 }
 
 @Composable
 private fun ReadoutCell(
     label: String,
-    value: String,
+    value: Float,
     unit: String,
     colors: FlightColors,
     modifier: Modifier = Modifier,
 ) {
+    // Deger sicramaz, sayarak yeni degere gider.
+    val shown by animateFloatAsState(
+        targetValue = value,
+        animationSpec = tween(durationMillis = 340, easing = FastOutSlowInEasing),
+        label = "gosterge-$label",
+    )
     Column(modifier = modifier.padding(vertical = 8.dp, horizontal = 6.dp)) {
         Text(label.uppercase(), style = labelStyle(colors.muted).copy(fontSize = 10.sp))
         Spacer(Modifier.height(2.dp))
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(value, style = monoStyle(colors.ink, 14))
+            Text(formatNumber(shown.toDouble()), style = monoStyle(colors.ink, 14))
             Text(unit, style = monoStyle(colors.muted, 10), modifier = Modifier.padding(start = 2.dp))
         }
     }
@@ -287,26 +312,45 @@ private fun TimerPanel(state: FlightUiState, colors: FlightColors, actions: Flig
         else -> "Molayı başlat"
     }
 
+    // Odakta kehribar, molada teal: faz degisimi renkten de okunur.
+    val accent by animateColorAsState(
+        targetValue = if (state.phase == Phase.FOCUS) colors.amber else colors.teal,
+        animationSpec = tween(500),
+        label = "faz-rengi",
+    )
+
     Panel(colors) {
         Column(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                phaseText.uppercase(),
-                style = labelStyle(colors.amber).copy(fontSize = 12.sp, letterSpacing = 2.6.sp),
-            )
+            AnimatedContent(
+                targetState = phaseText,
+                transitionSpec = { fadeIn(tween(260)).togetherWith(fadeOut(tween(200))) },
+                label = "faz-basligi",
+            ) { value ->
+                Text(
+                    value.uppercase(),
+                    style = labelStyle(accent).copy(fontSize = 12.sp, letterSpacing = 2.6.sp),
+                )
+            }
             Spacer(Modifier.height(10.dp))
             Text(
                 formatClock(state.remainingMs),
                 style = monoStyle(colors.ink, 68, FontWeight.Light),
             )
             Spacer(Modifier.height(8.dp))
-            Text(
-                subline,
-                style = monoStyle(colors.muted, 12),
-                textAlign = TextAlign.Center,
-            )
+            AnimatedContent(
+                targetState = subline,
+                transitionSpec = { fadeIn(tween(260)).togetherWith(fadeOut(tween(200))) },
+                label = "alt-satir",
+            ) { value ->
+                Text(
+                    value,
+                    style = monoStyle(colors.muted, 12),
+                    textAlign = TextAlign.Center,
+                )
+            }
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FlightButton(
@@ -535,6 +579,25 @@ private fun SettingsPanel(state: FlightUiState, colors: FlightColors, actions: F
                 SegmentedOptions(listOf(5, 10), state.breakMin, colors, onSelect = actions.onBreakMin)
             }
             Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Uygulama açılınca kalkışa geç",
+                    style = monoStyle(colors.ink2, 12),
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = state.autoStart,
+                    onCheckedChange = actions.onAutoStart,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = colors.panel,
+                        checkedTrackColor = colors.amber,
+                        uncheckedThumbColor = colors.muted,
+                        uncheckedTrackColor = colors.panel2,
+                        uncheckedBorderColor = colors.line,
+                    ),
+                )
+            }
+            Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Molalar kendiliğinden başlasın",

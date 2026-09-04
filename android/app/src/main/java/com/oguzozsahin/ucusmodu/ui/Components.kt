@@ -1,8 +1,13 @@
 package com.oguzozsahin.ucusmodu.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -16,10 +21,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -84,6 +92,15 @@ fun FlightButton(
     val border = if (primary) colors.amber else colors.line
     val ink = if (primary) colors.amber else colors.ink2
 
+    // Basinca hafifce icine cokme: dokunusun karsilik verdigi hissi.
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.955f else 1f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = 900f),
+        label = "dugme-basis",
+    )
+
     Text(
         text = text.uppercase(),
         style = labelStyle(ink).copy(
@@ -92,10 +109,19 @@ fun FlightButton(
             textAlign = TextAlign.Center,
         ),
         modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .alpha(if (enabled) 1f else 0.4f)
             .background(background, PanelShape)
             .border(1.dp, border, PanelShape)
-            .clickable(enabled = enabled) { onClick() }
+            .clickable(
+                interactionSource = interaction,
+                indication = LocalIndication.current,
+                enabled = enabled,
+                onClick = onClick,
+            )
             .padding(horizontal = 16.dp, vertical = 11.dp),
     )
 }

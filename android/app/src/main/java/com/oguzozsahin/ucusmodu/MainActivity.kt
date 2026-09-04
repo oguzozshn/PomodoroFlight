@@ -18,7 +18,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.oguzozsahin.ucusmodu.timer.FlightEngine
 import com.oguzozsahin.ucusmodu.timer.Notifications
 import com.oguzozsahin.ucusmodu.ui.FlightActions
-import com.oguzozsahin.ucusmodu.ui.FlightScreen
+import com.oguzozsahin.ucusmodu.ui.FlightRoot
 import com.oguzozsahin.ucusmodu.ui.theme.LocalFlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.UcusModuTheme
 
@@ -38,6 +38,8 @@ class MainActivity : ComponentActivity() {
             onAutoBreak = engine::setAutoBreak,
             onSound = engine::setSound,
             onClearLog = engine::clearLog,
+            onAutoStart = engine::setAutoStart,
+            consumeAutoStart = engine::consumeAutoStart,
         )
 
         setContent {
@@ -57,7 +59,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Surface(color = LocalFlightColors.current.ground) {
-                    FlightScreen(
+                    FlightRoot(
                         state = state,
                         actions = actions,
                         modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),

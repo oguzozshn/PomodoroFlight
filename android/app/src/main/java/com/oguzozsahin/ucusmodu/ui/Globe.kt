@@ -1,7 +1,16 @@
 package com.oguzozsahin.ucusmodu.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -27,10 +36,12 @@ import com.oguzozsahin.ucusmodu.data.Route
 import com.oguzozsahin.ucusmodu.data.project
 import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.PlexMono
+import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.min
 
 private const val ROUTE_STEPS = 240
+private const val TRANSITION_MS = 760
 
 /** Kurenin merkezi ve olcegi. */
 private data class Projection(
@@ -60,11 +71,38 @@ fun GlobeMap(
     }
     val graticule = remember { buildGraticule() }
 
+    // Kamera: rota degisince kure yeni merkeze donerek gider, zaplamaz.
+    val cameraFrom = remember { mutableStateOf(route.center) }
+    val cameraTo = remember { mutableStateOf(route.center) }
+    val spin = remember { Animatable(1f) }
+    val camera by remember {
+        derivedStateOf { lerpCenter(cameraFrom.value, cameraTo.value, spin.value) }
+    }
+    // Yeni rota bastan cizilerek belirir.
+    val reveal = remember { Animatable(1f) }
+
+    LaunchedEffect(route.key) {
+        if (cameraTo.value == route.center) return@LaunchedEffect
+        cameraFrom.value = camera
+        cameraTo.value = route.center
+        spin.snapTo(0f)
+        reveal.snapTo(0f)
+        launch { reveal.animateTo(1f, tween(TRANSITION_MS, easing = FastOutSlowInEasing)) }
+        spin.animateTo(1f, tween(TRANSITION_MS, easing = FastOutSlowInEasing))
+    }
+
+    // Ucagin adim adim degil, akici ilerlemesi icin araya animasyon konur.
+    val animatedFraction by animateFloatAsState(
+        targetValue = fraction,
+        animationSpec = tween(durationMillis = 300, easing = LinearEasing),
+        label = "ucus-orani",
+    )
+
     Canvas(modifier) {
         val r = min(size.width, size.height) * 0.40f
         val proj = Projection(
-            centerLat = route.center.lat,
-            centerLon = route.center.lon,
+            centerLat = camera.lat,
+            centerLon = camera.lon,
             cx = size.width / 2f,
             cy = size.height / 2f - 8.dp.toPx(),
             r = r,
@@ -109,11 +147,12 @@ fun GlobeMap(
         )
 
         // rota: once kalan (kesikli), sonra kat edilen (parlak)
-        val cut = (fraction * ROUTE_STEPS).toInt().coerceIn(0, ROUTE_STEPS)
+        val shown = (reveal.value * ROUTE_STEPS).toInt().coerceIn(0, ROUTE_STEPS)
+        val cut = (animatedFraction * ROUTE_STEPS).toInt().coerceIn(0, shown)
 
-        if (cut < ROUTE_STEPS) {
+        if (cut < shown) {
             drawPath(
-                path = proj.pathOf(routePoints.subList(maxOf(0, cut - 1), routePoints.size)),
+                path = proj.pathOf(routePoints.subList(maxOf(0, cut - 1), shown + 1)),
                 color = colors.muted,
                 style = Stroke(
                     width = 1.6.dp.toPx(),
@@ -132,11 +171,11 @@ fun GlobeMap(
         drawPath(flown, colors.amber, style = Stroke(2.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
 
         // kalkis ve varis noktalari
-        drawEndpoint(proj, routePoints.first(), route.origin.code, colors, textMeasurer)
-        drawEndpoint(proj, routePoints.last(), route.dest.code, colors, textMeasurer)
+        drawEndpoint(proj, routePoints.first(), route.origin.code, colors, textMeasurer, reveal.value)
+        drawEndpoint(proj, routePoints.last(), route.dest.code, colors, textMeasurer, reveal.value)
 
         // ucak
-        val t = fraction.coerceAtMost(0.9999f).toDouble()
+        val t = (animatedFraction * reveal.value).coerceAtMost(0.9999f).toDouble()
         val here = route.pointAt(t)
         val ahead = route.pointAt(min(1.0, t + 0.004))
         val p1 = proj.at(here)
@@ -163,12 +202,14 @@ private fun DrawScope.drawEndpoint(
     code: String,
     colors: FlightColors,
     measurer: androidx.compose.ui.text.TextMeasurer,
+    alpha: Float,
 ) {
     val q = proj.at(point)
-    if (!q.visible) return
+    if (!q.visible || alpha <= 0.01f) return
     val center = Offset(q.x, q.y)
-    drawCircle(colors.teal, radius = 4.5.dp.toPx(), center = center, style = Stroke(2.dp.toPx()))
-    drawCircle(colors.teal, radius = 1.6.dp.toPx(), center = center)
+    val teal = colors.teal.copy(alpha = alpha)
+    drawCircle(teal, radius = 4.5.dp.toPx(), center = center, style = Stroke(2.dp.toPx()))
+    drawCircle(teal, radius = 1.6.dp.toPx(), center = center)
 
     val layout = measurer.measure(
         AnnotatedString(code),
@@ -176,7 +217,7 @@ private fun DrawScope.drawEndpoint(
             fontFamily = PlexMono,
             fontWeight = FontWeight.Medium,
             fontSize = 11.sp,
-            color = colors.ink,
+            color = colors.ink.copy(alpha = alpha),
         ),
     )
     drawText(
@@ -243,6 +284,17 @@ private fun buildGraticule(): List<List<LatLon>> {
         lon += 20
     }
     return lines
+}
+
+/** Kamera gecisi: boylamda kisa yoldan donerek yumusak bir kure hareketi. */
+private fun lerpCenter(from: LatLon, to: LatLon, t: Float): LatLon {
+    var dLon = to.lon - from.lon
+    if (dLon > 180.0) dLon -= 360.0
+    if (dLon < -180.0) dLon += 360.0
+    return LatLon(
+        lat = from.lat + (to.lat - from.lat) * t,
+        lon = from.lon + dLon * t,
+    )
 }
 
 private fun equator(): List<LatLon> {

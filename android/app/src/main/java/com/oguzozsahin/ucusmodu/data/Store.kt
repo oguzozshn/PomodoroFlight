@@ -15,6 +15,7 @@ data class Persisted(
     val focusMin: Int = 25,
     val breakMin: Int = 5,
     val autoBreak: Boolean = true,
+    val autoStart: Boolean = true,
     val sound: Boolean = true,
     val cycle: Int = 0,
     val totalMs: Long = 0L,
@@ -64,6 +65,7 @@ class Store(context: Context) {
                 focusMin = focus,
                 breakMin = o.optInt("breakMin", 5),
                 autoBreak = o.optBoolean("autoBreak", true),
+                autoStart = o.optBoolean("autoStart", true),
                 sound = o.optBoolean("sound", true),
                 cycle = o.optInt("cycle", 0),
                 totalMs = o.optLong("totalMs", 0L),
@@ -97,6 +99,7 @@ class Store(context: Context) {
         o.put("focusMin", p.focusMin)
         o.put("breakMin", p.breakMin)
         o.put("autoBreak", p.autoBreak)
+        o.put("autoStart", p.autoStart)
         o.put("sound", p.sound)
         o.put("cycle", p.cycle)
         o.put("totalMs", p.totalMs)
