@@ -1,5 +1,9 @@
 # Uçuş Modu — Android
 
+> Bu dosya ayrıntılı geliştirici notlarıdır. Projenin genel tanıtımı ve
+> İngilizce girişi için depo kökündeki [`README.md`](../README.md) dosyasına
+> bakın.
+
 `ucus-modu.html` içindeki rota tabanlı pomodoro sayacının native Android sürümü:
 Kotlin + Jetpack Compose, tek ekran, çevrimdışı çalışır.
 
