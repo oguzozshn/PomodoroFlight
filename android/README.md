@@ -319,9 +319,12 @@ saat histogramı ve kart seviyesi eşikleri.
 ## Derlemeden önce
 
 Depoda Android SDK olmadığı için Compose katmanı burada derlenemiyor.
-`tools/lint_kotlin.py` derleyici olmadan yakalanabilen üç hata sınıfını tarar:
-dengesiz ayraçlar, tanımsız tür/fonksiyon adları ve JVM imza çakışmaları
-(`var zoom` ile `fun setZoom` aynı imzayı üretir).
+`tools/lint_kotlin.py` derleyici olmadan yakalanabilen dört hata sınıfını tarar:
+dengesiz ayraçlar, **dengesi tutan ama yuvalanması kaymış dosyalar** (kapanış
+parantezi yanlış fonksiyonun sonuna konunca aradaki bütün fonksiyonlar bir
+üstekinin içine gömülür; toplam sayı tuttuğu için ayraç sayımı yakalamaz),
+tanımsız tür/fonksiyon adları ve JVM imza çakışmaları (`var zoom` ile
+`fun setZoom` aynı imzayı üretir).
 
 ```bash
 python3 tools/lint_kotlin.py android/app/src/main/java

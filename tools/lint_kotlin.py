@@ -6,6 +6,9 @@ Bu depoda Android SDK bulunmadigi icin Compose katmani derlenemiyor; bu betik
 o katmanda gozden kacan birkac somut hata sinifini yakalar:
 
   1. Dengesiz ayraclar (yama sirasinda blok kaybi)
+  1b. Dengesi tutan ama yuvalanmasi kaymis dosya: ust duzey bir bildirim
+      baska bir fonksiyonun icinde kalmis (kapanis parantezi yanlis yere
+      konunca oluyor; toplam sayi tuttugu icin 1. madde yakalamiyor)
   2. Tanimsiz tur ve fonksiyon adlari (silinmis sinif, unutulmus import)
   3. JVM imza cakismasi ("var zoom" ile "fun setZoom" ayni imzayi uretir)
 
@@ -27,6 +30,13 @@ Color Modifier Offset Rect Size Dp TextStyle FontWeight Path Brush Stroke Fill C
 Column Spacer Switch Build Bundle Intent Context Notification Service Manifest R PendingIntent
 ByteBuffer ByteOrder JSONObject JSONArray File
 """.split())
+
+
+TOP_LEVEL = re.compile(
+    r'^(?:private |internal |public )?'
+    r'(?:suspend |inline |operator |data |sealed |abstract |open |value )*'
+    r'(?:fun|val|var|class|object|interface|enum class|typealias)\s'
+)
 
 
 def strip_comments_and_strings(src: str) -> str:
@@ -74,6 +84,23 @@ def main(root: str) -> int:
             delta = body.count(opener) - body.count(closer)
             if delta:
                 issues.append(f"{path}: dengesiz {opener}{closer} ({delta:+d})")
+
+        # Girintisiz baslayan bir bildirim ancak sifir derinlikte olabilir.
+        # Kapanis parantezi yanlis fonksiyonun sonuna konunca toplam sayi
+        # tutuyor ama aradaki butun fonksiyonlar bir ustekinin icine gomuluyor.
+        depth = 0
+        for number, line in enumerate(body.split('\n'), 1):
+            opened = depth
+            for ch in line:
+                if ch == '{':
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+            if TOP_LEVEL.match(line) and opened != 0:
+                issues.append(
+                    f"{path}:{number}: ust duzey bildirim {opened} blok icinde "
+                    f"kalmis - kapanis parantezi yanlis yerde"
+                )
 
         imported = {
             (m.group(2) or m.group(1).split('.')[-1])

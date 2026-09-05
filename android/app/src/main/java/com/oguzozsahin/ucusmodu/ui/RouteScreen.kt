@@ -295,6 +295,7 @@ fun RouteScreen(
             }
         }
     }
+    }
 }
 
 /** Kalkis ve varis yuvalari; dokununca hangisinin secildigi degisir. */
@@ -429,7 +430,6 @@ private fun SearchCard(
                 Text("Sonuç yok.", style = monoStyle(colors.muted, 11))
             }
         }
-    }
     }
 }
 
