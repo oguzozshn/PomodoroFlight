@@ -42,7 +42,7 @@ class FlightEngine private constructor(context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private var data: Persisted = store.load()
-    private var route: Route = Route.of(data.routeKey) ?: Route.of("IST-JFK")!!
+    private var route: Route = routeFor(data.routeKey, data.focusMin)
     private var remaining: Long = data.remainingMs
     private var phase: Phase = data.phase
     private var running: Boolean = false
@@ -135,7 +135,7 @@ class FlightEngine private constructor(context: Context) {
     }
 
     fun setRoute(key: String) {
-        val next = Route.of(key) ?: return
+        val next = Route.of(key, data.focusMin) ?: return
         pause()
         route = next
         data = data.copy(routeKey = next.key)
@@ -147,6 +147,9 @@ class FlightEngine private constructor(context: Context) {
 
     fun setFocusMin(minutes: Int) {
         data = data.copy(focusMin = minutes)
+        // Bacak sayisi pomodoro uzunluguna bagli; rota yeniden kurulmali.
+        // Ilerleme km olarak saklandigi icin bu degisiklikte hicbir sey kaybolmuyor.
+        route = routeFor(data.routeKey, minutes)
         if (!running && phase == Phase.FOCUS) remaining = minutes * 60_000L
         persist()
         publish()
@@ -205,8 +208,12 @@ class FlightEngine private constructor(context: Context) {
         publish()
     }
 
-    /** Gunlugu ve tum rota ilerlemesini siler. */
-    fun clearLog() {
+    /**
+     * Her seyi sifirlar: gunluk, butun rotalarin ilerlemesi, toplamlar ve
+     * gun bazli kayit dosyasi. Adi eskiden clearLog'du ama yaptigi is
+     * gunlugu temizlemekten cok daha genisti.
+     */
+    fun resetEverything() {
         pause()
         journal.clear()
         data = data.copy(log = emptyList(), progress = emptyMap(), totalMs = 0L, totalKm = 0.0, cycle = 0)
@@ -234,10 +241,27 @@ class FlightEngine private constructor(context: Context) {
     private fun finishPhase(notify: Boolean, skipped: Boolean = false) {
         val before = currentState()
         if (phase == Phase.FOCUS) {
-            val nextDone = (before.done + 1).coerceAtMost(route.legs)
+            // Varilmis rotada kazanilacak bacak kalmadi. Buraya yine de
+            // girilebiliyor (molada Atla, sonra tekrar Atla) ve eskiden her
+            // seferinde toplam km ile toplam odaga bir bacak ekliyordu:
+            // iki dokunusla bedava mesafe. Artik hicbir sey eklemeden doner.
+            if (before.arrived) {
+                setPhase(Phase.FOCUS)
+                TimerService.ensureStopped(app)
+                persist()
+                publish()
+                return
+            }
+
+            // Gercekte odakta gecen sure. Normal biten pomodoroda ayarlanan
+            // surenin tamami, atlanmisda kalanin dusuldugu kisim.
+            val focusedMs = (before.durationMsOf(Phase.FOCUS) - before.remainingMs)
+                .coerceIn(0L, before.durationMsOf(Phase.FOCUS))
+
+            val flown = (before.flownOnRoute + route.kmPerLeg).coerceAtMost(route.km)
             val progress = data.progress.toMutableMap()
-            progress[route.key] = nextDone
-            val arrivedNow = nextDone >= route.legs
+            progress[route.key] = flown
+            val arrivedNow = flown >= route.km - FlightUiState.ARRIVAL_EPSILON_KM
             val log = if (arrivedNow) {
                 listOf(LogEntry(route.key, route.km.roundToInt(), System.currentTimeMillis())) + data.log
             } else {
@@ -246,7 +270,9 @@ class FlightEngine private constructor(context: Context) {
             data = data.copy(
                 progress = progress,
                 log = log,
-                totalMs = data.totalMs + before.durationMsOf(Phase.FOCUS),
+                // Atlanan pomodoro odak sayilmaz: 25 dakikaligi ucuncu
+                // saniyede atlayinca "toplam odak" 25 dakika artmamali.
+                totalMs = data.totalMs + if (skipped) 0L else before.durationMsOf(Phase.FOCUS),
                 totalKm = data.totalKm + route.kmPerLeg,
                 cycle = (data.cycle + 1) % 4,
             )
@@ -257,7 +283,7 @@ class FlightEngine private constructor(context: Context) {
                 FocusRecord(
                     time = System.currentTimeMillis(),
                     routeKey = route.key,
-                    minutes = (before.durationMsOf(Phase.FOCUS) / 60_000L).toInt(),
+                    minutes = (focusedMs / 60_000L).toInt(),
                     km = route.kmPerLeg,
                     skipped = skipped,
                 ),
@@ -274,7 +300,7 @@ class FlightEngine private constructor(context: Context) {
                             "${formatNumber(route.km)} km. Günlüğe damga düştü.",
                     )
                 } else {
-                    val left = (route.legs - nextDone).coerceAtLeast(0)
+                    val left = Route.legsFor(route.km - flown, data.focusMin)
                     Notifications.alert(
                         app,
                         "Pomodoro tamam · mola",
@@ -366,6 +392,10 @@ class FlightEngine private constructor(context: Context) {
     }
 
     private fun now() = System.currentTimeMillis()
+
+    /** Kayitli rota okunamazsa varsayilana duser; ikisi de ayni odak uzunlugunda kurulur. */
+    private fun routeFor(key: String, focusMin: Int): Route =
+        Route.of(key, focusMin) ?: Route.of("IST-JFK", focusMin)!!
 
     private fun currentState() = snapshot()
 

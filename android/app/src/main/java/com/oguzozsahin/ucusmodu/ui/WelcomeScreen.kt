@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.R
 import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.KM_PER_MINUTE
 import com.oguzozsahin.ucusmodu.data.EARTH_CIRCUMFERENCE_KM
 import com.oguzozsahin.ucusmodu.data.currentLapFraction
 import com.oguzozsahin.ucusmodu.data.formatHours
@@ -128,7 +129,8 @@ fun WelcomeScreen(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "Bir rota seç, her pomodoro seni 850 km ileri taşısın. " +
+                "Bir rota seç, odakta geçen her dakika seni ${formatNumber(KM_PER_MINUTE)} km " +
+                    "ileri taşısın. " +
                     "Odaklandığın sürece uçak rotada ilerler.",
                 style = monoStyle(colors.muted, 12),
             )

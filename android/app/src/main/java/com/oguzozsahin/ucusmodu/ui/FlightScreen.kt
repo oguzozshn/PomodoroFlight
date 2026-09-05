@@ -35,6 +35,10 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
@@ -48,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.R
 import com.oguzozsahin.ucusmodu.data.Airports
 import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.KM_PER_MINUTE
 import com.oguzozsahin.ucusmodu.data.Phase
 import com.oguzozsahin.ucusmodu.data.formatClock
 import com.oguzozsahin.ucusmodu.data.formatDate
@@ -58,6 +63,7 @@ import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.LocalFlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.labelStyle
 import com.oguzozsahin.ucusmodu.ui.theme.monoStyle
+import kotlinx.coroutines.delay
 
 /** Ekranin disariya actigi eylemler. */
 data class FlightActions(
@@ -69,7 +75,8 @@ data class FlightActions(
     val onBreakMin: (Int) -> Unit,
     val onAutoBreak: (Boolean) -> Unit,
     val onSound: (Boolean) -> Unit,
-    val onClearLog: () -> Unit,
+    /** Gunlugu, ilerlemeyi ve toplamlari birden siler. */
+    val onResetEverything: () -> Unit,
     /** Sayaci dogrudan baslatir (bilet ekranindaki "Uçuşa başla" icin). */
     val onStart: () -> Unit,
     val onPassenger: (String) -> Unit,
@@ -107,7 +114,8 @@ fun FlightScreen(
         LogPanel(state, colors, actions, onLogbook)
 
         Text(
-            text = "Bir pomodoro ≈ 850 km seyir. İlerleme bu cihazda saklanır.",
+            text = "Odakta geçen her dakika ${formatNumber(KM_PER_MINUTE)} km seyir. " +
+                "İlerleme bu cihazda saklanır.",
             style = monoStyle(colors.muted, 11),
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
@@ -235,7 +243,8 @@ private fun StatusPill(state: FlightUiState, colors: FlightColors, modifier: Mod
     }
     val text = when {
         state.arrived -> "İniş yapıldı · ${state.route.dest.city}"
-        state.running && state.phase == Phase.FOCUS -> "Seyir halinde · 850 km/pom"
+        state.running && state.phase == Phase.FOCUS ->
+            "Seyir halinde · ${formatNumber(state.route.kmPerLeg)} km/pom"
         state.running -> "Mola · kabin ışıkları kısık"
         state.done > 0 -> "Beklemede · rotada tutuluyor"
         else -> "Kalkışa hazır"
@@ -374,7 +383,13 @@ private fun TimerPanel(state: FlightUiState, colors: FlightColors, actions: Flig
                     enabled = !(state.phase == Phase.FOCUS && state.arrived),
                     onClick = actions.onToggle,
                 )
-                FlightButton("Atla", colors, onClick = actions.onSkip)
+                // Varilmis rotada atlanacak bir sey yok.
+                FlightButton(
+                    text = "Atla",
+                    colors = colors,
+                    enabled = !(state.phase == Phase.FOCUS && state.arrived),
+                    onClick = actions.onSkip,
+                )
                 FlightButton("Sıfırla", colors, onClick = actions.onReset)
             }
             Spacer(Modifier.height(16.dp))
@@ -511,10 +526,30 @@ private fun LogPanel(
 ) {
     Panel(colors) {
         Column(Modifier.padding(14.dp)) {
+            // Silme iki dokunusla olur: ilk dokunusta dugme soru sorar,
+            // dort saniye icinde onaylanmazsa kendini geri alir. Tek dokunusla
+            // butun ilerlemenin gitmesi fazla pahali bir kaza.
+            var confirming by remember { mutableStateOf(false) }
+            LaunchedEffect(confirming) {
+                if (confirming) {
+                    delay(4000)
+                    confirming = false
+                }
+            }
             PanelHead("Uçuş günlüğü", colors) {
                 GhostButton("Tümü", colors, onClick = onLogbook)
                 Spacer(Modifier.width(6.dp))
-                GhostButton("Temizle", colors, onClick = actions.onClearLog)
+                GhostButton(
+                    text = if (confirming) "Emin misin?" else "Her şeyi sil",
+                    colors = colors,
+                ) {
+                    if (confirming) {
+                        actions.onResetEverything()
+                        confirming = false
+                    } else {
+                        confirming = true
+                    }
+                }
             }
             Spacer(Modifier.height(12.dp))
             Row {

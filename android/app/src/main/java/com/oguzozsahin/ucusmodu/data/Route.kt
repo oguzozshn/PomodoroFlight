@@ -25,13 +25,13 @@ data class Route(
 
     companion object {
 
-        fun of(key: String): Route? {
+        fun of(key: String, focusMin: Int = DEFAULT_FOCUS_MIN): Route? {
             val parts = key.split("-")
             if (parts.size != 2) return null
-            return of(parts[0], parts[1])
+            return of(parts[0], parts[1], focusMin)
         }
 
-        fun of(from: String, to: String): Route? {
+        fun of(from: String, to: String, focusMin: Int = DEFAULT_FOCUS_MIN): Route? {
             val o = PlaceRegistry.find(from) ?: return null
             val d = PlaceRegistry.find(to) ?: return null
             if (o.code == d.code) return null
@@ -43,7 +43,7 @@ data class Route(
                 origin = o,
                 dest = d,
                 km = km,
-                legs = max(1, (km / KM_PER_POMODORO).roundToInt()),
+                legs = legsFor(km, focusMin),
                 a = a,
                 b = b,
                 center = latLonOf(slerp(a, b, 0.5)),
@@ -58,7 +58,26 @@ data class Route(
             return "TK${1000 + n}"
         }
 
-        /** Rota gerektirmeden sadece mesafe/bacak sayisi hesaplar (liste gorunumleri icin). */
-        fun legsFor(km: Double): Int = max(1, (km / KM_PER_POMODORO).roundToInt())
+        /**
+         * Rotayi bitirmek icin kac pomodoro gerektigi. Pomodoro ne kadar
+         * uzunsa o kadar az bacak eder; toplam odak suresi ayni kalir.
+         */
+        fun legsFor(km: Double, focusMin: Int = DEFAULT_FOCUS_MIN): Int =
+            max(1, (km / (KM_PER_MINUTE * focusMin)).roundToInt())
+
+        /**
+         * Bacak sayisini kat edilen mesafeye cevirir; eski kayitlarin
+         * gocurulmesi icin.
+         *
+         * Bacak basina mesafe 850 km degil, rotanin kendi [kmPerLeg] degeri:
+         * bacak sayisi yuvarlanarak bulundugu icin ikisi ayni degil. IST-JFK
+         * 8026 km ve 9 bacak, yani bacak basina 892 km. 850 ile cevirmek
+         * kullanicinin ilerlemesini sessizce geri alirdi.
+         */
+        fun kmForLegs(routeKey: String, legs: Int, focusMin: Int = DEFAULT_FOCUS_MIN): Double {
+            if (legs <= 0) return 0.0
+            val route = of(routeKey, focusMin) ?: return legs * KM_PER_POMODORO
+            return (legs * route.kmPerLeg).coerceAtMost(route.km)
+        }
     }
 }

@@ -20,7 +20,8 @@ class StateTest {
         phase = phase,
         running = running,
         remainingMs = remainingMs,
-        progress = mapOf("IST-JFK" to done),
+        // Ilerleme km olarak saklaniyor; testler bacak sayisiyla konusuyor.
+        progress = mapOf("IST-JFK" to done * Route.of("IST-JFK")!!.kmPerLeg),
         log = emptyList(),
         focusMin = 25,
         breakMin = 5,

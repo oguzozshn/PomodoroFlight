@@ -7,8 +7,20 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/** Bir pomodoro boyunca kat edilen seyir mesafesi. */
+/** Olcegin tanimlandigi pomodoro uzunlugu (dakika). */
+const val DEFAULT_FOCUS_MIN = 25
+
+/** Varsayilan uzunlukta bir pomodoronun tasidigi mesafe. */
 const val KM_PER_POMODORO = 850.0
+
+/**
+ * Odakta gecen her dakikanin tasidigi mesafe.
+ *
+ * Olcek pomodoro sayisina degil sureye bagli: 50 dakikalik bir pomodoro
+ * 25 dakikaliginin iki kati yol alir. Boylece kat edilen yol gercekten
+ * harcanan odagin olcusu oluyor. Varsayilan uzunlukta rakamlar degismiyor.
+ */
+const val KM_PER_MINUTE = KM_PER_POMODORO / DEFAULT_FOCUS_MIN
 
 private const val EARTH_R = 6371.0
 

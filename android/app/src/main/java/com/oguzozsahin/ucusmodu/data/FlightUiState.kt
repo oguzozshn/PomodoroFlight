@@ -6,7 +6,14 @@ data class FlightUiState(
     val phase: Phase,
     val running: Boolean,
     val remainingMs: Long,
-    val progress: Map<String, Int>,
+    /**
+     * Rota anahtari -> o rotada kat edilen km.
+     *
+     * Bacak sayisi degil km saklaniyor: pomodoro uzunlugu degistiginde
+     * rotanin bacak sayisi da degisir, "8 bacaktan 5'i" gibi bir kayit o an
+     * anlamsizlasirdi. Kat edilen mesafe ise ayardan bagimsiz.
+     */
+    val progress: Map<String, Double>,
     val log: List<LogEntry>,
     val focusMin: Int,
     val breakMin: Int,
@@ -17,10 +24,19 @@ data class FlightUiState(
     val totalMs: Long,
     val totalKm: Double,
 ) {
-    /** Bu rotada tamamlanmis bacak sayisi. */
-    val done: Int get() = (progress[route.key] ?: 0).coerceIn(0, route.legs)
+    /** Bu rotada kat edilen mesafe. */
+    val flownOnRoute: Double get() = (progress[route.key] ?: 0.0).coerceIn(0.0, route.km)
 
-    val arrived: Boolean get() = done >= route.legs
+    /** Tamamlanmis bacak sayisi; gosterim icin mesafeden turetilir. */
+    val done: Int
+        get() {
+            if (route.kmPerLeg <= 0.0) return 0
+            return kotlin.math.floor(flownOnRoute / route.kmPerLeg + 1e-9)
+                .toInt()
+                .coerceIn(0, route.legs)
+        }
+
+    val arrived: Boolean get() = flownOnRoute >= route.km - ARRIVAL_EPSILON_KM
 
     val legsLeft: Int get() = (route.legs - done).coerceAtLeast(0)
 
@@ -35,10 +51,10 @@ data class FlightUiState(
     /** Rotanin ne kadari uculdu (0..1) — devam eden pomodoro da orantili sayilir. */
     val fraction: Float
         get() {
-            var f = done.toDouble() / route.legs
+            var f = if (route.km <= 0.0) 0.0 else flownOnRoute / route.km
             if (phase == Phase.FOCUS && !arrived) {
                 val elapsed = 1.0 - remainingMs.toDouble() / durationMsOf(Phase.FOCUS)
-                f += elapsed.coerceIn(0.0, 1.0) / route.legs
+                f += elapsed.coerceIn(0.0, 1.0) * (route.kmPerLeg / route.km)
             }
             return f.coerceIn(0.0, 1.0).toFloat()
         }
@@ -57,5 +73,8 @@ data class FlightUiState(
 
     companion object {
         const val LONG_BREAK_MIN = 15
+
+        /** Kayan noktali toplamada varisin kacmamasi icin birkac metrelik pay. */
+        const val ARRIVAL_EPSILON_KM = 0.001
     }
 }

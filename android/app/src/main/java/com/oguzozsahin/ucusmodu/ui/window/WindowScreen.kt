@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -308,9 +309,15 @@ private fun Hud(
                     modifier = Modifier.weight(1f),
                 )
                 // Sayaci durdurmak icin kabine donmek gerekmesin.
-                HudButton(if (state.running) "BEKLET" else "DEVAM", onClick = onToggle)
+                // Varilmis rotada sayac ilerlemez; iki dugme de kapanir.
+                val landed = state.phase == Phase.FOCUS && state.arrived
+                HudButton(
+                    text = if (state.running) "BEKLET" else "DEVAM",
+                    enabled = !landed,
+                    onClick = onToggle,
+                )
                 Spacer(Modifier.width(6.dp))
-                HudButton("ATLA", onClick = onSkip)
+                HudButton("ATLA", enabled = !landed, onClick = onSkip)
             }
         }
 
@@ -391,14 +398,15 @@ private fun ModePill(
 }
 
 @Composable
-private fun HudButton(text: String, onClick: () -> Unit) {
+private fun HudButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     Text(
         text = text,
         style = labelStyle(HudInk).copy(fontSize = 11.sp),
         modifier = Modifier
+            .alpha(if (enabled) 1f else 0.35f)
             .background(HudBackground, HudShape)
             .border(1.dp, Color(0x33FFFFFF), HudShape)
-            .clickable { onClick() }
+            .clickable(enabled = enabled) { onClick() }
             .padding(horizontal = 12.dp, vertical = 8.dp),
     )
 }

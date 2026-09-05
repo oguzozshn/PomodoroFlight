@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
             onBreakMin = engine::setBreakMin,
             onAutoBreak = engine::setAutoBreak,
             onSound = engine::setSound,
-            onClearLog = engine::clearLog,
+            onResetEverything = engine::resetEverything,
             onStart = engine::start,
             onPassenger = engine::setPassenger,
             onTicketPrinted = engine::vibrateTicket,

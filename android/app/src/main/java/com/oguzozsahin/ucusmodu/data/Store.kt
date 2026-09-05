@@ -10,7 +10,8 @@ import org.json.JSONObject
  */
 data class Persisted(
     val routeKey: String = "IST-JFK",
-    val progress: Map<String, Int> = emptyMap(),
+    /** Rota anahtari -> kat edilen km. */
+    val progress: Map<String, Double> = emptyMap(),
     val log: List<LogEntry> = emptyList(),
     val focusMin: Int = 25,
     val breakMin: Int = 5,
@@ -33,16 +34,26 @@ class Store(context: Context) {
         .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun load(): Persisted {
-        val raw = prefs.getString(KEY, null) ?: return Persisted()
+        // v2 ilerlemeyi km olarak tutuyor; v1 bacak sayisi tutuyordu. Eski
+        // kayit bulunursa bacaklar km'ye cevrilir — v1'de her bacak tam olarak
+        // bir varsayilan pomodoro, yani 850 km ediyordu.
+        val fromV2 = prefs.getString(KEY, null)
+        val raw = fromV2 ?: prefs.getString(LEGACY_KEY, null) ?: return Persisted()
+        val legacy = fromV2 == null
         return try {
             val o = JSONObject(raw)
+            val focus = o.optInt("focusMin", DEFAULT_FOCUS_MIN)
 
-            val progress = mutableMapOf<String, Int>()
+            val progress = mutableMapOf<String, Double>()
             o.optJSONObject("progress")?.let { p ->
                 val it = p.keys()
                 while (it.hasNext()) {
                     val k = it.next()
-                    progress[k] = p.optInt(k, 0)
+                    progress[k] = if (legacy) {
+                        Route.kmForLegs(k, p.optInt(k, 0), focus)
+                    } else {
+                        p.optDouble(k, 0.0)
+                    }
                 }
             }
 
@@ -57,7 +68,6 @@ class Store(context: Context) {
                 )
             }
 
-            val focus = o.optInt("focusMin", 25)
             Persisted(
                 routeKey = o.optString("route", "IST-JFK"),
                 progress = progress,
@@ -113,6 +123,9 @@ class Store(context: Context) {
 
     private companion object {
         const val PREFS = "ucus-modu"
-        const val KEY = "state-v1"
+        const val KEY = "state-v2"
+
+        /** Ilerlemeyi bacak sayisi olarak tutan eski kayit. */
+        const val LEGACY_KEY = "state-v1"
     }
 }

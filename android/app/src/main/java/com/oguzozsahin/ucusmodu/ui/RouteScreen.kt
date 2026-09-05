@@ -535,8 +535,17 @@ private fun PresetList(
             Spacer(Modifier.height(10.dp))
 
             for (preset in Presets.list) {
-                val presetRoute = remember(preset.key) { Route.of(preset.key) } ?: continue
-                val progress = (state.progress[preset.key] ?: 0).coerceAtMost(presetRoute.legs)
+                // Bacak sayisi odak uzunluguna bagli, rota ona gore kurulur.
+                val presetRoute = remember(preset.key, state.focusMin) {
+                    Route.of(preset.key, state.focusMin)
+                } ?: continue
+                // Ilerleme km olarak saklandigi icin bacaga burada cevriliyor.
+                val flown = (state.progress[preset.key] ?: 0.0).coerceIn(0.0, presetRoute.km)
+                val progress = if (presetRoute.km <= 0.0) {
+                    0
+                } else {
+                    kotlin.math.floor(flown / presetRoute.km * presetRoute.legs + 1e-9).toInt()
+                }
                 val selected = preset.key == state.route.key
 
                 Column(

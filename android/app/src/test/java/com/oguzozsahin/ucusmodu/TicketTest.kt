@@ -22,7 +22,8 @@ class TicketTest {
         phase = Phase.FOCUS,
         running = false,
         remainingMs = 25 * 60_000L,
-        progress = mapOf("IST-JFK" to done),
+        // Ilerleme km olarak saklaniyor; test bacak sayisiyla konusuyor.
+        progress = mapOf("IST-JFK" to done * Route.of("IST-JFK")!!.kmPerLeg),
         log = emptyList(),
         focusMin = 25,
         breakMin = 5,

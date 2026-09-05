@@ -29,9 +29,19 @@ cd android
 | Barlow · Barlow Condensed · IBM Plex Mono (CDN) | Aynı fontlar `res/font` içinde gömülü |
 | — | `ui/window/` — uçuş sırasında tam ekran pencere görünümü (web sürümünde yok) |
 
-Havalimanı tablosu, ön tanımlı rotalar, 850 km/pomodoro ölçeği, `TKxxxx` uçuş
-numarası üretimi ve 4 pomodoroda bir uzun mola döngüsü web sürümüyle birebir
-aynıdır; sayısal çıktılar orijinal JavaScript'e karşı doğrulanmıştır.
+Havalimanı tablosu, ön tanımlı rotalar, `TKxxxx` uçuş numarası üretimi ve
+4 pomodoroda bir uzun mola döngüsü web sürümüyle birebir aynıdır; sayısal
+çıktılar orijinal JavaScript'e karşı doğrulanmıştır.
+
+**Ölçek pomodoro sayısına değil süreye bağlı.** Web sürümünde her pomodoro
+sabit 850 km taşıyordu, yani odak süresini uzatmak mesafeyi değiştirmiyordu.
+Burada ölçek dakikaya bağlı: odakta geçen her dakika 34 km. Varsayılan
+25 dakikada rakamlar birebir aynı (25 × 34 = 850), ama 50 dakikalık bir
+pomodoro artık iki kat yol alıyor ve bir rotayı bitirmek için gereken toplam
+odak süresi pomodoro uzunluğundan bağımsız hale geliyor. İlerleme de bacak
+sayısı olarak değil kat edilen km olarak saklanıyor; böylece odak süresini
+değiştirmek yarım kalmış bir rotayı bozmuyor. Eski kayıtlar (`state-v1`) ilk
+açılışta rotanın kendi bacak uzunluğuyla km'ye çevriliyor.
 
 ## Uygulama akışı
 
@@ -249,7 +259,7 @@ uydurma olurdu, yapılmadı — ekranın altında kaydın ne zaman başladığı
 
 ```bash
 cd android
-./gradlew test          # 73 birim test, JVM'de çalışır, cihaz gerekmez
+./gradlew test          # 76 birim test, JVM'de çalışır, cihaz gerekmez
 ```
 
 `app/src/test/` altında saf mantık katmanının tamamı sınanıyor: küre
