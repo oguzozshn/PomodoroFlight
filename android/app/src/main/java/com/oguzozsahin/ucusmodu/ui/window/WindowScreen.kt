@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -57,6 +58,7 @@ import com.oguzozsahin.ucusmodu.data.WindowStore
 import com.oguzozsahin.ucusmodu.data.formatClock
 import com.oguzozsahin.ucusmodu.data.formatNumber
 import com.oguzozsahin.ucusmodu.data.vecOf
+import com.oguzozsahin.ucusmodu.ui.FlightActions
 import com.oguzozsahin.ucusmodu.ui.theme.LocalFlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.labelStyle
 import com.oguzozsahin.ucusmodu.ui.theme.monoStyle
@@ -82,6 +84,7 @@ private const val HUD_TIMEOUT_MS = 5000L
 @Composable
 fun WindowScreen(
     state: FlightUiState,
+    actions: FlightActions,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -90,7 +93,7 @@ fun WindowScreen(
     val store = remember { WindowStore(context) }
     var prefs by remember { mutableStateOf(store.load()) }
 
-    fun apply(next: WindowPrefs) {
+    fun savePrefs(next: WindowPrefs) {
         prefs = next
         store.save(next)
     }
@@ -106,7 +109,7 @@ fun WindowScreen(
                     Intent.FLAG_GRANT_READ_URI_PERMISSION,
                 )
             }
-            apply(prefs.copy(videoUri = uri.toString(), mode = WindowMode.VIDEO))
+            savePrefs(prefs.copy(videoUri = uri.toString(), mode = WindowMode.VIDEO))
         }
     }
 
@@ -127,9 +130,12 @@ fun WindowScreen(
 
     BackHandler { onExit() }
 
-    // Kanat isiklari ve calkanti icin akan saniye.
+    // Kanat isiklari, calkanti ve bulut kaymasi icin tek bir akan saniye.
+    // Kure kipinde kimse okumadigi icin sayac orada hic donmez.
     val seconds = remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
+    val needsClock = prefs.mode == WindowMode.REALTIME
+    LaunchedEffect(needsClock) {
+        if (!needsClock) return@LaunchedEffect
         val start = withFrameNanos { it }
         while (true) {
             val now = withFrameNanos { it }
@@ -137,14 +143,17 @@ fun WindowScreen(
         }
     }
 
-    // Gunes yuksekligi: kanadin tonu ve gece isiklari buna bagli.
+    // Gunes yuksekligi: kanadin tonu ve gece isiklari buna bagli. Ucagin yeri
+    // her saniye degistigi icin dongu ona baglanmaz, en son deger okunur:
+    // yoksa 30 saniyede bir donmesi gereken hesap saniyede bir bastan baslardi.
     var sunElevation by remember { mutableStateOf(0.0) }
     val here = state.route.pointAt(state.fraction.toDouble())
-    LaunchedEffect(here.lat, here.lon) {
+    val position = rememberUpdatedState(here)
+    LaunchedEffect(Unit) {
         while (true) {
             val sun = Sun.subsolarPoint(System.currentTimeMillis())
             val dir = vecOf(sun.lat, sun.lon)
-            val up = vecOf(here.lat, here.lon)
+            val up = vecOf(position.value.lat, position.value.lon)
             val dot = (dir.x * up.x + dir.y * up.y + dir.z * up.z).coerceIn(-1.0, 1.0)
             sunElevation = Math.toDegrees(asin(dot))
             delay(30_000L)
@@ -174,6 +183,7 @@ fun WindowScreen(
                 route = state.route,
                 fraction = state.fraction,
                 altitudeM = state.altitudeM,
+                time = { seconds.floatValue },
                 modifier = Modifier.fillMaxSize(),
             )
 
@@ -192,7 +202,7 @@ fun WindowScreen(
                     VideoWindow(
                         uri = Uri.parse(uri),
                         modifier = Modifier.fillMaxSize(),
-                        onFailed = { apply(prefs.copy(videoUri = "")) },
+                        onFailed = { savePrefs(prefs.copy(videoUri = "")) },
                     )
                 }
             }
@@ -205,7 +215,7 @@ fun WindowScreen(
                 // Videolarda ucagin kanadi zaten goruntude; ikinci kanat cizilmez.
                 showWing = prefs.showWing && prefs.mode == WindowMode.REALTIME,
                 showFrame = prefs.showFrame,
-                time = seconds.floatValue,
+                time = { seconds.floatValue },
                 night = palette.night,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -220,9 +230,11 @@ fun WindowScreen(
             Hud(
                 state = state,
                 prefs = prefs,
-                onMode = { apply(prefs.copy(mode = it)) },
-                onWing = { apply(prefs.copy(showWing = it)) },
-                onFrame = { apply(prefs.copy(showFrame = it)) },
+                onToggle = actions.onToggle,
+                onSkip = actions.onSkip,
+                onMode = { savePrefs(prefs.copy(mode = it)) },
+                onWing = { savePrefs(prefs.copy(showWing = it)) },
+                onFrame = { savePrefs(prefs.copy(showFrame = it)) },
                 onPickVideo = { picker.launch(arrayOf("video/*")) },
                 onExit = onExit,
             )
@@ -234,6 +246,8 @@ fun WindowScreen(
 private fun Hud(
     state: FlightUiState,
     prefs: WindowPrefs,
+    onToggle: () -> Unit,
+    onSkip: () -> Unit,
     onMode: (WindowMode) -> Unit,
     onWing: (Boolean) -> Unit,
     onFrame: (Boolean) -> Unit,
@@ -286,11 +300,18 @@ private fun Hud(
             Spacer(Modifier.height(8.dp))
             ProgressRail(state.fraction)
             Spacer(Modifier.height(8.dp))
-            Text(
-                text = "${formatNumber(state.flownKm)} / ${formatNumber(state.route.km)} km" +
-                    "   ·   ${formatNumber(state.altitudeM.toDouble())} m",
-                style = monoStyle(HudMuted, 11),
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "${formatNumber(state.flownKm)} / ${formatNumber(state.route.km)} km" +
+                        "   ·   ${formatNumber(state.altitudeM.toDouble())} m",
+                    style = monoStyle(HudMuted, 11),
+                    modifier = Modifier.weight(1f),
+                )
+                // Sayaci durdurmak icin kabine donmek gerekmesin.
+                HudButton(if (state.running) "BEKLET" else "DEVAM", onClick = onToggle)
+                Spacer(Modifier.width(6.dp))
+                HudButton("ATLA", onClick = onSkip)
+            }
         }
 
         Spacer(Modifier.height(10.dp))

@@ -4,12 +4,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -71,6 +69,12 @@ fun RealtimeWindow(
     route: Route,
     fraction: Float,
     altitudeM: Int,
+    /**
+     * Calkanti ve bulut kaymasi icin akan saniye. Deger degil, okuyucu geciyor:
+     * boylece saniye yalnizca cizim asamasinda okunur ve her karede butun
+     * pencere ekrani yeniden bestelenmez.
+     */
+    time: () -> Float,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -82,16 +86,6 @@ fun RealtimeWindow(
     }
 
     val places = remember { PlaceRegistry.all() }
-
-    // Bulutlar ve calkanti icin surekli akan zaman.
-    val seconds = remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
-        val start = withFrameNanos { it }
-        while (true) {
-            val now = withFrameNanos { it }
-            seconds.floatValue = ((now - start) / 1e9).toFloat()
-        }
-    }
 
     // Gunes konumu dakikada bir tazelenir; gunun saati gokyuzunun rengini belirler.
     val sun by produceState(initialValue = Sun.subsolarPoint(System.currentTimeMillis())) {
@@ -116,7 +110,7 @@ fun RealtimeWindow(
     val altitudeKm = altitudeM.coerceAtLeast(MIN_ALTITUDE_M) / 1000.0
 
     Canvas(modifier) {
-        val t = seconds.floatValue
+        val t = time()
         val camera = SkyCamera(
             lat = here.lat,
             lon = here.lon,
@@ -231,13 +225,11 @@ private fun DrawScope.drawWorld(
     if (hazeBottom > hazeTop) {
         drawRect(
             brush = Brush.verticalGradient(
-                colorStops = arrayOf(
-                    0f to palette.horizon.copy(alpha = 0.97f),
-                    0.10f to palette.horizon.copy(alpha = 0.74f),
-                    0.28f to palette.horizon.copy(alpha = 0.42f),
-                    0.58f to palette.horizon.copy(alpha = 0.20f),
-                    1f to palette.horizon.copy(alpha = 0.08f),
-                ),
+                0f to palette.horizon.copy(alpha = 0.97f),
+                0.10f to palette.horizon.copy(alpha = 0.74f),
+                0.28f to palette.horizon.copy(alpha = 0.42f),
+                0.58f to palette.horizon.copy(alpha = 0.20f),
+                1f to palette.horizon.copy(alpha = 0.08f),
                 startY = hazeTop,
                 endY = hazeBottom,
             ),

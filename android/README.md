@@ -186,6 +186,9 @@ Video uygulamanın içine kopyalanmaz, APK'ya da girmez: SAF ile seçtiğiniz
 dosyaya kalıcı okuma izni alınıp dosyanın kendisi okunur. Böylece depoda
 hiçbir telifli görüntü durmuyor ve istediğiniz çekimi kullanabiliyorsunuz.
 
+Göstergeler açıkken sayacı bekletip atlayabilirsiniz; pencereden çıkmak
+gerekmiyor.
+
 İyi bir pencere döngüsü için:
 
 - **Dikey (9:16)**, 15–40 saniye, kamera sabit

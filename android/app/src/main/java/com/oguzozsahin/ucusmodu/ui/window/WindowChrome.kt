@@ -32,13 +32,13 @@ fun WindowChrome(
     tint: Color,
     showWing: Boolean,
     showFrame: Boolean,
-    /** Gece isiklarinin yanip sonmesi icin akan saniye. */
-    time: Float,
+    /** Gece isiklarinin yanip sonmesi icin akan saniye; cizim aninda okunur. */
+    time: () -> Float,
     night: Float,
     modifier: Modifier = Modifier,
 ) {
     Canvas(modifier) {
-        if (showWing) drawWing(tint, time, night)
+        if (showWing) drawWing(tint, time(), night)
         if (showFrame) drawFrame() else drawVignette()
     }
 }

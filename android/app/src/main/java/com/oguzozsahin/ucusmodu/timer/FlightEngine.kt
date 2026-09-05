@@ -50,6 +50,16 @@ class FlightEngine private constructor(context: Context) {
     private val alarmManager: AlarmManager? =
         app.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
 
+    // Dikkat: init blogundan once kurulmali. Surec olmusken faz bitmisse init
+    // icinde finishPhase cagriliyor ve oradan buzz'a iniliyor; asagida dursaydi
+    // o yolda henuz null olurdu ve o titresim sessizce duserdi.
+    private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        (app.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        app.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    }
+
     private val _state = MutableStateFlow(snapshot())
     val state: StateFlow<FlightUiState> = _state.asStateFlow()
 
@@ -287,13 +297,6 @@ class FlightEngine private constructor(context: Context) {
         scope.launch(Dispatchers.Default) { Chime.play(kind) }
     }
 
-    private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        (app.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
-    } else {
-        @Suppress("DEPRECATION")
-        app.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-    }
-
     /**
      * Faz degisiminde kisa bir titresim. Ses kapaliyken de calisir: kabin
      * anonsunun sessiz karsiligi.
@@ -317,6 +320,9 @@ class FlightEngine private constructor(context: Context) {
     private fun startTicker() {
         stopTicker()
         ticker = scope.launch {
+            // Sayac 250 ms'de bir bakar ama ekranda yazan saniye degismedikce
+            // yeni durum yayinlamaz: dakikada 240 yerine 60 tazeleme.
+            var shownSecond = -1L
             while (isActive && running) {
                 val left = endAt - now()
                 if (left <= 0L) {
@@ -324,7 +330,11 @@ class FlightEngine private constructor(context: Context) {
                     finishPhase(notify = true)
                 } else {
                     remaining = left
-                    publish()
+                    val second = (left + 999L) / 1000L
+                    if (second != shownSecond) {
+                        shownSecond = second
+                        publish()
+                    }
                 }
                 delay(250L)
             }

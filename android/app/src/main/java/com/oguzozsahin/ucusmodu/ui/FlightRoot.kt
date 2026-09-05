@@ -111,6 +111,7 @@ fun FlightRoot(
 
             Stage.WINDOW -> WindowScreen(
                 state = state,
+                actions = actions,
                 onExit = { stage = Stage.FLIGHT },
             )
         }
