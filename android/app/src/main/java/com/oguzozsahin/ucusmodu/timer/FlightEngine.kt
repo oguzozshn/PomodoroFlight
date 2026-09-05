@@ -11,6 +11,8 @@ import android.os.VibratorManager
 import com.oguzozsahin.ucusmodu.audio.Chime
 import com.oguzozsahin.ucusmodu.audio.ChimeKind
 import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.FocusRecord
+import com.oguzozsahin.ucusmodu.data.Journal
 import com.oguzozsahin.ucusmodu.data.LogEntry
 import com.oguzozsahin.ucusmodu.data.Persisted
 import com.oguzozsahin.ucusmodu.data.Phase
@@ -49,6 +51,10 @@ class FlightEngine private constructor(context: Context) {
 
     private val alarmManager: AlarmManager? =
         app.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+
+    // Bu da vibrator gibi init'ten once kurulmali: surec olmusken faz bitmis
+    // olarak acilan yolda finishPhase gunluge yaziyor.
+    private val journal = Journal(app)
 
     // Dikkat: init blogundan once kurulmali. Surec olmusken faz bitmisse init
     // icinde finishPhase cagriliyor ve oradan buzz'a iniliyor; asagida dursaydi
@@ -124,7 +130,7 @@ class FlightEngine private constructor(context: Context) {
     /** Fazi erken bitirir; odak fazinda bacak tamamlanmis sayilir. */
     fun skip() {
         pause()
-        finishPhase(notify = false)
+        finishPhase(notify = false, skipped = true)
         publish()
     }
 
@@ -202,6 +208,7 @@ class FlightEngine private constructor(context: Context) {
     /** Gunlugu ve tum rota ilerlemesini siler. */
     fun clearLog() {
         pause()
+        journal.clear()
         data = data.copy(log = emptyList(), progress = emptyMap(), totalMs = 0L, totalKm = 0.0, cycle = 0)
         phase = Phase.FOCUS
         remaining = data.focusMin * 60_000L
@@ -224,7 +231,7 @@ class FlightEngine private constructor(context: Context) {
 
     // ---------------- ic isleyis ----------------
 
-    private fun finishPhase(notify: Boolean) {
+    private fun finishPhase(notify: Boolean, skipped: Boolean = false) {
         val before = currentState()
         if (phase == Phase.FOCUS) {
             val nextDone = (before.done + 1).coerceAtMost(route.legs)
@@ -242,6 +249,18 @@ class FlightEngine private constructor(context: Context) {
                 totalMs = data.totalMs + before.durationMsOf(Phase.FOCUS),
                 totalKm = data.totalKm + route.kmPerLeg,
                 cycle = (data.cycle + 1) % 4,
+            )
+
+            // Gunluge zaman damgali kayit: gun dagilimi, seri ve saat
+            // histogrami ancak buradan cikiyor.
+            journal.append(
+                FocusRecord(
+                    time = System.currentTimeMillis(),
+                    routeKey = route.key,
+                    minutes = (before.durationMsOf(Phase.FOCUS) / 60_000L).toInt(),
+                    km = route.kmPerLeg,
+                    skipped = skipped,
+                ),
             )
             if (notify) {
                 val kind = if (arrivedNow) ChimeKind.LAND else ChimeKind.LEVEL

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -52,6 +53,7 @@ fun WelcomeScreen(
     state: FlightUiState,
     onStartJourney: () -> Unit,
     onResume: () -> Unit,
+    onLogbook: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalFlightColors.current
@@ -150,7 +152,8 @@ fun WelcomeScreen(
             )
         }
 
-        Panel(colors) {
+        // Panelin tamami mil bildirimine acilan kapi.
+        Panel(colors, modifier = Modifier.clickable { onLogbook() }) {
             Column(Modifier.padding(14.dp)) {
                 Row {
                     Stat("Toplam odak", formatHours(state.totalMs), colors, Modifier.weight(1f))
@@ -159,6 +162,11 @@ fun WelcomeScreen(
                 }
                 Spacer(Modifier.height(16.dp))
                 WorldTour(state.totalKm, colors)
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "MİL BİLDİRİMİNİ AÇ  →",
+                    style = labelStyle(colors.amber).copy(fontSize = 10.sp),
+                )
             }
         }
     }

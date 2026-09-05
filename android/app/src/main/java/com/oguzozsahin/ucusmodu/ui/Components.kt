@@ -51,6 +51,9 @@ import kotlin.math.ln
 
 val PanelShape = RoundedCornerShape(4.dp)
 
+/** Kucuk isaretlerin (isi haritasi hucresi, ilerleme rayi) kose yuvarlamasi. */
+val CellShape = RoundedCornerShape(2.dp)
+
 /** Web surumundeki ".panel": ince cerceveli, koseleri az yuvarlatilmis kart. */
 @Composable
 fun Panel(

@@ -35,6 +35,12 @@ data class FlightColors(
     val coast: Color,
     val lake: Color,
     val night: Color,
+    /**
+     * Isi haritasinin tek renkli merdiveni: bostan yoguna dogru bes basamak.
+     * Karanlik temada merdiven ters yone tirmanir — koyu zeminde "daha cok",
+     * daha koyu degil daha parlak demektir.
+     */
+    val heat: List<Color>,
 )
 
 val LightFlightColors = FlightColors(
@@ -58,6 +64,13 @@ val LightFlightColors = FlightColors(
     coast = Color(0xFF9AA894),
     lake = Color(0xFFC2D7E6),
     night = Color(0x38102338),
+    heat = listOf(
+        Color(0xFFE7ECF2),
+        Color(0xFFF6E0BE),
+        Color(0xFFE9BE7E),
+        Color(0xFFCF9231),
+        Color(0xFFA25908),
+    ),
 )
 
 val DarkFlightColors = FlightColors(
@@ -81,6 +94,13 @@ val DarkFlightColors = FlightColors(
     coast = Color(0xFF4A6C8C),
     lake = Color(0xFF0F2B42),
     night = Color(0x59000814),
+    heat = listOf(
+        Color(0xFF1A2536),
+        Color(0xFF4B3A21),
+        Color(0xFF8B6526),
+        Color(0xFFC5903B),
+        Color(0xFFF2B457),
+    ),
 )
 
 val LocalFlightColors = staticCompositionLocalOf { LightFlightColors }

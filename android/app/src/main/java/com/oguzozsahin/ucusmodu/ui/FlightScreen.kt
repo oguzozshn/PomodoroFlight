@@ -85,6 +85,7 @@ fun FlightScreen(
     actions: FlightActions,
     onChangeRoute: () -> Unit,
     onWindow: () -> Unit,
+    onLogbook: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalFlightColors.current
@@ -103,7 +104,7 @@ fun FlightScreen(
         TimerPanel(state, colors, actions)
         FlightPlanPanel(state, colors)
         SettingsPanel(state, colors, actions)
-        LogPanel(state, colors, actions)
+        LogPanel(state, colors, actions, onLogbook)
 
         Text(
             text = "Bir pomodoro ≈ 850 km seyir. İlerleme bu cihazda saklanır.",
@@ -502,10 +503,17 @@ private fun SettingsPanel(state: FlightUiState, colors: FlightColors, actions: F
 }
 
 @Composable
-private fun LogPanel(state: FlightUiState, colors: FlightColors, actions: FlightActions) {
+private fun LogPanel(
+    state: FlightUiState,
+    colors: FlightColors,
+    actions: FlightActions,
+    onLogbook: () -> Unit,
+) {
     Panel(colors) {
         Column(Modifier.padding(14.dp)) {
             PanelHead("Uçuş günlüğü", colors) {
+                GhostButton("Tümü", colors, onClick = onLogbook)
+                Spacer(Modifier.width(6.dp))
                 GhostButton("Temizle", colors, onClick = actions.onClearLog)
             }
             Spacer(Modifier.height(12.dp))

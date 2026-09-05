@@ -197,11 +197,59 @@ gerekmiyor.
 - Sesi olmasın (uygulama zaten susturur), 720×1280 fazlasıyla yeter
 - Günün farklı saatleri için ayrı dosyalar: gündüz, gün batımı, gece
 
+## Mil bildirimi
+
+Terminal ekranındaki istatistik paneline (ya da uçuş günlüğündeki **Tümü**
+düğmesine) dokununca açılır. Kasıtlı olarak diğer pomodoro uygulamalarının
+çubuk grafiğine benzemiyor: bu uygulamada dakikalar zaten mesafeye ve rotaya
+çevrildiği için havayolu bildirimi daha doğru bir çerçeve.
+
+- **Uçuş kartı** — toplam mil ve kart seviyesi (Classic / Silver / Elite /
+  Elite Plus, eşikler dünya turuna bağlı), bir sonrakine kalan mesafe
+- **Dünya turu** — kaçıncı turda, turun neresinde
+- **Uçuş haritası** — uçtuğunuz bütün rotaların izi küre üzerinde
+- **Rakamlar** — seri, aktif gün, kayıtlı odak, tamamlanan uçuş, uğranan yer,
+  en yoğun gün
+- **Uçuş takvimi** — son 12 haftanın günlük yoğunluğu; bir güne dokununca
+  o günün sayısı altta yazar
+- **Saat dağılımı** — günün hangi saatlerinde çalıştığınız, en verimli aralık
+  vurgulu
+- **En çok uçulan hat** ve **uçuş günlüğü**
+
+### Günlük kayıt
+
+Toplam sayaçlar (`totalKm`, `totalMs`) gün bilgisi taşımıyor, uçuş günlüğüne de
+damga yalnızca bir rota *tamamen* bittiğinde düşüyordu. Gün bazlı her şey bu
+yüzden yeni bir eklemeli kayda dayanıyor: `filesDir/ucus-gunlugu.tsv`,
+tamamlanan her odak pomodorosu için bir satır.
+
+```
+# ucus-gunlugu v1: zaman	rota	dakika	km	atlandi
+1757030400000	IST-JFK	25	850.0	0
+```
+
+`Store` içindeki JSON blob'una konmadı: o blob 12 ayrı yerden `persist()` ile
+baştan yazılıyor, büyüyen bir listeyi oraya koymak her duraklatmada bütün
+geçmişi yeniden yazmak olurdu. Room da alınmadı — günde 20 pomodoro yılda
+~250 KB eden bir veri için yeni bir bağımlılık ve şema ağır kaçıyor. Depodaki
+`UMC1`/`UMP2` ikili biçimleri taklit edilmedi çünkü onlar APK'ya gömülen salt
+okunur varlıklar; bu ise kullanıcının kendi verisi, `adb shell cat` ile
+okunabilmesi daha değerli. Dosya 4 MB'ı geçerse son 50.000 kayıt tutulur.
+
+**ATLA ile geçilen pomodoro** kayda düşer ama işaretlenir: seriye, günlük
+toplama ve saat dağılımına girmez. Mesafe ve rota ilerlemesi eskisi gibi
+işler — orada bir davranış değişikliği yok.
+
+**Geriye dönük veri gelmez.** Toplam mil ve uçuş günlüğü baştan beri gerçek,
+duruyorlar; gün bazlı görünümler kayıt başladığı andan itibaren dolar. Mevcut
+varış damgalarından sahte pomodoro kayıtları üretilebilirdi ama tarihleri
+uydurma olurdu, yapılmadı — ekranın altında kaydın ne zaman başladığı yazıyor.
+
 ## Testler
 
 ```bash
 cd android
-./gradlew test          # 55 birim test, JVM'de çalışır, cihaz gerekmez
+./gradlew test          # 73 birim test, JVM'de çalışır, cihaz gerekmez
 ```
 
 `app/src/test/` altında saf mantık katmanının tamamı sınanıyor: küre
@@ -212,7 +260,10 @@ irtifa, kalan bacak), ikili varlık biçimleri ve Türkçe duyarlı arama
 (Gaziemir → İzmir, Munich → Münih) ve bilet üretimi (koltuk kararlılığı,
 saat sıralaması, barkod deseni). Pencere kamerası da buradan sınanıyor:
 ufuk düşme açısı, odak uzaklığı, izdüşüm ve tersi, eğimli ufkun yüksekliği —
-hepsi kapalı formüllere karşı ölçülüyor.
+hepsi kapalı formüllere karşı ölçülüyor. Günlük kaydı da öyle: satır biçiminin
+gidiş-dönüşü, bozuk satırların elenmesi, ondalık ayracın makineden bağımsız
+olması, seri hesabı (boşluk, gün sınırı, yerel saat dilimi), günlük kutular,
+saat histogramı ve kart seviyesi eşikleri.
 
 ## Derlemeden önce
 
