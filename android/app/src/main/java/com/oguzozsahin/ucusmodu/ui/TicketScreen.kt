@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.data.Ticket
+import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.data.formatDuration
 import com.oguzozsahin.ucusmodu.data.formatNumber
 import com.oguzozsahin.ucusmodu.data.formatTimeOfDay
@@ -326,7 +327,7 @@ private fun Field(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        Text(label.uppercase(), style = labelStyle(colors.muted).copy(fontSize = 9.sp))
+        Text(label.upperTr(), style = labelStyle(colors.muted).copy(fontSize = 9.sp))
         Spacer(Modifier.height(2.dp))
         Text(value, style = monoStyle(colors.ink, 13, FontWeight.Medium))
     }

@@ -13,8 +13,12 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.oguzozsahin.ucusmodu.data.WindowStore
 import com.oguzozsahin.ucusmodu.timer.FlightEngine
 import com.oguzozsahin.ucusmodu.timer.Notifications
 import com.oguzozsahin.ucusmodu.ui.FlightActions
@@ -44,8 +48,13 @@ class MainActivity : ComponentActivity() {
             onTearTick = engine::vibrateTick,
         )
 
+        val windowStore = WindowStore(this)
+
         setContent {
-            UcusModuTheme {
+            // Tema tercihi burada tutuluyor: degisince butun agac yeniden renklenir.
+            var theme by rememberSaveable { mutableStateOf(windowStore.loadTheme()) }
+
+            UcusModuTheme(choice = theme) {
                 val state by engine.state.collectAsStateWithLifecycle()
 
                 val permissionLauncher = rememberLauncherForActivityResult(
@@ -64,6 +73,11 @@ class MainActivity : ComponentActivity() {
                     FlightRoot(
                         state = state,
                         actions = actions,
+                        theme = theme,
+                        onTheme = {
+                            theme = it
+                            windowStore.saveTheme(it)
+                        },
                         modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
                     )
                 }

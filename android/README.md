@@ -255,11 +255,29 @@ duruyorlar; gün bazlı görünümler kayıt başladığı andan itibaren dolar.
 varış damgalarından sahte pomodoro kayıtları üretilebilirdi ama tarihleri
 uydurma olurdu, yapılmadı — ekranın altında kaydın ne zaman başladığı yazıyor.
 
+## Gezinme ve görünüm
+
+Ekranlar arası geçiş gerçek bir yığın tutuyor (`ui/FlightRoot.kt`): geri tuşu
+nereden gelindiğini biliyor. Önce sabit bir "ebeveyn" tablosu vardı ve
+terminalden uçuşa devam edip geri basınca rota seçimine düşülüyordu.
+Bilet koparılınca yığından düşürülür — geri tuşu yırtık bilete dönmez.
+
+Çıkış her ekranda aynı yerde: **sol üstte "← Geri"**. Geri alınamayan tek
+eylem (her şeyi sil) gezinme düğmelerinden ayrı, kendi satırında ve tehlike
+renginde; iki dokunuşla onaylanır.
+
+Görünüm **Sistem / Açık / Koyu** olarak ayarlardan seçilir ve cihazda saklanır.
+Karanlık palet baştan beri vardı ama yalnızca sistem ayarını izliyordu.
+
+Türkçe büyük harf için `String.upperTr()` kullanılır: Kotlin'in `uppercase()`
+fonksiyonu yerelden bağımsız çalışıp `i` harfini `I` yapıyor, ekranda
+"BILET KES" ve "HER ŞEYI SIL" yazıyordu.
+
 ## Testler
 
 ```bash
 cd android
-./gradlew test          # 78 birim test, JVM'de çalışır, cihaz gerekmez
+./gradlew test          # 79 birim test, JVM'de çalışır, cihaz gerekmez
 ```
 
 `app/src/test/` altında saf mantık katmanının tamamı sınanıyor: küre

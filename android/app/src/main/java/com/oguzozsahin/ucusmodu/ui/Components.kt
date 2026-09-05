@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.ui.theme.BarlowCondensed
+import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.headStyle
 import com.oguzozsahin.ucusmodu.ui.theme.labelStyle
@@ -81,7 +82,7 @@ fun PanelHead(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title.uppercase(), style = headStyle(colors.ink))
+        Text(title.upperTr(), style = headStyle(colors.ink))
         Spacer(Modifier.width(10.dp))
         Row(
             modifier = Modifier.weight(1f),
@@ -117,7 +118,7 @@ fun FlightButton(
     )
 
     Text(
-        text = text.uppercase(),
+        text = text.upperTr(),
         style = labelStyle(ink).copy(
             fontSize = 14.sp,
             fontWeight = if (primary) FontWeight.SemiBold else FontWeight.Medium,
@@ -150,11 +151,33 @@ fun GhostButton(
     onClick: () -> Unit,
 ) {
     Text(
-        text = text.uppercase(),
+        text = text.upperTr(),
         style = labelStyle(colors.ink2).copy(fontSize = 12.sp),
         modifier = modifier
             .background(colors.panel2, PanelShape)
             .border(1.dp, colors.line, PanelShape)
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    )
+}
+
+/**
+ * Geri alinamayan eylemin dugmesi. Gezinme dugmeleriyle ayni agirlikta
+ * olmasin diye ayri: rengi ve cercevesi tehlike rengiyle.
+ */
+@Composable
+fun DangerButton(
+    text: String,
+    colors: FlightColors,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = text.upperTr(),
+        style = labelStyle(colors.danger).copy(fontSize = 12.sp),
+        modifier = modifier
+            .background(colors.danger.copy(alpha = 0.08f), PanelShape)
+            .border(1.dp, colors.danger.copy(alpha = 0.55f), PanelShape)
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 5.dp),
     )

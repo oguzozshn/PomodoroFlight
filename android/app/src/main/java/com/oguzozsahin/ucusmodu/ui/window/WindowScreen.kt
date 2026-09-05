@@ -51,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.data.Phase
 import com.oguzozsahin.ucusmodu.data.Sun
 import com.oguzozsahin.ucusmodu.data.WindowMode
@@ -163,8 +164,11 @@ fun WindowScreen(
     val palette = paletteFor(sunElevation)
 
     var hudVisible by remember { mutableStateOf(true) }
-    LaunchedEffect(hudVisible, prefs.mode) {
+    LaunchedEffect(hudVisible, prefs.mode, prefs.hintSeen) {
         if (!hudVisible) return@LaunchedEffect
+        // Ilk giriste gostergeler kendiliginden kaybolmaz: ekranda ciplak
+        // gokyuzuyle kalan biri geri gelmeyi bilmeden sikisip kaliyordu.
+        if (!prefs.hintSeen) return@LaunchedEffect
         delay(HUD_TIMEOUT_MS)
         if (prefs.mode != WindowMode.GLOBE) hudVisible = false
     }
@@ -174,7 +178,10 @@ fun WindowScreen(
         Modifier
     } else {
         Modifier.pointerInput(Unit) {
-            detectTapGestures { hudVisible = !hudVisible }
+            detectTapGestures {
+                hudVisible = !hudVisible
+                if (!prefs.hintSeen) savePrefs(prefs.copy(hintSeen = true))
+            }
         }
     }
 
@@ -238,6 +245,7 @@ fun WindowScreen(
                 onFrame = { savePrefs(prefs.copy(showFrame = it)) },
                 onPickVideo = { picker.launch(arrayOf("video/*")) },
                 onExit = onExit,
+                showHint = !prefs.hintSeen && prefs.mode != WindowMode.GLOBE,
             )
         }
     }
@@ -254,6 +262,7 @@ private fun Hud(
     onFrame: (Boolean) -> Unit,
     onPickVideo: () -> Unit,
     onExit: () -> Unit,
+    showHint: Boolean,
 ) {
     Column(
         modifier = Modifier
@@ -262,7 +271,11 @@ private fun Hud(
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // Cikis her ekranda ayni yerde: sol ust.
+            HudButton("← KABİNE DÖN", onClick = onExit)
+            Spacer(Modifier.weight(1f))
             Column(
+                horizontalAlignment = Alignment.End,
                 modifier = Modifier
                     .background(HudBackground, HudShape)
                     .padding(horizontal = 10.dp, vertical = 7.dp),
@@ -273,8 +286,6 @@ private fun Hud(
                     style = monoStyle(HudMuted, 11),
                 )
             }
-            Spacer(Modifier.weight(1f))
-            HudButton("KABİNE DÖN", onClick = onExit)
         }
 
         Spacer(Modifier.weight(1f))
@@ -350,7 +361,11 @@ private fun Hud(
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = prefs.mode.hint,
+            text = if (showHint) {
+                "Göstergeleri gizlemek için ekrana dokun"
+            } else {
+                prefs.mode.hint
+            },
             style = monoStyle(HudMuted, 10),
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
@@ -384,7 +399,7 @@ private fun ModePill(
     onClick: () -> Unit,
 ) {
     Text(
-        text = mode.title.uppercase(),
+        text = mode.title.upperTr(),
         style = labelStyle(if (active) HudAmber else HudMuted).copy(
             fontSize = 11.sp,
             textAlign = TextAlign.Center,

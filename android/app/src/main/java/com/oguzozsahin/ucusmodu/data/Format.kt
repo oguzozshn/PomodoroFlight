@@ -32,3 +32,12 @@ fun formatTimeOfDay(time: Long, now: Long = System.currentTimeMillis()): String 
     val days = ((time / 86_400_000L) - (now / 86_400_000L)).toInt()
     return if (days > 0) "$clock (+$days gün)" else clock
 }
+
+/**
+ * Turkce buyuk harf.
+ *
+ * Kotlin'in `uppercase()` fonksiyonu yerelden bagimsiz calisir ve `i` harfini
+ * `I` yapar. Turkcede karsiligi `İ`; aksi halde ekranda "BILET KES",
+ * "HER ŞEYI SIL", "KAT EDILEN YOL" yaziyor.
+ */
+fun String.upperTr(): String = uppercase(TR)

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -23,6 +24,7 @@ import com.oguzozsahin.ucusmodu.data.Airport
 import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.PlaceRegistry
 import com.oguzozsahin.ucusmodu.data.Places
+import com.oguzozsahin.ucusmodu.data.ThemeChoice
 import com.oguzozsahin.ucusmodu.data.issueTicket
 import com.oguzozsahin.ucusmodu.ui.window.WindowScreen
 
@@ -35,10 +37,38 @@ private const val STAGE_MS = 420
 fun FlightRoot(
     state: FlightUiState,
     actions: FlightActions,
+    theme: ThemeChoice,
+    onTheme: (ThemeChoice) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Sayac zaten isliyorsa uygulama dogrudan ucus ekranina acilir.
-    var stage by remember { mutableStateOf(if (state.running) Stage.FLIGHT else Stage.WELCOME) }
+    // Gercek bir gecmis tutulur. Once sabit bir "ebeveyn" tablosu vardi ve
+    // geri tusu nereden gelindigini bilmiyordu: terminalden ucusa devam edip
+    // geri basinca rota secimine dusuluyor, ucustan acilan mil bildiriminden
+    // geri basinca terminale atiliyordu.
+    val stack = remember {
+        mutableStateListOf(if (state.running) Stage.FLIGHT else Stage.WELCOME)
+    }
+    val stage = stack.last()
+
+    /** Ekran zaten yiginda varsa oraya kadar geri sarilir, yoksa ustune binilir. */
+    fun goTo(next: Stage) {
+        val index = stack.indexOf(next)
+        if (index >= 0) {
+            while (stack.lastIndex > index) stack.removeAt(stack.lastIndex)
+        } else {
+            stack.add(next)
+        }
+    }
+
+    fun back() {
+        if (stack.size > 1) stack.removeAt(stack.lastIndex)
+    }
+
+    /** Bilet koparilinca yigindan dusurulur: geri tusu yirtik bilete donmesin. */
+    fun departure() {
+        back()
+        goTo(Stage.FLIGHT)
+    }
 
     // Ucus yapilabilen yerler bir kez okunur; liste hazir olunca kure onlari isaretler.
     val context = LocalContext.current
@@ -48,15 +78,7 @@ fun FlightRoot(
         places = PlaceRegistry.all()
     }
 
-    BackHandler(enabled = stage != Stage.WELCOME) {
-        stage = when (stage) {
-            Stage.LOGBOOK -> Stage.WELCOME
-            Stage.WINDOW -> Stage.FLIGHT
-            Stage.FLIGHT -> Stage.ROUTE
-            Stage.TICKET -> Stage.ROUTE
-            else -> Stage.WELCOME
-        }
-    }
+    BackHandler(enabled = stack.size > 1) { back() }
 
     AnimatedContent(
         targetState = stage,
@@ -78,49 +100,52 @@ fun FlightRoot(
         when (current) {
             Stage.WELCOME -> WelcomeScreen(
                 state = state,
-                onStartJourney = { stage = Stage.ROUTE },
-                onResume = { stage = Stage.FLIGHT },
-                onLogbook = { stage = Stage.LOGBOOK },
+                onStartJourney = { goTo(Stage.ROUTE) },
+                onResume = { goTo(Stage.FLIGHT) },
+                onLogbook = { goTo(Stage.LOGBOOK) },
             )
 
             Stage.ROUTE -> RouteScreen(
                 state = state,
                 actions = actions,
                 places = places,
-                onBack = { stage = Stage.WELCOME },
-                onDeparture = { stage = Stage.TICKET },
+                onBack = { back() },
+                onDeparture = { goTo(Stage.TICKET) },
             )
 
             Stage.TICKET -> TicketScreen(
                 ticket = remember(state.route.key, state.done, state.focusMin) {
                     issueTicket(state)
                 },
-                onBack = { stage = Stage.ROUTE },
+                onBack = { back() },
                 onPrint = actions.onTicketPrinted,
                 onTearTick = actions.onTearTick,
                 onDeparture = {
                     actions.onStart()
-                    stage = Stage.FLIGHT
+                    departure()
                 },
             )
 
             Stage.FLIGHT -> FlightScreen(
                 state = state,
                 actions = actions,
-                onChangeRoute = { stage = Stage.ROUTE },
-                onWindow = { stage = Stage.WINDOW },
-                onLogbook = { stage = Stage.LOGBOOK },
+                onChangeRoute = { goTo(Stage.ROUTE) },
+                onWindow = { goTo(Stage.WINDOW) },
+                onLogbook = { goTo(Stage.LOGBOOK) },
+                onBack = { back() },
+                theme = theme,
+                onTheme = onTheme,
             )
 
             Stage.WINDOW -> WindowScreen(
                 state = state,
                 actions = actions,
-                onExit = { stage = Stage.FLIGHT },
+                onExit = { back() },
             )
 
             Stage.LOGBOOK -> LogbookScreen(
                 state = state,
-                onBack = { stage = Stage.WELCOME },
+                onBack = { back() },
             )
         }
     }

@@ -8,9 +8,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,19 +41,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.oguzozsahin.ucusmodu.R
+import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.data.Airports
 import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.KM_PER_MINUTE
 import com.oguzozsahin.ucusmodu.data.Phase
+import com.oguzozsahin.ucusmodu.data.ThemeChoice
 import com.oguzozsahin.ucusmodu.data.formatClock
 import com.oguzozsahin.ucusmodu.data.formatDate
 import com.oguzozsahin.ucusmodu.data.formatHours
@@ -93,6 +92,9 @@ fun FlightScreen(
     onChangeRoute: () -> Unit,
     onWindow: () -> Unit,
     onLogbook: () -> Unit,
+    onBack: () -> Unit,
+    theme: ThemeChoice,
+    onTheme: (ThemeChoice) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalFlightColors.current
@@ -106,12 +108,13 @@ fun FlightScreen(
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        TopBar(state, colors, actions, onChangeRoute)
+        TopBar(state, colors, actions, onChangeRoute, onBack)
         MapPanel(state, colors, onWindow)
         TimerPanel(state, colors, actions)
         FlightPlanPanel(state, colors)
-        SettingsPanel(state, colors, actions)
+        SettingsPanel(state, colors, actions, theme, onTheme)
         LogPanel(state, colors, actions, onLogbook)
+        DangerPanel(colors, actions)
 
         Text(
             text = "Odakta geçen her dakika ${formatNumber(KM_PER_MINUTE)} km seyir. " +
@@ -129,6 +132,7 @@ private fun TopBar(
     colors: FlightColors,
     actions: FlightActions,
     onChangeRoute: () -> Unit,
+    onBack: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -136,12 +140,9 @@ private fun TopBar(
             .padding(top = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Image(
-            painter = painterResource(R.drawable.ic_plane),
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(colors.amber),
-            modifier = Modifier.size(20.dp),
-        )
+        // Cikis her ekranda ayni yerde: sol ust. Burada eskiden yalnizca
+        // dekoratif bir ucak simgesi vardi ve terminale donus yolu yoktu.
+        GhostButton("← Geri", colors, onClick = onBack)
         Spacer(Modifier.width(8.dp))
         Text(
             state.route.flightNo,
@@ -162,7 +163,9 @@ private fun MapPanel(state: FlightUiState, colors: FlightColors, onWindow: () ->
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(0.92f)
+            // Kompakt telefonlarda geri sayimin katlamanin altinda kalmamasi
+            // icin kure biraz alcak tutuluyor.
+            .aspectRatio(1.18f)
             .background(colors.space, PanelShape)
             .border(1.dp, colors.line, PanelShape),
     ) {
@@ -305,7 +308,7 @@ private fun ReadoutCell(
         label = "gosterge-$label",
     )
     Column(modifier = modifier.padding(vertical = 8.dp, horizontal = 6.dp)) {
-        Text(label.uppercase(), style = labelStyle(colors.muted).copy(fontSize = 10.sp))
+        Text(label.upperTr(), style = labelStyle(colors.muted).copy(fontSize = 10.sp))
         Spacer(Modifier.height(2.dp))
         Row(verticalAlignment = Alignment.Bottom) {
             Text(formatNumber(shown.toDouble()), style = monoStyle(colors.ink, 14))
@@ -353,7 +356,7 @@ private fun TimerPanel(state: FlightUiState, colors: FlightColors, actions: Flig
                 label = "faz-basligi",
             ) { value ->
                 Text(
-                    value.uppercase(),
+                    value.upperTr(),
                     style = labelStyle(accent).copy(fontSize = 12.sp, letterSpacing = 2.6.sp),
                 )
             }
@@ -375,22 +378,34 @@ private fun TimerPanel(state: FlightUiState, colors: FlightColors, actions: Flig
                 )
             }
             Spacer(Modifier.height(18.dp))
+            // Birincil dugme kendi satirinda: seans ortasinda "Beklet"e
+            // basarken yanindaki sifirlamaya kaymak fazla kolaydi.
+            FlightButton(
+                text = primaryLabel,
+                colors = colors,
+                primary = true,
+                enabled = !(state.phase == Phase.FOCUS && state.arrived),
+                modifier = Modifier.fillMaxWidth(),
+                onClick = actions.onToggle,
+            )
+            Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FlightButton(
-                    text = primaryLabel,
-                    colors = colors,
-                    primary = true,
-                    enabled = !(state.phase == Phase.FOCUS && state.arrived),
-                    onClick = actions.onToggle,
-                )
                 // Varilmis rotada atlanacak bir sey yok.
                 FlightButton(
                     text = "Atla",
                     colors = colors,
                     enabled = !(state.phase == Phase.FOCUS && state.arrived),
+                    modifier = Modifier.weight(1f),
                     onClick = actions.onSkip,
                 )
-                FlightButton("Sıfırla", colors, onClick = actions.onReset)
+                // "Sifirla" adi "Her seyi sil" ile karisiyordu; bu yalnizca
+                // suren fazi basa aliyor.
+                FlightButton(
+                    text = "Fazı başa al",
+                    colors = colors,
+                    modifier = Modifier.weight(1f),
+                    onClick = actions.onReset,
+                )
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -453,7 +468,13 @@ private fun LegTicks(state: FlightUiState, colors: FlightColors) {
 }
 
 @Composable
-private fun SettingsPanel(state: FlightUiState, colors: FlightColors, actions: FlightActions) {
+private fun SettingsPanel(
+    state: FlightUiState,
+    colors: FlightColors,
+    actions: FlightActions,
+    theme: ThemeChoice,
+    onTheme: (ThemeChoice) -> Unit,
+) {
     Panel(colors) {
         Column(Modifier.padding(14.dp)) {
             PanelHead("Ayarlar", colors)
@@ -486,6 +507,31 @@ private fun SettingsPanel(state: FlightUiState, colors: FlightColors, actions: F
                 Spacer(Modifier.weight(1f))
                 SegmentedOptions(listOf(5, 10), state.breakMin, colors, onSelect = actions.onBreakMin)
             }
+            Spacer(Modifier.height(14.dp))
+            Text("GÖRÜNÜM", style = labelStyle(colors.ink2).copy(fontSize = 12.sp))
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (option in ThemeChoice.entries) {
+                    val active = option == theme
+                    Text(
+                        text = option.title.upperTr(),
+                        style = labelStyle(if (active) colors.amber else colors.muted).copy(
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center,
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(
+                                if (active) colors.amber.copy(alpha = 0.12f) else colors.panel2,
+                                PanelShape,
+                            )
+                            .border(1.dp, if (active) colors.amber else colors.line, PanelShape)
+                            .clickable { onTheme(option) }
+                            .padding(vertical = 8.dp),
+                    )
+                }
+            }
+
             Spacer(Modifier.height(14.dp))
             Text("YOLCU ADI", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
             Spacer(Modifier.height(6.dp))
@@ -533,6 +579,49 @@ private fun SettingsPanel(state: FlightUiState, colors: FlightColors, actions: F
     }
 }
 
+/**
+ * Geri alinamayan eylem, gezinme dugmelerinden uzakta, kendi satirinda.
+ * Eskiden gunluk basliginda "Tumu" dugmesinin bitisiginde ve ayni gorunumdeydi.
+ */
+@Composable
+private fun DangerPanel(colors: FlightColors, actions: FlightActions) {
+    // Iki dokunus: ilkinde soru sorar, dort saniye icinde onaylanmazsa geri alir.
+    var confirming by remember { mutableStateOf(false) }
+    LaunchedEffect(confirming) {
+        if (confirming) {
+            delay(4000)
+            confirming = false
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = if (confirming) {
+                "Günlük, ilerleme ve toplamlar silinecek. Emin misin?"
+            } else {
+                "Bütün ilerlemeyi ve günlüğü siler."
+            },
+            style = monoStyle(colors.muted, 10),
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(10.dp))
+        DangerButton(
+            text = if (confirming) "Evet, sil" else "Her şeyi sil",
+            colors = colors,
+        ) {
+            if (confirming) {
+                actions.onResetEverything()
+                confirming = false
+            } else {
+                confirming = true
+            }
+        }
+    }
+}
+
 @Composable
 private fun LogPanel(
     state: FlightUiState,
@@ -542,30 +631,8 @@ private fun LogPanel(
 ) {
     Panel(colors) {
         Column(Modifier.padding(14.dp)) {
-            // Silme iki dokunusla olur: ilk dokunusta dugme soru sorar,
-            // dort saniye icinde onaylanmazsa kendini geri alir. Tek dokunusla
-            // butun ilerlemenin gitmesi fazla pahali bir kaza.
-            var confirming by remember { mutableStateOf(false) }
-            LaunchedEffect(confirming) {
-                if (confirming) {
-                    delay(4000)
-                    confirming = false
-                }
-            }
             PanelHead("Uçuş günlüğü", colors) {
-                GhostButton("Tümü", colors, onClick = onLogbook)
-                Spacer(Modifier.width(6.dp))
-                GhostButton(
-                    text = if (confirming) "Emin misin?" else "Her şeyi sil",
-                    colors = colors,
-                ) {
-                    if (confirming) {
-                        actions.onResetEverything()
-                        confirming = false
-                    } else {
-                        confirming = true
-                    }
-                }
+                GhostButton("Tümünü gör", colors, onClick = onLogbook)
             }
             Spacer(Modifier.height(12.dp))
             Row {

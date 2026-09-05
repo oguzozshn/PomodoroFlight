@@ -53,6 +53,7 @@ import com.oguzozsahin.ucusmodu.data.kmToNextTier
 import com.oguzozsahin.ucusmodu.data.nextTierOf
 import com.oguzozsahin.ucusmodu.data.tierOf
 import com.oguzozsahin.ucusmodu.data.tierProgress
+import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.data.worldLaps
 import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.LocalFlightColors
@@ -112,9 +113,10 @@ fun LogbookScreen(
                 .padding(top = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Cikis her ekranda ayni yerde: sol ust.
+            GhostButton("← Geri", colors, onClick = onBack)
+            Spacer(Modifier.width(10.dp))
             Text("MİL BİLDİRİMİ", style = labelStyle(colors.ink2).copy(fontSize = 13.sp))
-            Spacer(Modifier.weight(1f))
-            GhostButton("Terminal", colors, onClick = onBack)
         }
 
         MembershipCard(state, colors)
@@ -131,7 +133,7 @@ fun LogbookScreen(
             }
         } else {
             NumbersPanel(state, loaded, today, zone, colors)
-            CalendarPanel(loaded, today, zone, colors)
+            CalendarPanel(loaded, today, zone, colors, recordingNote(loaded, zone))
             HoursPanel(loaded, zone, colors)
             TopRoutesPanel(loaded, colors)
         }
@@ -139,7 +141,8 @@ fun LogbookScreen(
         StampsPanel(state, colors)
 
         Text(
-            text = recordingNote(loaded, zone),
+            text = "Toplam mil ve uçuş günlüğü baştan beri tutuluyor; " +
+                "gün bazlı görünümler kayıt başladığından beri.",
             style = monoStyle(colors.muted, 10),
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
@@ -160,13 +163,13 @@ private fun MembershipCard(state: FlightUiState, colors: FlightColors) {
                 Text("UÇUŞ KARTI", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
                 Spacer(Modifier.weight(1f))
                 Text(
-                    tier.title.uppercase(TR),
+                    tier.title.upperTr(),
                     style = labelStyle(colors.amber).copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
                 )
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                text = state.passenger.ifBlank { "YOLCU" }.uppercase(TR),
+                text = state.passenger.ifBlank { "YOLCU" }.upperTr(),
                 style = monoStyle(colors.ink2, 13),
             )
             Spacer(Modifier.height(14.dp))
@@ -305,6 +308,8 @@ private fun CalendarPanel(
     today: LocalDate,
     zone: ZoneId,
     colors: FlightColors,
+    /** Izgara bosken hemen altinda gorunecek aciklama. */
+    emptyNote: String,
 ) {
     // Izgara pazartesiyle baslasin diye bugunun haftasinin sonuna kadar doldurulur.
     val trailing = (7 - today.dayOfWeek.value) // pazartesi=1 ... pazar=7
@@ -351,6 +356,13 @@ private fun CalendarPanel(
                         }
                     }
                 }
+            }
+
+            if (peak == 0) {
+                // Bos izgaranin aciklamasi sayfanin dibinde duruyordu; orada
+                // kimse okumuyor ve ekran bozuk gorunuyordu.
+                Spacer(Modifier.height(10.dp))
+                Text(emptyNote, style = monoStyle(colors.muted, 10))
             }
 
             Spacer(Modifier.height(10.dp))
@@ -545,7 +557,7 @@ private fun StampsPanel(state: FlightUiState, colors: FlightColors) {
 @Composable
 private fun Figure(label: String, value: String, colors: FlightColors, modifier: Modifier = Modifier) {
     Column(modifier) {
-        Text(label.uppercase(TR), style = labelStyle(colors.muted).copy(fontSize = 9.sp))
+        Text(label.upperTr(), style = labelStyle(colors.muted).copy(fontSize = 9.sp))
         Spacer(Modifier.height(3.dp))
         Text(value, style = monoStyle(colors.ink, 15, FontWeight.Medium))
     }
@@ -582,9 +594,9 @@ private fun heatColor(count: Int, peak: Int, colors: FlightColors): Color {
 private fun recordingNote(records: List<FocusRecord>?, zone: ZoneId): String {
     if (records == null) return " "
     val first = records.minByOrNull { it.time }
-        ?: return "Günlük kayıt henüz boş. İlk pomodoro bittiğinde dolmaya başlar."
+        ?: return "Burası ilk pomodoron bittiğinde dolmaya başlar — bozuk değil, henüz boş."
     val date = JournalStats.dateOf(first.time, zone)
     val month = date.month.getDisplayName(DateTextStyle.FULL, TR)
-    return "Toplam mil ve uçuş günlüğü baştan beri tutuluyor. " +
-        "Gün bazlı kayıt ${date.dayOfMonth} $month ${date.year} tarihinde başladı, ${records.size} kayıt var."
+    return "Gün bazlı kayıt ${date.dayOfMonth} $month ${date.year} tarihinde başladı, " +
+        "${records.size} kayıt var."
 }

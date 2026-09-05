@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.R
+import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.KM_PER_MINUTE
 import com.oguzozsahin.ucusmodu.data.EARTH_CIRCUMFERENCE_KM
@@ -219,7 +220,7 @@ private fun WorldTour(totalKm: Double, colors: FlightColors) {
 @Composable
 private fun Stat(label: String, value: String, colors: FlightColors, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
-        Text(label.uppercase(), style = labelStyle(colors.muted).copy(fontSize = 10.sp))
+        Text(label.upperTr(), style = labelStyle(colors.muted).copy(fontSize = 10.sp))
         Spacer(Modifier.height(3.dp))
         Text(value, style = monoStyle(colors.ink, 15, FontWeight.Medium))
     }

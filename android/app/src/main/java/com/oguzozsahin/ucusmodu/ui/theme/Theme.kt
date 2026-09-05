@@ -9,6 +9,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import com.oguzozsahin.ucusmodu.data.ThemeChoice
 
 /** Web surumundeki CSS degiskenlerinin birebir karsiligi. */
 @Immutable
@@ -35,6 +36,8 @@ data class FlightColors(
     val coast: Color,
     val lake: Color,
     val night: Color,
+    /** Geri alinamayan eylemler icin; baska hicbir yerde kullanilmaz. */
+    val danger: Color,
     /**
      * Isi haritasinin tek renkli merdiveni: bostan yoguna dogru bes basamak.
      * Karanlik temada merdiven ters yone tirmanir — koyu zeminde "daha cok",
@@ -64,6 +67,7 @@ val LightFlightColors = FlightColors(
     coast = Color(0xFF9AA894),
     lake = Color(0xFFC2D7E6),
     night = Color(0x38102338),
+    danger = Color(0xFFB3261E),
     heat = listOf(
         Color(0xFFE7ECF2),
         Color(0xFFF6E0BE),
@@ -94,6 +98,7 @@ val DarkFlightColors = FlightColors(
     coast = Color(0xFF4A6C8C),
     lake = Color(0xFF0F2B42),
     night = Color(0x59000814),
+    danger = Color(0xFFE0705F),
     heat = listOf(
         Color(0xFF1A2536),
         Color(0xFF4B3A21),
@@ -112,9 +117,14 @@ val MaterialTheme.flight: FlightColors
 
 @Composable
 fun UcusModuTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    choice: ThemeChoice = ThemeChoice.SYSTEM,
     content: @Composable () -> Unit,
 ) {
+    val darkTheme = when (choice) {
+        ThemeChoice.SYSTEM -> isSystemInDarkTheme()
+        ThemeChoice.LIGHT -> false
+        ThemeChoice.DARK -> true
+    }
     val colors = if (darkTheme) DarkFlightColors else LightFlightColors
 
     val scheme = if (darkTheme) {

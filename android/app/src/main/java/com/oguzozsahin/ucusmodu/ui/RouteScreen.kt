@@ -38,6 +38,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.data.Airport
+import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.PlaceRegistry
 import com.oguzozsahin.ucusmodu.data.Preset
@@ -322,7 +323,7 @@ private fun SlotCard(
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Text(
-            label.uppercase(),
+            label.upperTr(),
             style = labelStyle(if (selected) colors.amber else colors.muted).copy(fontSize = 10.sp),
         )
         Spacer(Modifier.height(3.dp))
@@ -443,7 +444,7 @@ private fun RouteSummary(state: FlightUiState, colors: FlightColors, onDeparture
             ) { _ ->
                 Column {
                     Text(
-                        "${route.origin.city.uppercase()} → ${route.dest.city.uppercase()}",
+                        "${route.origin.city.upperTr()} → ${route.dest.city.upperTr()}",
                         style = labelStyle(colors.ink).copy(
                             fontSize = 20.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -503,7 +504,7 @@ private fun BoardingCell(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        Text(label.uppercase(), style = labelStyle(colors.muted).copy(fontSize = 10.sp))
+        Text(label.upperTr(), style = labelStyle(colors.muted).copy(fontSize = 10.sp))
         Spacer(Modifier.height(3.dp))
         Text(value, style = monoStyle(colors.ink, 15, FontWeight.Medium))
     }
@@ -517,7 +518,7 @@ private fun SummaryRow(label: String, value: String, colors: FlightColors) {
             .padding(vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label.uppercase(), style = labelStyle(colors.muted).copy(fontSize = 11.sp))
+        Text(label.upperTr(), style = labelStyle(colors.muted).copy(fontSize = 11.sp))
         Spacer(Modifier.weight(1f))
         Text(value, style = monoStyle(colors.ink, 13, FontWeight.Medium))
     }
