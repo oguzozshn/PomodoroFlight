@@ -27,6 +27,7 @@ cd android
 | WebAudio kabin sesi | `audio/Chime.kt` — aynı notalar `AudioTrack` ile sentezleniyor |
 | Sekme başlığındaki geri sayım | Foreground service bildirimi (Beklet / Atla eylemleriyle) |
 | Barlow · Barlow Condensed · IBM Plex Mono (CDN) | Aynı fontlar `res/font` içinde gömülü |
+| — | `ui/window/` — uçuş sırasında tam ekran pencere görünümü (web sürümünde yok) |
 
 Havalimanı tablosu, ön tanımlı rotalar, 850 km/pomodoro ölçeği, `TKxxxx` uçuş
 numarası üretimi ve 4 pomodoroda bir uzun mola döngüsü web sürümüyle birebir
@@ -148,11 +149,56 @@ python3 tools/build_coastline.py ne_110m_coastline.geojson \
 - **Açık/koyu tema:** sistem temasını izler, renkler web sürümündeki CSS
   değişkenlerinin birebir karşılığıdır.
 
+## Pencereden bakış
+
+Uçuş ekranındaki **Pencereden bak** düğmesi tam ekran bir pencere görünümü
+açar (`ui/window/`). Sistem çubukları gizlenir, ekran uyanık kalır, ekrana
+dokununca göstergeler çekilir; geriye yalnızca pencere ve kalan süre kalır.
+Üç kaynak arasında gidip gelinebilir ve seçim cihazda saklanır:
+
+| Kip | Ne gösterir |
+|---|---|
+| **Gerçek zamanlı** | Rotanın o anki noktasından, gerçek saate göre aydınlanan bir gökyüzü |
+| **Küre** | Giriş ekranındaki kürenin uçağı izleyen hali |
+| **Video** | Kendi seçtiğiniz pencere görüntüsü, sessiz ve döngüde |
+
+### Gerçek zamanlı kip nasıl çiziliyor
+
+`ui/window/SkyCamera.kt` iğne delikli bir kamera: bütün hesaplar dünya merkezli
+birim vektörlerle yapılır, bir noktanın ekrandaki yeri üç iç çarpım ve tek bir
+bölmedir. Ufkun kavisi, güneş yüksekliğine göre değişen renk takımı
+(`SkyPalette.kt`), altta geçen kara parçaları, paralakslı bulut tabakası,
+geceleyin yıldızlar ve şehir ışıkları hepsi aynı kameradan geçer. Kanat ve
+kabin çerçevesi uçağa bağlı olduğu için dünya çalkanırken sabit durur.
+
+Kara parçalarının çizimi (`SkyGeometry.kt`) küçük ama önemli bir ayrıntıya
+dayanıyor: ufkun ötesindeki noktalar atılmaz, bulundukları yönde ufuk
+çemberine **bastırılır**. Önce kırpma denendi; kırpılan halkanın iki ucunu
+birleştiren kiriş Ege'yi baştan başa kara yapıyordu, çünkü körfezin ağzı ufka
+açılıyor. Bastırma halkayı kapalı ve aynı yönde dönen tek bir eğri olarak
+bıraktığı için sorun kökten kalkıyor. Aynı geçişte arkada kalan kıyılar
+seyreltiliyor — bir kıtanın on bin noktası birkaç yüze iniyor — sonra halka
+görüş piramidinin beş düzlemine kırpılıyor.
+
+### Video kipi ve telif
+
+Video uygulamanın içine kopyalanmaz, APK'ya da girmez: SAF ile seçtiğiniz
+dosyaya kalıcı okuma izni alınıp dosyanın kendisi okunur. Böylece depoda
+hiçbir telifli görüntü durmuyor ve istediğiniz çekimi kullanabiliyorsunuz.
+
+İyi bir pencere döngüsü için:
+
+- **Dikey (9:16)**, 15–40 saniye, kamera sabit
+- Başı ve sonu birbirine benzeyen bir çekim; ffmpeg ile 1–1.5 saniyelik
+  çapraz geçiş konursa dönüş dikişi görünmez
+- Sesi olmasın (uygulama zaten susturur), 720×1280 fazlasıyla yeter
+- Günün farklı saatleri için ayrı dosyalar: gündüz, gün batımı, gece
+
 ## Testler
 
 ```bash
 cd android
-./gradlew test          # 47 birim test, JVM'de çalışır, cihaz gerekmez
+./gradlew test          # 55 birim test, JVM'de çalışır, cihaz gerekmez
 ```
 
 `app/src/test/` altında saf mantık katmanının tamamı sınanıyor: küre
@@ -161,7 +207,9 @@ numarası üretimi, uçuş süresi ve mola takvimi hesapları, Türkçe biçimle
 güneş konumu (gündönümü ve ekinokslara karşı), durum türevleri (ilerleme oranı,
 irtifa, kalan bacak), ikili varlık biçimleri ve Türkçe duyarlı arama
 (Gaziemir → İzmir, Munich → Münih) ve bilet üretimi (koltuk kararlılığı,
-saat sıralaması, barkod deseni).
+saat sıralaması, barkod deseni). Pencere kamerası da buradan sınanıyor:
+ufuk düşme açısı, odak uzaklığı, izdüşüm ve tersi, eğimli ufkun yüksekliği —
+hepsi kapalı formüllere karşı ölçülüyor.
 
 ## Derlemeden önce
 
