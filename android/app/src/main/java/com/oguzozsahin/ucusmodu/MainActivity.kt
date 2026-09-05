@@ -14,7 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,7 +52,9 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             // Tema tercihi burada tutuluyor: degisince butun agac yeniden renklenir.
-            var theme by rememberSaveable { mutableStateOf(windowStore.loadTheme()) }
+            // rememberSaveable degil: tercih zaten diskte ve activity uiMode
+            // degisiminde yeniden yaratilmiyor, Bundle'a enum yazmaya gerek yok.
+            var theme by remember { mutableStateOf(windowStore.loadTheme()) }
 
             UcusModuTheme(choice = theme) {
                 val state by engine.state.collectAsStateWithLifecycle()

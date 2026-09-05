@@ -113,7 +113,7 @@ fun FlightScreen(
         TimerPanel(state, colors, actions)
         FlightPlanPanel(state, colors)
         SettingsPanel(state, colors, actions, theme, onTheme)
-        LogPanel(state, colors, actions, onLogbook)
+        LogPanel(state, colors, onLogbook)
         DangerPanel(colors, actions)
 
         Text(
@@ -626,7 +626,6 @@ private fun DangerPanel(colors: FlightColors, actions: FlightActions) {
 private fun LogPanel(
     state: FlightUiState,
     colors: FlightColors,
-    actions: FlightActions,
     onLogbook: () -> Unit,
 ) {
     Panel(colors) {
