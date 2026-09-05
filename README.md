@@ -108,6 +108,16 @@ and the coastlines land where they belong.
 No network access, no account, no analytics. Everything the app knows is on
 the device.
 
+## License
+
+The project's own code is [MIT licensed](LICENSE).
+
+The bundled fonts are not: Barlow, Barlow Condensed and IBM Plex Mono are
+under the SIL Open Font License 1.1, which requires their notices to ship
+alongside the font files. Those texts are in
+[`third_party/fonts/`](third_party/fonts/). The map data (Natural Earth,
+OurAirports) is public domain.
+
 ## Known limitations
 
 - The Compose and service layers have never been compiled in this repository's
