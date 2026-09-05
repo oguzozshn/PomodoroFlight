@@ -46,3 +46,13 @@ fun haversine(aLat: Double, aLon: Double, bLat: Double, bLon: Double): Double {
         cos(Math.toRadians(aLat)) * cos(Math.toRadians(bLat)) * sin(dLon / 2) * sin(dLon / 2)
     return 2 * EARTH_R * asin(sqrt(h).coerceIn(0.0, 1.0))
 }
+
+/** Bir noktadan digerine bakarken kuzeyden olculen ilk yon acisi (derece, 0..360). */
+fun bearing(aLat: Double, aLon: Double, bLat: Double, bLon: Double): Double {
+    val p1 = Math.toRadians(aLat)
+    val p2 = Math.toRadians(bLat)
+    val dLon = Math.toRadians(bLon - aLon)
+    val y = sin(dLon) * cos(p2)
+    val x = cos(p1) * sin(p2) - sin(p1) * cos(p2) * cos(dLon)
+    return (Math.toDegrees(atan2(y, x)) + 360.0) % 360.0
+}

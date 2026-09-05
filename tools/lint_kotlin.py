@@ -51,7 +51,8 @@ def collect_declarations(files):
         for pattern in patterns:
             declared.update(m.group(1) for m in re.finditer(pattern, src, re.M))
         declared.update(
-            m.group(1) for m in re.finditer(r'^\s*([A-Z][A-Z0-9_]*)\s*(?:\("[^"]*"\))?\s*[,;]', src, re.M)
+            m.group(1)
+            for m in re.finditer(r'^\s*([A-Z][A-Z0-9_]*)\s*(?:\([^()]*\))?\s*[,;]', src, re.M)
         )
     return declared
 
@@ -80,7 +81,8 @@ def main(root: str) -> int:
         }
         used = set(re.findall(r'<\s*([A-Z]\w+)\s*[,>]', body))
         used |= set(re.findall(r':\s*([A-Z]\w+)[\s<>?,)=]', body))
-        used |= set(re.findall(r'\b([A-Z]\w+)\s*\(', body))
+        # Nitelenmis erisimde (Foo.Bar()) ic ad ayrica import edilmez.
+        used |= set(re.findall(r'(?<![\w.])([A-Z]\w+)\s*\(', body))
         for name in sorted(used - imported - declared - STDLIB):
             issues.append(f"{path}: '{name}' tanimli degil ve import edilmemis")
 

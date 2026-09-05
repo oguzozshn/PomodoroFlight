@@ -84,6 +84,7 @@ fun FlightScreen(
     state: FlightUiState,
     actions: FlightActions,
     onChangeRoute: () -> Unit,
+    onWindow: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalFlightColors.current
@@ -98,7 +99,7 @@ fun FlightScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         TopBar(state, colors, actions, onChangeRoute)
-        MapPanel(state, colors)
+        MapPanel(state, colors, onWindow)
         TimerPanel(state, colors, actions)
         FlightPlanPanel(state, colors)
         SettingsPanel(state, colors, actions)
@@ -148,7 +149,7 @@ private fun TopBar(
 }
 
 @Composable
-private fun MapPanel(state: FlightUiState, colors: FlightColors) {
+private fun MapPanel(state: FlightUiState, colors: FlightColors, onWindow: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -180,6 +181,16 @@ private fun MapPanel(state: FlightUiState, colors: FlightColors) {
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(12.dp),
+        )
+
+        // Tam ekran pencere gorunumu: koltugun yanindaki cami acar.
+        GhostButton(
+            text = "Pencereden bak",
+            colors = colors,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(12.dp),
+            onClick = onWindow,
         )
 
         Column(modifier = Modifier.align(Alignment.BottomCenter)) {

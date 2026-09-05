@@ -13,16 +13,31 @@ import kotlin.math.sqrt
  */
 class WorldShape(
     val xyz: FloatArray,
-    private val cx: Float,
-    private val cy: Float,
-    private val cz: Float,
+    /** Parcayi kapsayan en kucuk cemberin merkezi (birim vektor). */
+    val cx: Float,
+    val cy: Float,
+    val cz: Float,
     private val sinRadius: Float,
+    /** Ayni cemberin acisal yaricapinin kosinusu; isareti korunur. */
+    val cosRadius: Float,
 ) {
     val pointCount: Int get() = xyz.size / 3
 
     /** Parca tamamen kurenin arkasindaysa hic cizilmesin diye kaba eleme. */
     fun isHidden(ux: Float, uy: Float, uz: Float): Boolean =
         cx * ux + cy * uy + cz * uz < -sinRadius
+
+    /**
+     * Parca, (ux, uy, uz) yonunde acilan [cosCap] kosinuslu koniyle kesisiyor mu?
+     * Pencere goruntusunde ufka kadar olan dar dilimi elemek icin kullanilir.
+     */
+    fun withinCap(ux: Float, uy: Float, uz: Float, cosCap: Float): Boolean {
+        val dot = cx * ux + cy * uy + cz * uz
+        val sinCap = kotlin.math.sqrt((1f - cosCap * cosCap).coerceAtLeast(0f))
+        // cos(kapAcisi + parcaYaricapi); -1'in altina inerse koni tum kureyi kapsar.
+        val cosSum = cosCap * cosRadius - sinCap * sinRadius
+        return cosSum <= -1f || dot >= cosSum
+    }
 }
 
 class ShapeSet(val shapes: List<WorldShape>) {
@@ -75,7 +90,7 @@ object ShapeFormat {
         val length = sqrt(sx * sx + sy * sy + sz * sz)
         if (length < 1e-6) {
             // Kureyi bastan basa gecen parca: elenmesin.
-            return WorldShape(xyz, 0f, 0f, 1f, 1f)
+            return WorldShape(xyz, 0f, 0f, 1f, 1f, -1f)
         }
         val cx = (sx / length).toFloat()
         val cy = (sy / length).toFloat()
@@ -90,6 +105,6 @@ object ShapeFormat {
         }
         val cosR = minDot.coerceIn(-1f, 1f)
         val sinR = sqrt((1f - cosR * cosR).coerceAtLeast(0f))
-        return WorldShape(xyz, cx, cy, cz, sinR)
+        return WorldShape(xyz, cx, cy, cz, sinR, cosR)
     }
 }
