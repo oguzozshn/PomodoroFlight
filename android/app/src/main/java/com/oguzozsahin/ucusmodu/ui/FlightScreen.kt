@@ -183,17 +183,17 @@ private fun MapPanel(state: FlightUiState, colors: FlightColors, onWindow: () ->
                 .padding(12.dp),
         )
 
-        // Tam ekran pencere gorunumu: koltugun yanindaki cami acar.
-        GhostButton(
-            text = "Pencereden bak",
-            colors = colors,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(12.dp),
-            onClick = onWindow,
-        )
-
         Column(modifier = Modifier.align(Alignment.BottomCenter)) {
+            // Tam ekran pencere gorunumu: koltugun yanindaki cami acar.
+            // Gostergelerin ustunde duruyor ki okunani ortmesin.
+            GhostButton(
+                text = "Pencereden bak",
+                colors = colors,
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .padding(end = 12.dp, bottom = 10.dp),
+                onClick = onWindow,
+            )
             StatusPill(state, colors, Modifier.padding(start = 12.dp, bottom = 10.dp))
             Readout(state, colors)
         }
