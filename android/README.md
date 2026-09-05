@@ -273,6 +273,29 @@ Türkçe büyük harf için `String.upperTr()` kullanılır: Kotlin'in `uppercas
 fonksiyonu yerelden bağımsız çalışıp `i` harfini `I` yapıyor, ekranda
 "BILET KES" ve "HER ŞEYI SIL" yazıyordu.
 
+## Tablet ve geniş ekranlar
+
+Uygulama telefon için tasarlanmıştı ve her şey `fillMaxWidth()` idi; 9" bir
+tablette satırlar ekranı baştan başa geçiyor, küre devleşiyor, geri sayıma
+ulaşmak için kaydırmak gerekiyordu. `ui/Adaptive.kt` iki eşik tanımlar:
+
+- **`ContentMaxWidth` (560dp)** — metin sütunu bundan geniş olmaz, ortalanır.
+  Telefon zaten dar olduğu için hiç etkilenmez.
+- **`TwoPaneMinWidth` (720dp)** — bu genişlikten sonra terminal ve uçuş
+  ekranı iki panele ayrılır: solda küre ekran boyunca, sağda kaydırılabilir
+  kumanda. Tablette yatayda hiçbir şeyi kaydırmadan hem dünyayı hem geri
+  sayımı görürsünüz.
+
+Rota ekranında küre bir haritadır, metinden geniş olabilir: `GlobeMaxWidth`
+(900dp) kadar büyür ve geniş ekranda yüksekliği 300dp yerine 440dp olur.
+Bilet ve mil bildirimi ortalanmış tek sütun olarak kalır.
+
+Yön kilidi yok; düzen genişliğe göre kendini ayarlar.
+
+**Titreşim:** bu sınıftaki tabletlerin çoğunda motor yok. Kod `hasVibrator()`
+ile korunuyor, çökmez — ama bilet koparma jestinin dokunsal geri bildirimi
+o cihazlarda olmaz.
+
 ## Testler
 
 ```bash

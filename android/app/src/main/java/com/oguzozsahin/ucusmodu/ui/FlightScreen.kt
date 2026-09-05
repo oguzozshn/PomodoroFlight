@@ -13,16 +13,19 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -99,31 +102,80 @@ fun FlightScreen(
 ) {
     val colors = LocalFlightColors.current
 
-    Column(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.ground)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 14.dp)
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .background(colors.ground),
     ) {
-        TopBar(state, colors, actions, onChangeRoute, onBack)
-        MapPanel(state, colors, onWindow)
-        TimerPanel(state, colors, actions)
-        FlightPlanPanel(state, colors)
-        SettingsPanel(state, colors, actions, theme, onTheme)
-        LogPanel(state, colors, onLogbook)
-        DangerPanel(colors, actions)
-
-        Text(
-            text = "Odakta geçen her dakika ${formatNumber(KM_PER_MINUTE)} km seyir. " +
-                "İlerleme bu cihazda saklanır.",
-            style = monoStyle(colors.muted, 11),
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center,
-        )
+        // Tablette yatayda kure solda kalir, kumanda sagda kaydirilir: geri
+        // sayim icin kaydirmak gerekmez. Dar ekranda tek sutun surer.
+        if (maxWidth >= TwoPaneMinWidth) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp)
+                    .padding(top = 14.dp, bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(PaneGap),
+            ) {
+                MapPanel(
+                    state = state,
+                    colors = colors,
+                    onWindow = onWindow,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .widthIn(max = ContentMaxWidth)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    TopBar(state, colors, actions, onChangeRoute, onBack)
+                    TimerPanel(state, colors, actions)
+                    FlightPlanPanel(state, colors)
+                    SettingsPanel(state, colors, actions, theme, onTheme)
+                    LogPanel(state, colors, onLogbook)
+                    DangerPanel(colors, actions)
+                    Footer(colors)
+                }
+            }
+        } else {
+            ReadableColumn(background = colors.ground) {
+                TopBar(state, colors, actions, onChangeRoute, onBack)
+                MapPanel(
+                    state = state,
+                    colors = colors,
+                    onWindow = onWindow,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // Kompakt telefonlarda geri sayimin katlamanin altinda
+                        // kalmamasi icin kure biraz alcak tutuluyor.
+                        .aspectRatio(1.18f),
+                )
+                TimerPanel(state, colors, actions)
+                FlightPlanPanel(state, colors)
+                SettingsPanel(state, colors, actions, theme, onTheme)
+                LogPanel(state, colors, onLogbook)
+                DangerPanel(colors, actions)
+                Footer(colors)
+            }
+        }
     }
+}
+
+/** Ekranin dibindeki olcek notu. */
+@Composable
+private fun Footer(colors: FlightColors) {
+    Text(
+        text = "Odakta geçen her dakika ${formatNumber(KM_PER_MINUTE)} km seyir. " +
+            "İlerleme bu cihazda saklanır.",
+        style = monoStyle(colors.muted, 11),
+        modifier = Modifier.fillMaxWidth(),
+        textAlign = TextAlign.Center,
+    )
 }
 
 @Composable
@@ -159,13 +211,14 @@ private fun TopBar(
 }
 
 @Composable
-private fun MapPanel(state: FlightUiState, colors: FlightColors, onWindow: () -> Unit) {
+private fun MapPanel(
+    state: FlightUiState,
+    colors: FlightColors,
+    onWindow: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            // Kompakt telefonlarda geri sayimin katlamanin altinda kalmamasi
-            // icin kure biraz alcak tutuluyor.
-            .aspectRatio(1.18f)
+        modifier = modifier
             .background(colors.space, PanelShape)
             .border(1.dp, colors.line, PanelShape),
     ) {

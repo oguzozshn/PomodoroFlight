@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -108,10 +109,18 @@ fun TicketScreen(
         )
     }
 
-    Column(
+    // Tablette bilet ekrani bastan basa yayilmasin: ortada, telefon
+    // genisliginde bir kolon halinde dursun.
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.ground)
+            .background(colors.ground),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+    Column(
+        modifier = Modifier
+            .widthIn(max = ContentMaxWidth)
+            .fillMaxSize()
             .padding(horizontal = 14.dp),
     ) {
         Row(
@@ -225,6 +234,7 @@ fun TicketScreen(
             modifier = Modifier.fillMaxWidth(),
             onClick = onDeparture,
         )
+    }
     }
 }
 

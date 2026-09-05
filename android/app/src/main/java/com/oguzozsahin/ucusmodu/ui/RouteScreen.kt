@@ -10,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -132,13 +134,24 @@ fun RouteScreen(
 
     // Kure kaydirilabilir alanin disinda duruyor: aksi halde surukleme jestini
     // sayfa kaydirma kapiyor ve kure donmuyor.
-    Column(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(colors.ground),
     ) {
+        // Tablette kure buyur, metin sutunu ise okunabilir genislikte ortada
+        // kalir: harita genis olsun ama satirlar ekrani bastan basa gecmesin.
+        val wide = maxWidth >= TwoPaneMinWidth
+        val globeHeight = if (wide) 440.dp else 300.dp
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize(),
+    ) {
         Row(
             modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .widthIn(max = ContentMaxWidth)
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp)
                 .padding(top = 14.dp, bottom = 12.dp),
@@ -155,9 +168,11 @@ fun RouteScreen(
         // Kure: surukle, cimdikle, sehre dokun.
         Box(
             modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .widthIn(max = GlobeMaxWidth)
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp)
-                .height(300.dp)
+                .height(globeHeight)
                 .background(colors.space, PanelShape)
                 .border(1.dp, colors.line, PanelShape),
         ) {
@@ -234,6 +249,9 @@ fun RouteScreen(
 
         Column(
             modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .widthIn(max = ContentMaxWidth)
+                .fillMaxWidth()
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
@@ -411,6 +429,7 @@ private fun SearchCard(
                 Text("Sonuç yok.", style = monoStyle(colors.muted, 11))
             }
         }
+    }
     }
 }
 
