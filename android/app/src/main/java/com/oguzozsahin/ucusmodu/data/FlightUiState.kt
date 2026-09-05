@@ -38,6 +38,16 @@ data class FlightUiState(
 
     val arrived: Boolean get() = flownOnRoute >= route.km - ARRIVAL_EPSILON_KM
 
+    /**
+     * Bu rotada yol alinmis mi?
+     *
+     * "done > 0" ile sorulamaz: bacak sayisi odak suresine bagli oldugu icin
+     * 25 dakikada bir bacak ucup 50 dakikaya gecince done sifira duser ve
+     * yarim kalmis ucus hic baslamamis gibi gorunurdu. Mesafe ise ayardan
+     * bagimsiz.
+     */
+    val started: Boolean get() = flownOnRoute > 0.0
+
     val legsLeft: Int get() = (route.legs - done).coerceAtLeast(0)
 
     fun durationMsOf(phase: Phase): Long = when (phase) {

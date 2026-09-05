@@ -246,7 +246,7 @@ private fun StatusPill(state: FlightUiState, colors: FlightColors, modifier: Mod
         state.running && state.phase == Phase.FOCUS ->
             "Seyir halinde · ${formatNumber(state.route.kmPerLeg)} km/pom"
         state.running -> "Mola · kabin ışıkları kısık"
-        state.done > 0 -> "Beklemede · rotada tutuluyor"
+        state.started -> "Beklemede · rotada tutuluyor"
         else -> "Kalkışa hazır"
     }
 
@@ -330,7 +330,7 @@ private fun TimerPanel(state: FlightUiState, colors: FlightColors, actions: Flig
     }
     val primaryLabel = when {
         state.running -> "Beklet"
-        state.phase == Phase.FOCUS && state.done > 0 -> "Devam"
+        state.phase == Phase.FOCUS && state.started -> "Devam"
         state.phase == Phase.FOCUS -> "Kalkış"
         else -> "Molayı başlat"
     }
@@ -462,7 +462,23 @@ private fun SettingsPanel(state: FlightUiState, colors: FlightColors, actions: F
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("ODAK", style = labelStyle(colors.ink2).copy(fontSize = 12.sp))
                 Spacer(Modifier.weight(1f))
-                SegmentedOptions(listOf(15, 25, 50), state.focusMin, colors, onSelect = actions.onFocusMin)
+                // Seyir sirasinda kilitli: olcek dakikaya bagli oldugu icin
+                // suren pomodoronun ortasinda uzunlugu degistirmek, 25 dakika
+                // odaklanip 50 dakikalik mesafe kazanmak demek olurdu.
+                SegmentedOptions(
+                    options = listOf(15, 25, 50),
+                    selected = state.focusMin,
+                    colors = colors,
+                    enabled = !state.running,
+                    onSelect = actions.onFocusMin,
+                )
+            }
+            if (state.running) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Odak süresi seyir sırasında değiştirilemez — önce beklet.",
+                    style = monoStyle(colors.muted, 10),
+                )
             }
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {

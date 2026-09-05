@@ -259,7 +259,7 @@ uydurma olurdu, yapılmadı — ekranın altında kaydın ne zaman başladığı
 
 ```bash
 cd android
-./gradlew test          # 76 birim test, JVM'de çalışır, cihaz gerekmez
+./gradlew test          # 78 birim test, JVM'de çalışır, cihaz gerekmez
 ```
 
 `app/src/test/` altında saf mantık katmanının tamamı sınanıyor: küre

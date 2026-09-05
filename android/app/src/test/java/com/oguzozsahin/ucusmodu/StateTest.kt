@@ -89,4 +89,41 @@ class StateTest {
         assertEquals(5 * 60_000L, s.durationMsOf(Phase.BREAK))
         assertEquals(15 * 60_000L, s.durationMsOf(Phase.LONG))
     }
+
+    @Test
+    fun `baslanmis rota odak suresi degisince baslanmamis gorunmez`() {
+        // 25 dakikalik olcekte bir bacak uculdu
+        val route25 = Route.of("IST-JFK", 25)!!
+        val flown = route25.kmPerLeg
+        val at25 = state(done = 1)
+        assertTrue(at25.started)
+        assertEquals(1, at25.done)
+
+        // Ayni mesafe, 50 dakikalik olcekte: bacak sayisi sifira duser ama
+        // rotaya baslanmis olmasi degismez
+        val route50 = Route.of("IST-JFK", 50)!!
+        val at50 = at25.copy(route = route50, progress = mapOf("IST-JFK" to flown), focusMin = 50)
+        assertEquals(0, at50.done)
+        assertTrue(at50.started)
+        assertFalse(at50.arrived)
+
+        // Kat edilen mesafe ve dolayisiyla ilerleme orani korunur
+        assertEquals(flown, at50.flownOnRoute, 1e-9)
+        assertEquals(
+            flown / route25.km,
+            (at25.copy(phase = Phase.BREAK).fraction).toDouble(),
+            1e-6,
+        )
+        assertEquals(
+            flown / route50.km,
+            (at50.copy(phase = Phase.BREAK).fraction).toDouble(),
+            1e-6,
+        )
+    }
+
+    @Test
+    fun `hic yol alinmamis rota baslanmamis sayilir`() {
+        assertFalse(state(done = 0).started)
+        assertTrue(state(done = 1).started)
+    }
 }

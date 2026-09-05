@@ -265,10 +265,12 @@ fun SegmentedOptions(
     selected: Int,
     colors: FlightColors,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     onSelect: (Int) -> Unit,
 ) {
     Row(
         modifier = modifier
+            .alpha(if (enabled) 1f else 0.4f)
             .background(colors.panel2, PanelShape)
             .border(1.dp, colors.line, PanelShape)
             .padding(2.dp),
@@ -289,7 +291,7 @@ fun SegmentedOptions(
                         if (active) colors.amber.copy(alpha = 0.14f) else Color.Transparent,
                         PanelShape,
                     )
-                    .clickable { onSelect(option) }
+                    .clickable(enabled = enabled) { onSelect(option) }
                     .padding(horizontal = 14.dp, vertical = 7.dp),
             )
         }

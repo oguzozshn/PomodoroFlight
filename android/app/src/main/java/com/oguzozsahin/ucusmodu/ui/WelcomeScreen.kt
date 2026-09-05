@@ -58,7 +58,7 @@ fun WelcomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalFlightColors.current
-    val resumable = state.done > 0 && !state.arrived
+    val resumable = state.started && !state.arrived
 
     // Terminal saati: dakikada bir tazelenir.
     val clock by produceState(initialValue = System.currentTimeMillis()) {
