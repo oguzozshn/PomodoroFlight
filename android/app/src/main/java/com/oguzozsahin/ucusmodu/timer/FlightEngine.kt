@@ -11,9 +11,7 @@ import android.os.VibratorManager
 import com.oguzozsahin.ucusmodu.audio.Chime
 import com.oguzozsahin.ucusmodu.audio.ChimeKind
 import com.oguzozsahin.ucusmodu.data.FlightUiState
-import com.oguzozsahin.ucusmodu.data.FocusRecord
 import com.oguzozsahin.ucusmodu.data.Journal
-import com.oguzozsahin.ucusmodu.data.LogEntry
 import com.oguzozsahin.ucusmodu.data.Persisted
 import com.oguzozsahin.ucusmodu.data.Phase
 import com.oguzozsahin.ucusmodu.data.Route
@@ -29,7 +27,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 /**
  * Sayacin tek otoritesi. Aktivite olse de servis ayakta kaldigi surece burasi yasar;
@@ -238,94 +235,61 @@ class FlightEngine private constructor(context: Context) {
 
     // ---------------- ic isleyis ----------------
 
+    /**
+     * Faz gecisinin kendisi [FlightCore] icinde, Android'e dokunmadan
+     * hesaplaniyor; burada kalan yalnizca sonucun uygulanmasi: ses, titresim,
+     * bildirim, gunluk dosyasi ve servis.
+     */
     private fun finishPhase(notify: Boolean, skipped: Boolean = false) {
         val before = currentState()
-        if (phase == Phase.FOCUS) {
-            // Varilmis rotada kazanilacak bacak kalmadi. Buraya yine de
-            // girilebiliyor (molada Atla, sonra tekrar Atla) ve eskiden her
-            // seferinde toplam km ile toplam odaga bir bacak ekliyordu:
-            // iki dokunusla bedava mesafe. Artik hicbir sey eklemeden doner.
-            if (before.arrived) {
-                setPhase(Phase.FOCUS)
-                TimerService.ensureStopped(app)
-                persist()
-                publish()
-                return
-            }
+        val outcome = FlightCore.finishPhase(before, data, System.currentTimeMillis(), skipped)
 
-            // Gercekte odakta gecen sure. Normal biten pomodoroda ayarlanan
-            // surenin tamami, atlanmisda kalanin dusuldugu kisim.
-            val focusedMs = (before.durationMsOf(Phase.FOCUS) - before.remainingMs)
-                .coerceIn(0L, before.durationMsOf(Phase.FOCUS))
+        data = outcome.data
+        // Gunluge zaman damgali kayit: gun dagilimi, seri ve saat
+        // histogrami ancak buradan cikiyor.
+        outcome.record?.let { journal.append(it) }
 
-            val flown = (before.flownOnRoute + route.kmPerLeg).coerceAtMost(route.km)
-            val progress = data.progress.toMutableMap()
-            progress[route.key] = flown
-            val arrivedNow = flown >= route.km - FlightUiState.ARRIVAL_EPSILON_KM
-            val log = if (arrivedNow) {
-                listOf(LogEntry(route.key, route.km.roundToInt(), System.currentTimeMillis())) + data.log
-            } else {
-                data.log
-            }
-            data = data.copy(
-                progress = progress,
-                log = log,
-                // Atlanan pomodoro odak sayilmaz: 25 dakikaligi ucuncu
-                // saniyede atlayinca "toplam odak" 25 dakika artmamali.
-                totalMs = data.totalMs + if (skipped) 0L else before.durationMsOf(Phase.FOCUS),
-                totalKm = data.totalKm + route.kmPerLeg,
-                cycle = (data.cycle + 1) % 4,
-            )
+        if (notify) outcome.alert?.let { announce(it, before, outcome) }
 
-            // Gunluge zaman damgali kayit: gun dagilimi, seri ve saat
-            // histogrami ancak buradan cikiyor.
-            journal.append(
-                FocusRecord(
-                    time = System.currentTimeMillis(),
-                    routeKey = route.key,
-                    minutes = (focusedMs / 60_000L).toInt(),
-                    km = route.kmPerLeg,
-                    skipped = skipped,
-                ),
-            )
-            if (notify) {
-                val kind = if (arrivedNow) ChimeKind.LAND else ChimeKind.LEVEL
-                chime(kind)
-                buzz(kind)
-                if (arrivedNow) {
-                    Notifications.alert(
-                        app,
-                        "İniş yapıldı · ${route.dest.city}",
-                        "${route.origin.code} → ${route.dest.code} tamamlandı · " +
-                            "${formatNumber(route.km)} km. Günlüğe damga düştü.",
-                    )
-                } else {
-                    val left = Route.legsFor(route.km - flown, data.focusMin)
-                    Notifications.alert(
-                        app,
-                        "Pomodoro tamam · mola",
-                        "${formatNumber(route.kmPerLeg)} km yol aldın · " +
-                            "${route.dest.city} için $left pomodoro kaldı.",
-                    )
-                }
-            }
-            setPhase(if (data.cycle == 0) Phase.LONG else Phase.BREAK)
-            if (data.autoBreak && !arrivedNow) {
-                start()
-            } else {
-                TimerService.ensureStopped(app)
-            }
+        setPhase(outcome.phase)
+        if (outcome.autoStart) {
+            start()
         } else {
-            if (notify) {
-                chime(ChimeKind.BOARDING)
-                buzz(ChimeKind.BOARDING)
-                Notifications.alert(app, "Mola bitti", "Kabin hazır — seyre devam edebilirsin.")
-            }
-            setPhase(Phase.FOCUS)
             TimerService.ensureStopped(app)
         }
         persist()
         publish()
+    }
+
+    /** Faz bitisinin sesi, titresimi ve bildirimi. */
+    private fun announce(alert: PhaseAlert, before: FlightUiState, outcome: PhaseOutcome) {
+        val kind = when (alert) {
+            PhaseAlert.LAND -> ChimeKind.LAND
+            PhaseAlert.LEVEL -> ChimeKind.LEVEL
+            PhaseAlert.BOARDING -> ChimeKind.BOARDING
+        }
+        chime(kind)
+        buzz(kind)
+        val route = before.route
+        when (alert) {
+            PhaseAlert.LAND -> Notifications.alert(
+                app,
+                "İniş yapıldı · ${route.dest.city}",
+                "${route.origin.code} → ${route.dest.code} tamamlandı · " +
+                    "${formatNumber(route.km)} km. Günlüğe damga düştü.",
+            )
+            PhaseAlert.LEVEL -> Notifications.alert(
+                app,
+                "Pomodoro tamam · mola",
+                "${formatNumber(outcome.gainedKm)} km yol aldın · " +
+                    "${route.dest.city} için ${outcome.legsLeft} pomodoro kaldı.",
+            )
+            PhaseAlert.BOARDING -> Notifications.alert(
+                app,
+                "Mola bitti",
+                "Kabin hazır — seyre devam edebilirsin.",
+            )
+        }
     }
 
     private fun setPhase(next: Phase) {
