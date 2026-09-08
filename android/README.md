@@ -21,13 +21,15 @@ cd android
 
 - `minSdk 26`, `targetSdk 35`, JDK 17, AGP 8.7.3, Kotlin 2.0.21, Compose BOM 2024.12.
 
+SDK olmadan da saf katman derlenip sınanabiliyor; bkz. [Testler](#testler).
+
 ## Web sürümünden ne taşındı
 
 | Web | Android |
 |---|---|
-| Canvas'ta ortografik küre, paralel/meridyen ağı, büyük daire rotası | `ui/Globe.kt` — Compose `Canvas`, aynı izdüşüm ve aynı geometri |
-| `localStorage` | `data/Store.kt` — SharedPreferences üzerinde JSON |
-| `requestAnimationFrame` sayacı | `timer/FlightEngine.kt` — tek otorite, `StateFlow` |
+| Canvas'ta ortografik küre, paralel/meridyen ağı, büyük daire rotası | `ui/Globe.kt` — Compose `Canvas`, aynı izdüşüm ve aynı geometri; kamera `ui/GlobeCamera.kt` |
+| `localStorage` | `data/Store.kt` — SharedPreferences üzerinde JSON; kaydın kendisi `data/Persisted.kt` |
+| `requestAnimationFrame` sayacı | `timer/FlightEngine.kt` — tek otorite, `StateFlow`; faz geçişi `timer/FlightCore.kt` |
 | WebAudio kabin sesi | `audio/Chime.kt` — aynı notalar `AudioTrack` ile sentezleniyor |
 | Sekme başlığındaki geri sayım | Foreground service bildirimi (Beklet / Atla eylemleriyle) |
 | Barlow · Barlow Condensed · IBM Plex Mono (CDN) | Aynı fontlar `res/font` içinde gömülü |
@@ -112,8 +114,23 @@ aksi halde sürükleme jestini sayfa kaydırma kapar ve küre dönmez.
 Çimdikleme ve tekerlek, parmağın altındaki coğrafi noktayı yerinde tutar.
 Bunun için yaklaşım yapmak yerine kamera doğrudan çözülüyor: nokta kamera
 tabanında (doğu, kuzey, yukarı) bileşenlerine ayrılıp enlem tek bir sinüs
-denkleminden, boylam da yatay bileşenin dönme açısından bulunuyor. Denemede
-her ölçekte kayma tam olarak sıfır piksel çıktı.
+denkleminden, boylam da yatay bileşenin dönme açısından bulunuyor.
+
+Bu matematik `ui/GlobeCamera.kt` içinde, Compose'a hiç dokunmayan bir dosyada
+duruyor; `Globe.kt` yalnızca çiziyor. Ayrıldıktan sonra iddia teste bağlandı —
+ekrandaki 289 nokta × 6 ölçek — ve iki eksik çıktı:
+
+- **Sinüs denkleminin iki kökü var.** Yalnızca birincisi alınıyordu. Ufka
+  yakın örneklerde (denenen 1.300 örnekte 1-2 tanesi) yanlış kök seçilip
+  kamera, parmağın altındaki noktayı kürenin **arka yüzüne** atıyordu. Kayma
+  sıfırdı, nokta kaymıyordu — tamamen öteki tarafa geçiyordu. Artık iki kök de
+  deneniyor ve seçilen kamera geri izdüşürülerek doğrulanıyor.
+- **Tam kutupta** `|pz| ≤ rr` eşitliğinin sağlanması gerekirken `rr`
+  yuvarlama yüzünden 1'in bir ulp altında kalıyor, çözüm yok sanılıp merkeze
+  göre yakınlaştırılıyordu. Sınıra pay eklendi.
+
+Bu ikisinden sonra kayma her ölçekte ve her noktada 0,01 pikselin altında —
+artık her koşuda ölçülüyor.
 
 - **Atalet:** parmak kalkınca küre sönümlenerek dönmeye devam eder
 - **Gündüz/gece:** dünyanın karanlık yarısı gölgelenir. Alt-güneş noktası
@@ -162,6 +179,36 @@ python3 tools/build_coastline.py ne_110m_coastline.geojson \
   faz bitiminde kabin anonsu (Android 13+ için bildirim izni istenir).
 - **Açık/koyu tema:** sistem temasını izler, renkler web sürümündeki CSS
   değişkenlerinin birebir karşılığıdır.
+
+## Sayacın çekirdeği
+
+Faz geçişi bir süre `FlightEngine` içinde, servis / bildirim / ses / titreşim /
+dosya çağrılarıyla iç içe duruyordu. Uygulamanın en can alıcı mantığı bu ve
+tam da bu yüzden hiç sınanamıyordu: hepsini çalıştırmak için cihaz gerekiyordu.
+
+`timer/FlightCore.kt` artık geçişin **sonucunu** saf bir tarif olarak
+döndürüyor — yeni kalıcı veri, sonraki faz ve süresi, günlüğe yazılacak kayıt,
+anons türü, molanın kendiliğinden başlayıp başlamayacağı. `FlightEngine`
+yalnızca bu tarifi uyguluyor. `Persisted` de `Store.kt`'den kendi dosyasına
+alındı; artık cihazsız derleniyor.
+
+Ayrıldıktan hemen sonra iki hata çıktı:
+
+**Taşan bacak bedava mil veriyordu.** Kazanılan mesafe, rotada gerçekten
+ilerlenen kadar değil, nominal bacak boyu kadar yazılıyordu. İkisi normalde
+aynı (bacak boyu = km / bacak). Ama odak süresi rota yarım kalmışken
+uzatılınca bacak boyu büyüyor ve son bacak rotanın ucundan taşıyor: IST-JFK'de
+8 bacak uçup 25'ten 50 dakikaya geçen biri son pomodoroda 891 km ilerliyor ama
+toplamına 1.605 km yazılıyordu — hiç uçmadığı 713 km. Günlük kaydına da aynı
+şişirilmiş rakam düşüyordu. Artık ikisi de gerçekten kat edilen mesafeyi
+yazıyor; süresini değiştirmeyen kullanıcıda davranış birebir aynı.
+
+**Kayıt yanlış güne düşüyordu.** Günlük kaydı ile varış damgası "şu an" ile
+tarihleniyordu. Oysa faz ekran kapalıyken ya da süreç ölmüşken bitmiş olabilir
+ve saatler sonra fark edilir. Dokuz saat önce biten bir pomodoro bugüne
+yazılıyor, gün dağılımını ve saat histogramını yanlış yerden dolduruyordu.
+Artık fazın gerçekten bittiği an (`endAt`) taşınıyor; ATLA'da bu an zaten
+şimdiki zaman, yani orada bir değişiklik yok.
 
 ## Pencereden bakış
 
@@ -304,8 +351,20 @@ o cihazlarda olmaz.
 
 ```bash
 cd android
-./gradlew test          # 79 birim test, JVM'de çalışır, cihaz gerekmez
+./gradlew test          # 113 birim test, JVM'de çalışır, cihaz gerekmez
 ```
+
+Android SDK yoksa Gradle daha ilk adımda durur. Testler yine de koşar:
+
+```bash
+python3 tools/run_tests.py            # aynı 113 test, gerçek derleyiciyle
+python3 tools/run_tests.py --offline  # ağa hiç çıkma
+```
+
+Betik Kotlin 2.0.21 derleyicisini ve JUnit'i Maven Central'dan indirir,
+SHA-1 ile doğrular, `.kotlin-toolchain/` altında saklar ve saf katmanı
+gerçekten derler. Bu depoda uzun süre yalnızca derleyicisiz tarama vardı;
+artık testlerin geçtiği iddiası burada da doğrulanabiliyor.
 
 `app/src/test/` altında saf mantık katmanının tamamı sınanıyor: küre
 geometrisi (web sürümünün ürettiği sayılara karşı), rota kurulumu ve uçuş
@@ -320,30 +379,59 @@ gidiş-dönüşü, bozuk satırların elenmesi, ondalık ayracın makineden bağ
 olması, seri hesabı (boşluk, gün sınırı, yerel saat dilimi), günlük kutular,
 saat histogramı ve kart seviyesi eşikleri.
 
+Sayacın faz geçişi (`timer/FlightCore.kt`) ve kürenin kamerası
+(`ui/GlobeCamera.kt`) sonradan Android katmanından ayrıldı; ikisi de artık
+buradan sınanıyor. Ayırmanın kendisi dört hata ortaya çıkardı: ikisi
+[Küre](#küre), ikisi [Sayacın çekirdeği](#sayacın-çekirdeği) bölümünde
+anlatılıyor.
+
 ## Derlemeden önce
 
-Depoda Android SDK olmadığı için Compose katmanı burada derlenemiyor.
-`tools/lint_kotlin.py` derleyici olmadan yakalanabilen dört hata sınıfını tarar:
-dengesiz ayraçlar, **dengesi tutan ama yuvalanması kaymış dosyalar** (kapanış
-parantezi yanlış fonksiyonun sonuna konunca aradaki bütün fonksiyonlar bir
-üstekinin içine gömülür; toplam sayı tuttuğu için ayraç sayımı yakalamaz),
-tanımsız tür/fonksiyon adları ve JVM imza çakışmaları (`var zoom` ile
-`fun setZoom` aynı imzayı üretir).
+Compose katmanı burada derlenemiyor: androidx yapıtlarının tek dağıtım adresi
+Google'ın kendi Maven deposu. `tools/lint_kotlin.py` derleyici olmadan
+yakalanabilen hata sınıflarını tarar: dengesiz ayraçlar, **dengesi tutan ama
+yuvalanması kaymış dosyalar** (kapanış parantezi yanlış fonksiyonun sonuna
+konunca aradaki bütün fonksiyonlar bir üstekinin içine gömülür; toplam sayı
+tuttuğu için ayraç sayımı yakalamaz), tanımsız tür/fonksiyon adları ve JVM
+imza çakışmaları (`var zoom` ile `fun setZoom` aynı imzayı üretir).
 
 ```bash
 python3 tools/lint_kotlin.py android/app/src/main/java
 ```
 
-Saf mantık katmanı (geometri, rota, biçimlendirme, yer ve kıyı şeridi
-ayrıştırıcıları) Android'e bağlı olmadığı için JVM'de derlenip
-çalıştırılabiliyor; sayısal çıktılar orijinal JavaScript sürümüne karşı
-karşılaştırılıyor.
+Taramanın kendi körlüğü de bu turda çıktı: uzantı fonksiyonunun alıcısı
+(`fun Projection.pathOf`) hiç bakılmayan bir yerdi. `Projection` adı
+`GlobeCamera` olunca üç yerde eski ad kaldı ve tarama "temiz" dedi. Alıcı
+türleri ile `is Foo` / `as Foo` artık taranıyor.
+
+Saf mantık katmanı Android'e bağlı olmadığı için gerçek Kotlin derleyicisiyle
+derlenip çalıştırılabiliyor (`tools/run_tests.py`); sayısal çıktılar orijinal
+JavaScript sürümüne karşı karşılaştırılıyor.
+
+## Yedekleme
+
+`allowBackup="true"` idi ama hiçbir kural yoktu; neyin yedekleneceğine Android
+kendi karar veriyordu. Artık açıkça yazıyor (`res/xml/backup_rules.xml` ve
+Android 12+ için `res/xml/data_extraction_rules.xml`; ikisi birden gerekiyor,
+eski sürümler yalnızca öbürünü okuyor).
+
+Yedeklenen şey kullanıcının kazandığı şey: sayacın kalıcı kaydı
+(`ucus-modu.xml`) ve gün bazlı pomodoro dosyası (`ucus-gunlugu.tsv`).
+
+Pencere tercihleri (`ucus-modu-pencere.xml`) bilerek dışarıda: içindeki video
+adresi SAF ile alınmış bir izne dayanıyor ve o izin başka cihaza taşınmıyor,
+yani geri yüklenen adres kesinlikle ölü olurdu. Kalanları (tema, kanat,
+çerçeve) tek dokunuşla yeniden seçmek daha ucuz.
 
 ## Bilinen sınırlar
 
-- Bu depo Android SDK'sız bir ortamda hazırlandı; APK derlemesi ilk kez
-  sizin makinenizde çalışacak. Saf mantık katmanı (geometri, rota, durum,
-  biçimlendirme) JVM'de derlenip orijinal JavaScript çıktısıyla karşılaştırıldı,
-  Compose/servis katmanı ise derlenmedi.
+- Saf mantık katmanı burada gerçek derleyiciyle derlenip sınanıyor
+  (`tools/run_tests.py`), Compose ve servis katmanı ise derlenmiyor: androidx
+  yapıtları yalnızca Google'ın kendi Maven deposundan dağıtılıyor. O katmanların
+  ilk derlemesi sizin makinenizde çalışacak.
 - Servis `specialUse` foreground service tipi kullanır; Play Store'a yüklenecekse
   bu tip için gerekçe girmek gerekir.
+- `USE_EXACT_ALARM` iznini bildiriyor; Play bunu yalnızca çalar saat ve takvim
+  uygulamalarına veriyor. Yandan yüklemede sorun yok ve izin olmadığında kod
+  zaten `SCHEDULE_EXACT_ALARM`'a, o da yoksa uyku dostu alarma düşüyor —
+  Play'e çıkılacaksa bu iznin kaldırılması gerekir.
