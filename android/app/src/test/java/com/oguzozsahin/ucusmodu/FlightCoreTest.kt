@@ -242,6 +242,29 @@ class FlightCoreTest {
         assertEquals(r.legs - 1, out.legsLeft)
     }
 
+    // ---------------- zaman damgasi ----------------
+
+    @Test
+    fun `kayit fazin bittigi ana tarihlenir, fark edildigi ana degil`() {
+        // Ekran kapaliyken biten faz saatler sonra fark edilebiliyor; o
+        // pomodoroyu bugune yazmak gun dagilimini yanlis yerden doldururdu.
+        val r = route()
+        val data = Persisted(routeKey = r.key)
+        val endedAt = now - 9 * 60 * 60_000L
+        val out = FlightCore.finishPhase(state(r, data), data, endedAt)
+        assertEquals(endedAt, out.record!!.time)
+    }
+
+    @Test
+    fun `varis damgasi da fazin bittigi ani tasir`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key, progress = mapOf(r.key to r.km - r.kmPerLeg))
+        val endedAt = now - 3 * 60 * 60_000L
+        val out = FlightCore.finishPhase(state(r, data), data, endedAt)
+        assertTrue(out.arrived)
+        assertEquals(endedAt, out.data.log[0].time)
+    }
+
     @Test
     fun `baska rotanin ilerlemesi bozulmaz`() {
         val r = route()

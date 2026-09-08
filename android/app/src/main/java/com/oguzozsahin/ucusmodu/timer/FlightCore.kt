@@ -43,6 +43,11 @@ object FlightCore {
     /**
      * [before] fazini bitirir ve sonrasini hesaplar.
      *
+     * @param endedAt Fazin gercekten bittigi an; gunluk kaydi ile varis
+     *   damgasi bununla tarihlenir. "Su an" degil: ekran kapaliyken ya da
+     *   surec olmusken biten bir faz saatler sonra fark edilebiliyor ve o
+     *   pomodoroyu bugune yazmak gun dagilimini de saat histogramini de
+     *   yanlis yerden dolduruyordu.
      * @param skipped ATLA ile erken gecildi mi. Mesafe ve rota ilerlemesi
      *   normal biten pomodorodakiyle ayni isler; degisen, toplam odak suresine
      *   sayilmamasi ve gunlukte isaretlenmesi.
@@ -50,7 +55,7 @@ object FlightCore {
     fun finishPhase(
         before: FlightUiState,
         data: Persisted,
-        now: Long,
+        endedAt: Long,
         skipped: Boolean = false,
     ): PhaseOutcome {
         val route = before.route
@@ -105,7 +110,7 @@ object FlightCore {
         progress[route.key] = flown
         val arrivedNow = flown >= route.km - FlightUiState.ARRIVAL_EPSILON_KM
         val log = if (arrivedNow) {
-            listOf(LogEntry(route.key, route.km.roundToInt(), now)) + data.log
+            listOf(LogEntry(route.key, route.km.roundToInt(), endedAt)) + data.log
         } else {
             data.log
         }
@@ -128,7 +133,7 @@ object FlightCore {
             // Varista mola otomatik baslamaz: ucus bitti, ekranda damga var.
             autoStart = next.autoBreak && !arrivedNow,
             record = FocusRecord(
-                time = now,
+                time = endedAt,
                 routeKey = route.key,
                 minutes = (focusedMs / 60_000L).toInt(),
                 km = gained,

@@ -77,7 +77,7 @@ class FlightEngine private constructor(context: Context) {
             while (running && now() >= endAt && guard-- > 0) {
                 // Az once bitmisse anons hala anlamli; cok eskiyse sessizce kapat.
                 val recent = now() - endAt < 5 * 60_000L
-                finishPhase(notify = recent)
+                finishPhase(notify = recent, endedAt = endAt)
             }
             if (running) {
                 // Yeniden baslatma sonrasi alarm kaybolmus olabilir; tazeliyoruz.
@@ -126,8 +126,9 @@ class FlightEngine private constructor(context: Context) {
 
     /** Fazi erken bitirir; odak fazinda bacak tamamlanmis sayilir. */
     fun skip() {
+        val at = now()
         pause()
-        finishPhase(notify = false, skipped = true)
+        finishPhase(notify = false, endedAt = at, skipped = true)
         publish()
     }
 
@@ -228,7 +229,7 @@ class FlightEngine private constructor(context: Context) {
         remaining = (endAt - now()).coerceAtLeast(0L)
         var guard = 8
         while (running && now() >= endAt && guard-- > 0) {
-            finishPhase(notify = true)
+            finishPhase(notify = true, endedAt = endAt)
         }
         publish()
     }
@@ -240,9 +241,9 @@ class FlightEngine private constructor(context: Context) {
      * hesaplaniyor; burada kalan yalnizca sonucun uygulanmasi: ses, titresim,
      * bildirim, gunluk dosyasi ve servis.
      */
-    private fun finishPhase(notify: Boolean, skipped: Boolean = false) {
+    private fun finishPhase(notify: Boolean, endedAt: Long, skipped: Boolean = false) {
         val before = currentState()
-        val outcome = FlightCore.finishPhase(before, data, System.currentTimeMillis(), skipped)
+        val outcome = FlightCore.finishPhase(before, data, endedAt, skipped)
 
         data = outcome.data
         // Gunluge zaman damgali kayit: gun dagilimi, seri ve saat
@@ -336,7 +337,7 @@ class FlightEngine private constructor(context: Context) {
                 val left = endAt - now()
                 if (left <= 0L) {
                     remaining = 0L
-                    finishPhase(notify = true)
+                    finishPhase(notify = true, endedAt = endAt)
                 } else {
                     remaining = left
                     val second = (left + 999L) / 1000L
