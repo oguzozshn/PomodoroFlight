@@ -68,13 +68,13 @@ JDK 17, AGP 8.7.3, Kotlin 2.0.21, Compose BOM 2024.12.
 cd android
 ./gradlew assembleDebug     # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew installDebug      # install onto a connected device
-./gradlew test              # 113 unit tests, JVM only, no device needed
+./gradlew test              # 125 unit tests, JVM only, no device needed
 ```
 
 Without an Android SDK, Gradle stops at the first step. The tests still run:
 
 ```bash
-python3 tools/run_tests.py   # same 113 tests, real Kotlin compiler, no SDK
+python3 tools/run_tests.py   # same 125 tests, real Kotlin compiler, no SDK
 ```
 
 It pulls the Kotlin 2.0.21 compiler and JUnit from Maven Central, verifies
@@ -89,9 +89,10 @@ cannot be compiled. Everything else is compiled and executed:
 
 1. **The pure layer, compiled and run.** Geometry, routing, the timer's
    phase transitions, state derivation, formatting, the binary asset parsers,
-   the ticket, the journal format and both cameras — the globe's and the
-   window's — have no Android dependencies. 113 unit tests cover them, many
-   against closed-form formulas rather than recorded values.
+   the ticket, the journal format, both cameras — the globe's and the
+   window's — and the horizon clamping that puts coastlines on screen have no
+   Android dependencies. 125 unit tests cover them, many against closed-form
+   formulas rather than recorded values.
 2. **An oracle extracted from the original HTML.** Route distances, leg
    counts, flight numbers, interpolated positions, progress fractions and
    formatted output are compared against the original JavaScript. Parity has
@@ -109,13 +110,15 @@ queried point-by-point against the source polygons, so the sea reads as sea
 and the coastlines land where they belong.
 
 Pulling logic out of the Android layer so that it could be tested is what
-found the four bugs fixed most recently: a leg that overshot the end of a
+found the five bugs fixed most recently: a leg that overshot the end of a
 route credited its full nominal length rather than the distance actually
 flown; a phase that ended while the screen was off was recorded on the day it
 was noticed rather than the day it ended; the anchored-zoom solver picked the
 wrong root of a sine equation near the limb and flipped the pinched point to
-the far side of the globe; and anchoring exactly on a pole was rejected by a
-one-ulp rounding margin and silently fell back to zooming on the centre.
+the far side of the globe; anchoring exactly on a pole was rejected by a
+one-ulp rounding margin and silently fell back to zooming on the centre; and
+the arc that carries a coastline along the horizon divided itself one segment
+short, so its step never actually met the resolution it asked for.
 
 ## Data and assets
 

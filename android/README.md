@@ -241,6 +241,16 @@ bıraktığı için sorun kökten kalkıyor. Aynı geçişte arkada kalan kıyı
 seyreltiliyor — bir kıtanın on bin noktası birkaç yüze iniyor — sonra halka
 görüş piramidinin beş düzlemine kırpılıyor.
 
+Bastırma ve kırpma `ui/window/SkyRings.kt` içinde, Compose'a dokunmayan bir
+dosyada duruyor; `SkyGeometry.kt` yalnızca çiziyor. Ege hatası artık bir test:
+ağzı ufka açılan bir körfez bastırılıyor ve çemberdeki ardışık noktalar
+arasında yay adımından büyük bir sıçrama kalmadığı ölçülüyor — kiriş kalsaydı
+o sıçrama radyanlar mertebesinde olurdu.
+
+Test yazılırken yay adımının aslında tutturulmadığı da görüldü: bölme sayısı
+aşağı yuvarlanıyordu, 2,7 radyanlık bir yay 54 yerine 53 parçaya bölünüp adım
+istenen 0,05'in üstüne, 0,051'e çıkıyordu. Yukarı yuvarlanıyor artık.
+
 ### Video kipi ve telif
 
 Video uygulamanın içine kopyalanmaz, APK'ya da girmez: SAF ile seçtiğiniz
@@ -351,13 +361,13 @@ o cihazlarda olmaz.
 
 ```bash
 cd android
-./gradlew test          # 113 birim test, JVM'de çalışır, cihaz gerekmez
+./gradlew test          # 125 birim test, JVM'de çalışır, cihaz gerekmez
 ```
 
 Android SDK yoksa Gradle daha ilk adımda durur. Testler yine de koşar:
 
 ```bash
-python3 tools/run_tests.py            # aynı 113 test, gerçek derleyiciyle
+python3 tools/run_tests.py            # aynı 125 test, gerçek derleyiciyle
 python3 tools/run_tests.py --offline  # ağa hiç çıkma
 ```
 
@@ -381,9 +391,10 @@ saat histogramı ve kart seviyesi eşikleri.
 
 Sayacın faz geçişi (`timer/FlightCore.kt`) ve kürenin kamerası
 (`ui/GlobeCamera.kt`) sonradan Android katmanından ayrıldı; ikisi de artık
-buradan sınanıyor. Ayırmanın kendisi dört hata ortaya çıkardı: ikisi
-[Küre](#küre), ikisi [Sayacın çekirdeği](#sayacın-çekirdeği) bölümünde
-anlatılıyor.
+buradan sınanıyor; kıyıları ufka oturtan geometri de öyle
+(`ui/window/SkyRings.kt`). Ayırmanın kendisi beş hata ortaya çıkardı: ikisi
+[Küre](#küre), ikisi [Sayacın çekirdeği](#sayacın-çekirdeği), biri
+[Pencereden bakış](#pencereden-bakış) bölümünde anlatılıyor.
 
 ## Derlemeden önce
 
