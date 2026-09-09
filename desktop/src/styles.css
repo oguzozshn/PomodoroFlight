@@ -1,0 +1,620 @@
+:root{
+  --space:#DCE3EA;
+  --ground:#EDF0F4;
+  --panel:#FFFFFF;
+  --panel-2:#F4F6F9;
+  --line:#D2DAE3;
+  --line-soft:#E3E9EF;
+  --ink:#14202C;
+  --ink-2:#3B4A5A;
+  --muted:#66757F;
+  --amber:#B5670C;
+  --amber-2:#D98A26;
+  --amber-glow:rgba(181,103,12,.18);
+  --teal:#0E6B85;
+  --globe-a:#DCEAF4;
+  --globe-b:#B4CCDF;
+  --grat:#C3CFDB;
+  --limb:#A9B8C7;
+  --night:rgba(16,35,56,.22);
+  --lake:#C2D7E6;
+  --land-line:#9AA894;
+  --land:#DFE3CE;
+  --shadow:0 1px 2px rgba(20,32,44,.06),0 8px 24px rgba(20,32,44,.07);
+  --radius:4px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --space:#060B13;
+    --ground:#080E18;
+    --panel:#0F1725;
+    --panel-2:#131E2E;
+    --line:#223047;
+    --line-soft:#1A2536;
+    --ink:#E6EDF7;
+    --ink-2:#B7C6D8;
+    --muted:#7F93AE;
+    --amber:#F2B457;
+    --amber-2:#FFCC7A;
+    --amber-glow:rgba(242,180,87,.22);
+    --teal:#58A8C9;
+    --globe-a:#0E2136;
+    --globe-b:#06121F;
+    --grat:#1F2F47;
+    --limb:#31445F;
+    --night:rgba(0,8,20,.35);
+    --lake:#0F2B42;
+    --land-line:#4A6C8C;
+    --land:#1F3442;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --space:#060B13;
+  --ground:#080E18;
+  --panel:#0F1725;
+  --panel-2:#131E2E;
+  --line:#223047;
+  --line-soft:#1A2536;
+  --ink:#E6EDF7;
+  --ink-2:#B7C6D8;
+  --muted:#7F93AE;
+  --amber:#F2B457;
+  --amber-2:#FFCC7A;
+  --amber-glow:rgba(242,180,87,.22);
+  --teal:#58A8C9;
+  --globe-a:#0E2136;
+  --globe-b:#06121F;
+  --grat:#1F2F47;
+  --limb:#31445F;
+  --night:rgba(0,8,20,.35);
+  --lake:#0F2B42;
+  --land-line:#4A6C8C;
+  --land:#1F3442;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+
+/* hidden özniteliği her şeyi yenmeli: .overlay gibi display veren sınıflar
+   tarayıcının [hidden]{display:none} kuralıyla aynı özgüllükte ve sonra
+   geldikleri için onu eziyor, gizlenmesi gereken katman ekranda kalıyordu. */
+[hidden]{display:none!important}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"Barlow","Segoe UI",system-ui,sans-serif;
+  font-size:15px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1220px;margin:0 auto;padding:20px 20px 56px}
+
+/* ---------- shared bits ---------- */
+.label{
+  font-family:"Barlow Condensed","Barlow Semi Condensed",sans-serif;
+  text-transform:uppercase;
+  letter-spacing:.14em;
+  font-size:12px;
+  font-weight:500;
+  color:var(--muted);
+}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.panel{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{
+  outline:2px solid var(--teal);outline-offset:2px
+}
+
+/* ---------- top bar ---------- */
+.topbar{
+  display:flex;align-items:center;gap:14px;
+  padding:6px 2px 16px;
+  border-bottom:1px solid var(--line);
+  margin-bottom:20px;
+}
+.brand{display:flex;align-items:center;gap:9px}
+.brand svg{display:block;color:var(--amber)}
+.brand b{
+  font-family:"Barlow Condensed",sans-serif;
+  font-weight:600;font-size:19px;letter-spacing:.2em;text-transform:uppercase;
+}
+.tailno{
+  margin-left:auto;display:flex;align-items:center;gap:10px;
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);
+  letter-spacing:.08em;
+}
+.ghost{
+  background:none;border:1px solid var(--line);border-radius:var(--radius);
+  padding:5px 10px;font-family:"Barlow Condensed",sans-serif;
+  text-transform:uppercase;letter-spacing:.1em;font-size:12px;color:var(--ink-2);
+}
+.ghost:hover{border-color:var(--muted);color:var(--ink)}
+.ghost[aria-pressed="false"]{color:var(--muted);opacity:.75}
+
+/* ---------- layout ---------- */
+.grid{display:grid;grid-template-columns:1fr;gap:20px}
+@media(min-width:980px){.grid{grid-template-columns:minmax(0,1.45fr) minmax(320px,1fr)}}
+.col{display:flex;flex-direction:column;gap:20px;min-width:0}
+
+/* ---------- map ---------- */
+.mapwrap{position:relative;overflow:hidden;background:var(--space)}
+#map{display:block;width:100%;height:auto;aspect-ratio:4/3}
+@media(min-width:980px){#map{aspect-ratio:16/11}}
+.hud{position:absolute;pointer-events:none}
+.hud-o{top:12px;left:14px}
+.hud-d{top:12px;right:14px;text-align:right}
+.hud .code{
+  font-family:"Barlow Condensed",sans-serif;font-weight:600;
+  font-size:28px;line-height:1;letter-spacing:.06em;color:var(--ink);
+}
+.hud .city{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.readout{
+  position:absolute;left:0;right:0;bottom:0;
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--line);
+  background:color-mix(in srgb,var(--panel) 86%,transparent);
+  backdrop-filter:blur(6px);
+}
+.cell{padding:8px 12px 9px;border-left:1px solid var(--line-soft)}
+.cell:first-child{border-left:0}
+.cell .v{font-family:"IBM Plex Mono",monospace;font-size:15px;font-variant-numeric:tabular-nums;margin-top:1px}
+.cell .v small{font-size:11px;color:var(--muted);margin-left:2px}
+.status{
+  position:absolute;left:14px;bottom:66px;display:inline-flex;align-items:center;gap:7px;
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.14em;
+  font-size:12px;color:var(--ink-2);
+  background:color-mix(in srgb,var(--panel) 80%,transparent);
+  border:1px solid var(--line);border-radius:100px;padding:3px 11px 3px 9px;
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.dot.live{background:var(--amber);box-shadow:0 0 0 0 var(--amber-glow);animation:pulse 2s infinite}
+.dot.rest{background:var(--teal)}
+@keyframes pulse{70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+/* ---------- timer ---------- */
+.timer{padding:22px 20px 20px;text-align:center}
+.phase{
+  display:inline-block;
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;
+  letter-spacing:.22em;font-size:13px;color:var(--amber);
+}
+.clock{
+  font-family:"IBM Plex Mono",monospace;font-weight:300;
+  font-size:clamp(64px,14vw,104px);line-height:1;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;margin:6px 0 2px;
+}
+.subline{font-size:13px;color:var(--muted);min-height:20px}
+.controls{display:flex;justify-content:center;gap:10px;margin-top:18px;flex-wrap:wrap}
+.btn{
+  border:1px solid var(--line);background:var(--panel-2);border-radius:var(--radius);
+  padding:10px 18px;font-family:"Barlow Condensed",sans-serif;font-weight:500;
+  text-transform:uppercase;letter-spacing:.12em;font-size:14px;
+  transition:border-color .15s,background .15s,transform .06s;
+}
+.btn:hover{border-color:var(--muted)}
+.btn:active{transform:translateY(1px)}
+.btn-go{background:var(--amber);border-color:var(--amber);color:var(--panel);min-width:150px}
+.btn-go:hover{background:var(--amber-2);border-color:var(--amber-2)}
+:root[data-theme="dark"] .btn-go{color:#0A101B}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn-go{color:#0A101B}}
+.cycle{display:flex;justify-content:center;gap:6px;margin-top:16px}
+.cycle i{width:22px;height:3px;background:var(--line);border-radius:2px}
+.cycle i.on{background:var(--amber)}
+
+/* ---------- legs ---------- */
+.pad{padding:16px 16px 18px}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+.head h2{
+  font-family:"Barlow Condensed",sans-serif;font-weight:600;text-transform:uppercase;
+  letter-spacing:.14em;font-size:14px;margin:0;
+}
+.head .aux{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted)}
+.legs{display:flex;gap:3px;margin-bottom:10px}
+.legs i{flex:1;height:14px;background:var(--line-soft);border:1px solid var(--line);border-radius:1px}
+.legs i.done{background:var(--amber);border-color:var(--amber)}
+.legs i.now{background:var(--amber-glow);border-color:var(--amber)}
+.legnote{font-size:13px;color:var(--muted)}
+
+/* ---------- routes ---------- */
+.route{
+  display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;
+  width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line-soft);
+  padding:11px 16px;
+}
+.route:first-of-type{border-top:0}
+.route:hover{background:var(--panel-2)}
+.route[aria-current="true"]{background:var(--amber-glow)}
+.route .pair{
+  font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.02em;white-space:nowrap;
+}
+.route .pair span{color:var(--muted);margin:0 3px}
+.route .nick{font-size:13px;color:var(--ink-2)}
+.route .km{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);white-space:nowrap}
+.route .tick{width:14px;color:var(--amber);font-size:13px}
+.custom{border-top:1px solid var(--line);padding:14px 16px 16px;display:grid;gap:9px}
+.selrow{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+select{
+  width:100%;background:var(--panel-2);color:var(--ink);
+  border:1px solid var(--line);border-radius:var(--radius);padding:8px 9px;font:inherit;font-size:14px;
+}
+.arrow{color:var(--muted);font-size:14px}
+.msg{font-size:13px;color:var(--muted);min-height:19px}
+
+/* ---------- settings ---------- */
+.opts{display:flex;flex-wrap:wrap;gap:18px}
+.opt{display:grid;gap:5px}
+.seg{display:flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;width:fit-content}
+.seg button{
+  background:var(--panel);border:0;border-left:1px solid var(--line);
+  padding:6px 12px;font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--muted);
+}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"]{background:var(--amber);color:var(--panel)}
+:root[data-theme="dark"] .seg button[aria-pressed="true"]{color:#0A101B}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .seg button[aria-pressed="true"]{color:#0A101B}}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2);cursor:pointer}
+input[type=checkbox]{accent-color:var(--amber);width:15px;height:15px}
+
+/* ---------- log ---------- */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line-soft);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:14px}
+.stats div{background:var(--panel);padding:10px 12px}
+.stats .v{font-family:"IBM Plex Mono",monospace;font-size:18px;margin-top:2px}
+.logs{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.logs li{
+  display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:baseline;
+  padding:8px 0;border-top:1px dashed var(--line);font-size:14px;
+}
+.logs li:first-child{border-top:0}
+.logs .st{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--amber);letter-spacing:.04em}
+.logs .dt{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted)}
+.empty{font-size:14px;color:var(--muted)}
+.foot{margin-top:22px;font-size:13px;color:var(--muted);text-align:center}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---- masaüstü sürümü: satır içi stillerden ayıklanan yardımcı sınıflar ---- */
+.pad-tight{padding-bottom:6px}
+.head.flush{margin:0}
+.btn.full{width:100%}
+.check.gap-top{margin-top:14px}
+
+/* ---- masaüstü penceresi: gövde kaydırması pencereye ait ---- */
+html,body{height:100%}
+body{overflow-y:auto;overflow-x:hidden}
+::selection{background:var(--amber-glow)}
+
+/* ---- küreden rota seçimi ---- */
+.maphint{
+  position:absolute;right:14px;bottom:66px;pointer-events:none;
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.12em;
+  font-size:11px;color:var(--muted);
+  background:color-mix(in srgb,var(--panel) 70%,transparent);
+  border:1px solid var(--line-soft);border-radius:100px;padding:3px 11px;
+}
+#map{cursor:grab;touch-action:none}
+
+.field{display:grid;gap:5px}
+.field input{
+  font:inherit;font-size:14px;color:var(--ink);
+  background:var(--panel-2);border:1px solid var(--line);
+  border-radius:var(--radius);padding:8px 10px;
+}
+.field input::placeholder{color:var(--muted)}
+
+/* ---- istatistikler: geniş ekranda iki sütun ----
+   Tek dar sütun 1920 pikselin ortasında asılı kalıyordu; içerik zaten iki
+   yarıya ayrılıyor, o yüzden geniş ekranda yan yana koyuluyor. */
+#statement{padding:18px}
+#statement .sheet-card{width:min(1180px,100%)}
+.stat-body{align-content:start}
+.stat-col{display:grid;gap:14px;align-content:start;min-width:0}
+#statement #stMap{aspect-ratio:1/1}
+
+@media (min-width:1000px){
+  .stat-body{grid-template-columns:minmax(320px,1fr) minmax(360px,1.05fr);gap:16px}
+  .stat-body>.note{grid-column:1/-1}
+
+  /* Harita 4:3 kalır: esnetilince küre dar ve uzun bir kutuda küçücük
+     kalıyordu. Sütunlar içerik dağıtılarak dengeleniyor. */
+  #statement #stMap{aspect-ratio:4/3}
+}
+
+/* ---- ayarlar penceresi ---- */
+.dur{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dur-custom{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+.dur-custom input{
+  width:70px;font:inherit;font-family:"IBM Plex Mono",monospace;font-size:14px;
+  color:var(--ink);background:var(--panel-2);border:1px solid var(--line);
+  border-radius:var(--radius);padding:0 8px;height:34px;text-align:center;
+}
+.dur-custom input:focus-visible{border-color:var(--amber)}
+/* Hazır seçeneklerden biri değilse alan vurgulanır: değer oradan geliyor. */
+.dur-custom input[data-custom="true"]{border-color:var(--amber);color:var(--amber)}
+
+#settings .card{gap:12px}
+#settings .opts{margin:0}
+#settings .opt{display:grid;gap:6px}
+#settings .check{margin:0}
+#settings .field{margin:0}
+
+/* ---- rota kurma: arama ve yuvalar ---- */
+.slots{display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:8px}
+.slots .arrow{align-self:center;color:var(--muted)}
+.slot-card{
+  display:grid;gap:2px;text-align:left;cursor:pointer;
+  padding:9px 11px;border:1px solid var(--line);border-radius:var(--radius);
+  background:var(--panel-2);color:var(--ink);font:inherit;min-width:0;
+}
+.slot-card[aria-pressed="true"]{border-color:var(--amber);background:var(--amber-glow)}
+.slot-card .k{
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;
+  letter-spacing:.12em;font-size:10px;color:var(--muted);
+}
+.slot-card .v{font-size:15px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot-card .s{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.results{
+  list-style:none;margin:0;padding:0;display:grid;
+  max-height:212px;overflow-y:auto;overscroll-behavior:contain;
+}
+.results:empty{display:none}
+.results li{
+  display:flex;align-items:baseline;gap:9px;cursor:pointer;
+  padding:8px 10px;border-top:1px solid var(--line-soft);
+}
+.results li:first-child{border-top:0}
+.results li:hover,.results li[aria-selected="true"]{background:var(--panel-2)}
+.results .code{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--amber);letter-spacing:.04em}
+.results .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.results .alt{color:var(--muted);font-size:12px}
+.results .ctry{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);white-space:nowrap}
+.results .none{color:var(--muted);font-family:"IBM Plex Mono",monospace;font-size:11px;cursor:default}
+
+/* ---- biniş kartı önizlemesi ---- */
+.preview{border-top:1px solid var(--line);padding:14px 16px 16px;display:grid;gap:11px}
+.preview .cells{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+  background:var(--line-soft);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+}
+.preview .cells div{background:var(--panel);padding:8px 10px}
+.preview .cells .k{
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;
+  letter-spacing:.11em;font-size:9px;color:var(--muted);
+}
+.preview .cells .v{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink);margin-top:2px}
+.summary{margin:0;display:grid;gap:5px}
+.summary div{display:flex;align-items:baseline;gap:10px;font-size:13px}
+.summary dt{color:var(--muted)}
+.summary dd{margin:0 0 0 auto;font-family:"IBM Plex Mono",monospace;color:var(--ink)}
+
+/* ============================================================
+   Pencereden bakış
+   Tam ekran; göstergeler bir süre sonra çekilir, geriye pencere ve
+   kalan süre kalır. Kabin çerçevesi tuvale çiziliyor.
+   ============================================================ */
+/* Katmanlar ızgara değil mutlak konumlu.
+   Izgarada <video> yüklenince kendi doğal boyutuyla satırı şişiriyor ve
+   height:100% olan tuval de onunla birlikte pencereden uzun oluyordu:
+   985x700 tuval 985x1751 oluyor, kabin deliği ekranı taşıyordu. */
+.window-view{
+  position:fixed;inset:0;z-index:90;background:#05080e;
+  overflow:hidden;cursor:none;
+}
+.window-view[data-idle="false"]{cursor:default}
+#windowCanvas,#windowVideo{
+  position:absolute;inset:0;width:100%;height:100%;display:block;
+  object-fit:cover;
+}
+/* Video kipinde kare tuvale kendimiz çiziliyor (sığdırma + bulanık zemin),
+   öge yalnızca çözücü olarak duruyor. Görünmez ama render edilir: display:none
+   olsaydı çözülmüş kare gelmezdi. */
+#windowVideo{visibility:hidden}
+/* Tuval saydam kalır: video kipinde yalnızca kabin çerçevesi çizilir,
+   pencere deliğinden altındaki video görünür. */
+#windowCanvas{background:transparent}
+
+.win-chrome{
+  position:absolute;inset:0;z-index:2;
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:26px 30px;pointer-events:none;
+  transition:opacity .35s ease;
+}
+.win-chrome>*{pointer-events:auto}
+.window-view[data-idle="true"] .win-chrome{opacity:0;pointer-events:none}
+.window-view[data-idle="true"] .win-chrome>*{pointer-events:none}
+/* Saat ve çıkış gizlenmez: pencerenin asıl işi kalan süreyi göstermek,
+   çıkışın kaybolması da kullanıcıyı kapana kıstırıyor. */
+.window-view[data-idle="true"] .win-top{opacity:1}
+.window-view[data-idle="true"] .win-exit{opacity:.35;pointer-events:auto}
+.win-exit{
+  position:absolute;top:26px;right:30px;
+  background:rgba(10,16,26,.72);border-color:rgba(255,255,255,.22);
+  color:#fff;backdrop-filter:blur(8px);transition:opacity .35s ease;
+}
+.win-exit:hover{opacity:1!important}
+
+.win-top{text-align:center;transition:opacity .35s ease}
+.win-clock{
+  font-family:"IBM Plex Mono",monospace;font-size:64px;line-height:1;
+  color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.55);
+}
+.win-sub{
+  margin-top:6px;font-family:"Barlow Condensed",sans-serif;font-weight:600;
+  text-transform:uppercase;letter-spacing:.2em;font-size:12px;
+  color:rgba(255,255,255,.8);text-shadow:0 1px 10px rgba(0,0,0,.6);
+}
+
+.win-bottom{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.win-actions{margin-left:auto;display:flex;gap:9px}
+.win-chrome .seg{background:rgba(10,16,26,.72);backdrop-filter:blur(8px)}
+.win-chrome .seg button{color:rgba(255,255,255,.82)}
+.win-chrome .seg button[aria-pressed="true"]{background:var(--amber);color:#0A101B}
+.win-chrome .btn{
+  background:rgba(10,16,26,.72);border-color:rgba(255,255,255,.22);
+  color:#fff;backdrop-filter:blur(8px);
+}
+.win-note{
+  position:absolute;left:30px;right:30px;bottom:74px;margin:0;text-align:center;
+  font-size:13px;color:rgba(255,255,255,.72);text-shadow:0 1px 8px rgba(0,0,0,.6);
+}
+
+/* ============================================================
+   Biniş kartı
+   Bilet yazıcı yuvasından duraklayarak beslenir, sonra perforasyon
+   boyunca sürüklenerek koparılır.
+   ============================================================ */
+.ticket-wrap{width:min(560px,100%);display:grid;gap:14px}
+
+/* Yuva: kart buradan aşağı doğru beslenir, taşan kısım kırpılır. */
+.slot{
+  position:relative;overflow:hidden;
+  border-top:2px solid var(--line);
+  border-radius:2px;
+  padding-top:10px;
+}
+.slot::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:6px;
+  background:linear-gradient(var(--space),transparent);
+  pointer-events:none;z-index:2;
+}
+
+.ticket-card{display:grid;gap:0;will-change:transform}
+
+.stub,.body{
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius);padding:14px 16px;
+}
+.stub-top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.brandline{
+  font-family:"Barlow Condensed",sans-serif;font-weight:600;
+  text-transform:uppercase;letter-spacing:.26em;font-size:13px;color:var(--amber);
+  margin-right:auto;
+}
+.stub-pair{display:flex;align-items:center;gap:12px}
+.stub-pair .right{margin-left:auto;text-align:right}
+.stub-pair .code{
+  font-family:"Barlow Condensed",sans-serif;font-weight:600;
+  font-size:32px;line-height:1;letter-spacing:.04em;color:var(--ink);
+}
+.stub-pair .city{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);margin-top:3px}
+.stub-pair .plane{font-size:18px;color:var(--amber);margin:0 auto}
+
+/* Koparma çizgisi; yükseklik canvas'ın kendi ölçüsüyle uyumlu. */
+.tear{display:block;width:100%;height:26px;cursor:ew-resize;touch-action:none}
+
+.body{display:grid;gap:13px}
+.fields{display:grid;gap:10px;grid-auto-flow:column}
+.fields .f .k{
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;
+  letter-spacing:.12em;font-size:9px;color:var(--muted);
+}
+.fields .f .v{font-family:"IBM Plex Mono",monospace;font-weight:500;font-size:13px;color:var(--ink);margin-top:2px}
+.barcode{display:block;width:100%;height:44px;margin-top:3px}
+
+.ticket-actions{display:flex;align-items:center;gap:12px}
+.ticket-actions .note{margin-right:auto}
+
+/* ============================================================
+   Mil bildirimi
+   Havayolu bildirimi gibi okunsun diye kart, ölçüm çubuğu ve
+   ısı takvimi; pomodoro uygulamalarının çubuk grafiği değil.
+   ============================================================ */
+.overlay{
+  position:fixed;inset:0;z-index:80;display:flex;
+  align-items:center;justify-content:center;
+  padding:24px 20px;
+  background:rgba(4,9,16,.62);
+  backdrop-filter:blur(3px);
+}
+/* Kaydırma kartın gövdesinde: pencere kaydırılırsa başlık içeriğin üstüne biner. */
+.sheet-card{
+  display:flex;flex-direction:column;
+  width:min(720px,100%);max-height:100%;
+  background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+.sheet-head{
+  flex:0 0 auto;
+  display:flex;align-items:center;gap:12px;
+  padding:14px 16px;border-bottom:1px solid var(--line);
+  background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;
+}
+.sheet-head .eyebrow{margin-right:auto}
+.sheet-body{
+  flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  display:grid;gap:14px;padding:16px;align-content:start;
+}
+
+.eyebrow{
+  font-family:"Barlow Condensed",sans-serif;font-weight:600;
+  text-transform:uppercase;letter-spacing:.14em;font-size:13px;color:var(--ink-2);
+}
+.eyebrow.small{font-size:10px;color:var(--muted)}
+.mono{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted)}
+
+.card{
+  display:grid;gap:8px;padding:14px 15px;
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--panel-2);
+}
+.card-top{display:flex;align-items:center;gap:10px}
+.card-top .eyebrow{margin-right:auto}
+
+.tier{
+  font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;font-size:12px;color:var(--amber);
+  border:1px solid var(--amber);border-radius:100px;padding:2px 10px;
+}
+.pax{
+  font-family:"Barlow Condensed",sans-serif;font-weight:600;
+  letter-spacing:.08em;font-size:19px;color:var(--ink);
+}
+.miles{font-family:"IBM Plex Mono",monospace;font-size:32px;line-height:1;color:var(--ink)}
+.miles small{font-size:13px;color:var(--muted);margin-left:5px}
+
+.meter{height:5px;border-radius:3px;background:var(--line-soft);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--amber);border-radius:3px}
+.note{margin:0;font-size:12px;color:var(--muted);line-height:1.5}
+
+#stMap{display:block;width:100%;aspect-ratio:2/1;border-radius:var(--radius);background:var(--space)}
+
+.figures{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line-soft);
+  border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.figures div{background:var(--panel);padding:9px 11px}
+.figures .k{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;
+  letter-spacing:.1em;font-size:10px;color:var(--muted)}
+.figures .v{font-family:"IBM Plex Mono",monospace;font-size:16px;color:var(--ink);margin-top:2px}
+
+.cal{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px}
+.cal i{aspect-ratio:1;border-radius:2px;background:var(--line-soft);cursor:pointer}
+.cal i[data-level="1"]{background:color-mix(in srgb,var(--amber) 28%,var(--line-soft))}
+.cal i[data-level="2"]{background:color-mix(in srgb,var(--amber) 55%,var(--line-soft))}
+.cal i[data-level="3"]{background:color-mix(in srgb,var(--amber) 80%,var(--line-soft))}
+.cal i[data-level="4"]{background:var(--amber)}
+.cal i[aria-current="true"]{outline:1.5px solid var(--ink-2);outline-offset:1px}
+.cal-foot{display:flex;align-items:center;gap:8px;margin-top:2px}
+.cal-foot .scale{margin-left:auto;display:flex;align-items:center;gap:3px}
+.cal-foot .scale i{width:9px;height:9px;border-radius:2px;background:var(--line-soft)}
+.cal-foot .scale i:nth-child(2){background:color-mix(in srgb,var(--amber) 45%,var(--line-soft))}
+.cal-foot .scale i:nth-child(3){background:color-mix(in srgb,var(--amber) 72%,var(--line-soft))}
+.cal-foot .scale i:nth-child(4){background:var(--amber)}
+
+.hours{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;align-items:end;height:64px}
+.hours i{background:var(--line);border-radius:1px 1px 0 0;min-height:2px}
+.hours i[data-peak="true"]{background:var(--amber)}
+
+.hat{display:flex;align-items:baseline;gap:10px;padding:7px 0;border-top:1px solid var(--line-soft)}
+.hat:first-child{border-top:0}
+.hat .pair{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--amber);letter-spacing:.04em}
+.hat .n{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted)}
+
+/* Küre üstünde sürükleme ve tekerlekle yakınlaştırma sayfayı kaydırmasın. */
+#map{touch-action:none}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
