@@ -15,6 +15,7 @@ detailed implementation notes live in [`android/README.md`](android/README.md)
 |---|---|
 | `ucus-modu.html` | The original — a single self-contained HTML file, no build step, no dependencies. Open it in a browser. |
 | `android/` | A native Android app: Kotlin + Jetpack Compose, fully offline. |
+| `desktop/` | A Windows desktop app: Electron, same features, fully offline. |
 | `tools/` | Python scripts that build the offline map assets, plus a compiler-free Kotlin scanner. |
 
 The Android app is not a WebView wrapper. Everything was reimplemented
@@ -59,9 +60,33 @@ wall clock if the process is killed. The cabin chime is synthesised with
 it, the terminal and flight screens split into two panes — globe on the left,
 controls on the right.
 
+## The Windows desktop app
+
+The same app for a desktop, in Electron. Not a WebView of the HTML file
+either: the data layer — the binary map formats, the great-circle routing,
+the logbook, the boarding pass, the sky camera — was ported from the Kotlin
+source, and the numbers match.
+
+What the desktop gains over the phone: a two-column layout that shows the
+globe and the flight controls at once, a menu bar (Uçuş · Ayarlar ·
+İstatistikler · Görünüm · Yardım), keyboard shortcuts, a focus duration you
+can type instead of picking from presets, a seat-side and wing-model choice
+for the window view, and a render-quality setting that supersamples the sky.
+
+```bash
+cd desktop
+npm install
+npm start                   # run it
+npm run dist                # release/UcusModu-Kurulum-<version>.exe (NSIS, unsigned)
+```
+
+The renderer runs sandboxed with context isolation and a strict CSP; the
+files are served over a custom `app://` scheme rather than `file://`, because
+ES modules do not load from an opaque origin.
+
 ## Building
 
-Requires Android Studio and an Android SDK. `minSdk 26`, `targetSdk 35`,
+The Android app requires Android Studio and an Android SDK. `minSdk 26`, `targetSdk 35`,
 JDK 17, AGP 8.7.3, Kotlin 2.0.21, Compose BOM 2024.12.
 
 ```bash
