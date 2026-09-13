@@ -7,20 +7,35 @@ export const RAD = Math.PI / 180;
 export const DEG = 180 / Math.PI;
 export const EARTH_KM = 6371;
 
-/** Ölçeğin tanımlandığı pomodoro uzunluğu (dakika). */
-export const DEFAULT_FOCUS_MIN = 25;
+/**
+ * Bir pomodoronun uzunluğu (dakika). Ölçü birimi: odak süresi ayarı ne olursa
+ * olsun 25 dakika bir pomodoro eder, 50 dakikalık bir oturum iki.
+ */
+export const POMODORO_MIN = 25;
 
-/** Varsayılan uzunlukta bir pomodoronun taşıdığı mesafe. */
-export const KM_PER_POMODORO = 850;
+/** Odak süresi ayarının varsayılanı — bir pomodoro kadar. */
+export const DEFAULT_FOCUS_MIN = POMODORO_MIN;
+
+/** Yolcu uçağının seyir hızı (km/sa). Ölçeğin ve uçuş süresi tahmininin kaynağı. */
+export const CRUISE_KMH = 850;
 
 /**
- * Odakta geçen her dakikanın taşıdığı mesafe.
+ * Bir pomodoronun taşıdığı nominal mesafe; rota bacaklarının ölçeği.
  *
- * Ölçek pomodoro sayısına değil süreye bağlı: 50 dakikalık bir pomodoro
- * 25 dakikalığının iki katı yol alır. Böylece kat edilen yol gerçekten
- * harcanan odağın ölçüsü oluyor. Varsayılan uzunlukta rakamlar değişmiyor.
+ * Uçak gerçek seyir hızıyla gidiyor: 25 dakikada 850 km/sa ≈ 354 km. Eskiden
+ * pomodoro başına 850 km'ydi, yani uçak gerçeğin 2,4 katı hızlıydı. Artık
+ * rotanın odak süresi gerçek seyir süresine eşit; aradaki fark yalnız bacak
+ * sayısının yuvarlanmasından (en fazla ±12,5 dk). Kalkış/iniş payı yok.
  */
-export const KM_PER_MINUTE = KM_PER_POMODORO / DEFAULT_FOCUS_MIN;
+export const KM_PER_POMODORO = CRUISE_KMH * POMODORO_MIN / 60;
+
+/**
+ * Odakta geçen her dakikanın taşıdığı mesafe (≈ 14,2 km).
+ *
+ * Pomodoro sabit olduğu için bu da sabit: 50 dakikalık bir oturum 25
+ * dakikalığının iki katı yol alır, çünkü iki pomodoro eder.
+ */
+export const KM_PER_MINUTE = KM_PER_POMODORO / POMODORO_MIN;
 
 /** Enlem-boylamı birim küre üzerinde bir vektöre çevirir. */
 export const vec = (la, lo) => {

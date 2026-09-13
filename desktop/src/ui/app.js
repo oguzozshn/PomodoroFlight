@@ -6,8 +6,11 @@
 
 import { PRESETS } from "../core/airports.js";
 import { registry, ensurePlacesLoaded, countryName } from "../core/places.js";
-import { buildRoute, kmBetween, legsFor, isValidPair, samplePath, pointAt } from "../core/route.js";
+import {
+  buildRoute, kmBetween, legsFor, kmForFocus, isValidPair, samplePath, pointAt
+} from "../core/route.js";
 import { createTimer, formatClock } from "../core/timer.js";
+import { POMODORO_MIN } from "../core/geo.js";
 import { createStore } from "../core/store.js";
 import { flightState, durationMsOf } from "../core/state.js";
 import { createWorld } from "../core/shapes.js";
@@ -26,6 +29,8 @@ import { issueTicket } from "../core/ticket.js";
 
 const $ = s => document.querySelector(s);
 const nf = n => Math.round(n).toLocaleString("tr-TR");
+/** Pomodoro sayısı: tam sayıysa ondalıksız, değilse "1,48". */
+const fmtPom = n => n.toLocaleString("tr-TR", { maximumFractionDigits: 2 });
 /** Kodun gösterilecek şehir adı; bilinmeyen kodda kodun kendisi. */
 const cityOf = code => registry.find(code)?.city ?? code;
 
@@ -42,6 +47,30 @@ let statement = null;   // mil bildirimi penceresi; boot() içinde kurulur
 let ticketScreen = null;
 let picker = null;
 let windowView = null;
+
+/**
+ * Geri dönüşü olmayan iş için onay penceresi. Tek bir soru gösterir; her düğme
+ * kendi işini yapar ve pencereyi kapatır.
+ */
+const confirmBox = {
+  open({ title, body, actions }) {
+    $("#confirmTitle").textContent = title;
+    $("#confirmBody").textContent = body;
+    const box = $("#confirmActions");
+    box.innerHTML = "";
+    for (const a of actions) {
+      const b = document.createElement("button");
+      b.className = "btn" + (a.primary ? " btn-go" : "");
+      b.textContent = a.label;
+      b.addEventListener("click", () => { confirmBox.close(); a.run?.(); });
+      box.appendChild(b);
+    }
+    $("#confirm").hidden = false;
+    $("#confirmCancel").focus();
+  },
+  close() { $("#confirm").hidden = true; },
+  isOpen: () => !$("#confirm").hidden
+};
 
 /** Ayarlar penceresi; menüden ve Ctrl+, ile açılır. */
 const settings = {
@@ -63,7 +92,7 @@ const done = () => st().done;
 const arrived = () => st().arrived;
 
 function setRoute(key, quiet) {
-  const next = buildRoute(key, db.focusMin);
+  const next = buildRoute(key);
   if (!next) return false;
 
   route = next;
@@ -109,12 +138,15 @@ function finishPhase(skipped = false) {
       return;
     }
 
-    const flown = Math.min(route.km, before.flownOnRoute + route.kmPerLeg);
+    // Oturumun kazandırdığı mesafe: 25 dakika bir bacak, 50 dakika iki.
+    const earned = kmForFocus(route, db.focusMin);
+    const flown = Math.min(route.km, before.flownOnRoute + earned);
     db.progress[route.key] = flown;
     // Atlanan pomodoro odak sayılmaz: 25 dakikalığı üçüncü saniyede atlayınca
     // "toplam odak" 25 dakika artmamalı. Mesafe ise işler.
     if (!skipped) db.totalMs += durationOf("focus");
-    db.totalKm += route.kmPerLeg;
+    // Varışta artakalan pay toplama girmesin: gerçekten alınan yol kadar.
+    db.totalKm += flown - before.flownOnRoute;
     db.cycle = (db.cycle + 1) % 4;
 
     const arrivedNow = flown >= route.km - 0.001;
@@ -122,16 +154,21 @@ function finishPhase(skipped = false) {
 
     // Günlüğe zaman damgalı kayıt: gün dağılımı, seri ve saat histogramı
     // ancak buradan çıkıyor. Gerçekte odakta geçen süre yazılır.
-    const focusMs = Math.max(0, Math.min(durationOf("focus"), durationOf("focus") - remainingAtEntry));
-    const record = focusRecord({
-      time: Date.now(),
-      routeKey: route.key,
-      minutes: Math.floor(focusMs / 60000),
-      km: route.kmPerLeg,
-      skipped
-    });
-    journal.append(record);
-    records.push(record);
+    //
+    // Atlanan oturum hiç yazılmaz. Uçak yine ilerliyor ama bu bir çalışma
+    // kaydı değil; günlüğe girseydi "atlandı" işaretiyle bile saat
+    // histogramını ve seriyi kirletirdi.
+    if (!skipped) {
+      const focusMs = Math.max(0, Math.min(durationOf("focus"), durationOf("focus") - remainingAtEntry));
+      const record = focusRecord({
+        time: Date.now(),
+        routeKey: route.key,
+        minutes: Math.floor(focusMs / 60000),
+        km: flown - before.flownOnRoute
+      });
+      journal.append(record);
+      records.push(record);
+    }
 
     if (db.sound) chime(arrivedNow ? "land" : "level");
     if (arrivedNow) {
@@ -140,10 +177,11 @@ function finishPhase(skipped = false) {
         route.o + " → " + route.d + " tamamlandı · " + nf(route.km) + " km. Günlüğe damga düştü."
       );
     } else {
-      const left = legsFor(route.km - flown, db.focusMin);
+      const left = Math.max(1, Math.ceil((route.km - flown) / route.kmPerLeg));
       platform.notify(
         "Pomodoro tamam · mola",
-        nf(route.kmPerLeg) + " km yol aldın · " + route.dName + " için " + left + " pomodoro kaldı."
+        nf(flown - before.flownOnRoute) + " km yol aldın · " +
+        route.dName + " için " + left + " pomodoro kaldı."
       );
     }
 
@@ -179,14 +217,44 @@ function openTicket() {
  * Tamamlanmış rotayı yeniden uçmak: yalnız bu rotanın ilerlemesi silinir.
  * Günlük, toplam mil ve damgalar durur — yapılmış uçuş yapılmıştır.
  */
-function flyAgain() {
+/**
+ * Rotayı başa alır: yalnız bu rotanın ilerlemesi ve bileti sıfırlanır.
+ * Günlük, toplam mil ve damgalar durur — uçulmuş pomodoro uçulmuştur.
+ *
+ * @param withTicket Bilet ekranı hemen açılsın mı (tekrar uçarken açılır,
+ *                   sıfırlama onayından sonra kullanıcıyı zorlamaz).
+ */
+function resetFlight(withTicket) {
   db.progress[route.key] = 0;
   if (db.ticketFor === route.key) db.ticketFor = "";
   timer.pause();
   timer.setPhase("focus");
   persist();
   renderAll();
-  openTicket();
+  if (withTicket) openTicket();
+}
+
+const flyAgain = () => resetFlight(true);
+
+/**
+ * Sıfırlama onayı. İki ayrı iş var: geri sayımı baştan almak zararsız, uçuşu
+ * sıfırlamak kat edilen yolu siliyor — soruyu sorup ikisini ayırıyoruz.
+ */
+function askReset() {
+  const v = st();
+  const body = v.started
+    ? fmtPom(v.flownOnRoute / route.kmPerLeg) + " pomodoro (" + nf(v.flownOnRoute) +
+      " km) silinir. Günlüğe yazılmış odaklar, toplam mil ve damgalar durur."
+    : "Bu rotada henüz yol alınmadı; yalnız sayaç başa döner.";
+
+  confirmBox.open({
+    title: route.o + " → " + route.d + " sıfırlansın mı?",
+    body,
+    actions: [
+      { label: "Yalnız sayaç", run: () => { timer.reset(); renderAll(); } },
+      { label: "Uçuşu sıfırla", primary: true, run: () => resetFlight(false) }
+    ]
+  });
 }
 
 /** Sayacın kendisi de saklanır: uygulama kapanıp açılınca seyir kaldığı yerden sürer. */
@@ -259,7 +327,11 @@ function renderTimer() {
   if (v.arrived) {
     sub = route.dName + "'a indin. Günlüğe damga düştü — yeni bir rota seç ya da tekrar uç.";
   } else if (timer.phase === "focus") {
-    sub = "Bu pomodoro " + nf(route.km / route.legs) + " km taşıyor.";
+    // Oturum 25 dakikanın katı değilse kaç pomodoro ettiğini söylemek gerekiyor;
+    // "1,5 pomodoro" yarım kalan kutuyu açıklıyor.
+    const poms = db.focusMin / POMODORO_MIN;
+    const label = poms === 1 ? "Bu pomodoro " : "Bu oturum " + fmtPom(poms) + " pomodoro, ";
+    sub = label + nf(kmForFocus(route, db.focusMin)) + " km taşıyor.";
   } else {
     sub = "Uçak rotada bekliyor; mola bitince seyre devam.";
   }
@@ -294,7 +366,11 @@ function renderLegs() {
   for (let i = 0; i < route.legs; i++) {
     const el = document.createElement("i");
     if (i < d) el.className = "done";
-    else if (i === d && timer.running && timer.phase === "focus") el.className = "now";
+    else if (i === d && v.legFill > 0.001) {
+      el.className = timer.running && timer.phase === "focus" ? "now part" : "part";
+      // CSSOM: satır içi style özniteliği CSP'ye takılıyor, özellik ataması takılmıyor.
+      el.style.setProperty("--fill", (v.legFill * 100).toFixed(1) + "%");
+    }
     box.appendChild(el);
   }
   $("#legAux").textContent = d + " / " + route.legs;
@@ -310,7 +386,7 @@ function renderRoutes() {
     const key = o + "-" + d;
     const km = kmBetween(o, d);
     if (km === null) continue;
-    const legs = legsFor(km, db.focusMin);
+    const legs = legsFor(km);
     const flownKm = Math.min(db.progress[key] || 0, km);
     const pr = Math.floor(flownKm / (km / legs) + 1e-9);
 
@@ -431,7 +507,7 @@ function wireControls() {
     timer.toggle();
     renderAll();
   });
-  $("#resetBtn").addEventListener("click", () => { timer.reset(); renderAll(); });
+  $("#resetBtn").addEventListener("click", () => askReset());
   $("#skipBtn").addEventListener("click", () => { timer.pause(); finishPhase(true); });
 
   $("#soundBtn").addEventListener("click", e => {
@@ -454,6 +530,11 @@ function wireControls() {
   $("#autoBreak").addEventListener("change", e => {
     db.autoBreak = e.currentTarget.checked;
     persist();
+  });
+
+  $("#confirmCancel").addEventListener("click", () => confirmBox.close());
+  $("#confirm").addEventListener("click", e => {
+    if (e.target === $("#confirm")) confirmBox.close();
   });
 
   $("#settingsClose").addEventListener("click", () => settings.close());
@@ -484,9 +565,14 @@ function wireChoice(id, key, onChange) {
 /** Süre ayarlarının sınırları: dakika. */
 const DURATION_LIMITS = { focusMin: [1, 180], breakMin: [1, 60] };
 
+/** Aynı süre ayarının ekrandaki bütün kopyaları. */
+const durSegs = key => document.querySelectorAll('[data-dur="' + key + '"]');
+const durFields = key => document.querySelectorAll('[data-dur-field="' + key + '"]');
+
 /**
- * Süreyi uygular. Hazır seçenekler de elle yazılan değer de buradan geçer;
- * bacak sayısı süreye bağlı olduğu için rota yeniden kurulur.
+ * Süreyi uygular. Hazır seçenekler de elle yazılan değer de buradan geçer.
+ * Rota yeniden kurulmaz — bacak sayısı artık süreden bağımsız; yalnız
+ * bacakların dolma hızı değişir.
  */
 function applyDuration(key, value, phase) {
   const [min, max] = DURATION_LIMITS[key];
@@ -495,7 +581,6 @@ function applyDuration(key, value, phase) {
   const clamped = Math.max(min, Math.min(max, n));
 
   db[key] = clamped;
-  if (route) route = buildRoute(route.key, db.focusMin) || route;
   // Süre değişimi yalnızca o fazda ve sayaç dururken kalan süreyi tazeler.
   if (!timer.running && timer.phase === phase) timer.refreshDuration();
   persist();
@@ -505,38 +590,45 @@ function applyDuration(key, value, phase) {
   return clamped === n;
 }
 
-/** Seçenek düğmeleri ve sayı alanı tek bir değeri gösterir. */
+/**
+ * Seçenek düğmeleri ve sayı alanları tek bir değeri gösterir. Odak süresi iki
+ * yerde birden duruyor (giriş ekranı ve ayarlar penceresi); ikisi de buradan
+ * eşitleniyor, biri değişince öbürü de güncelleniyor.
+ */
 function syncDurations() {
-  for (const [id, key, input] of [
-    ["#segFocus", "focusMin", "#focusCustom"],
-    ["#segBreak", "breakMin", "#breakCustom"]
-  ]) {
+  for (const key of ["focusMin", "breakMin"]) {
     const value = db[key];
     let preset = false;
-    for (const b of $(id).children) {
-      const on = +b.dataset.v === value;
-      b.setAttribute("aria-pressed", String(on));
-      if (on) preset = true;
+    for (const seg of durSegs(key)) {
+      for (const b of seg.children) {
+        const on = +b.dataset.v === value;
+        b.setAttribute("aria-pressed", String(on));
+        if (on) preset = true;
+      }
     }
-    const field = $(input);
-    if (document.activeElement !== field) field.value = String(value);
-    field.dataset.custom = String(!preset);
+    for (const field of durFields(key)) {
+      if (document.activeElement !== field) field.value = String(value);
+      field.dataset.custom = String(!preset);
+    }
   }
 }
 
-function wireDuration(segId, inputId, key, phase) {
-  $(segId).addEventListener("click", e => {
-    const b = e.target.closest("button");
-    if (b) applyDuration(key, b.dataset.v, phase);
-  });
+function wireDuration(key, phase) {
+  for (const seg of durSegs(key)) {
+    seg.addEventListener("click", e => {
+      const b = e.target.closest("button");
+      if (b) applyDuration(key, b.dataset.v, phase);
+    });
+  }
 
-  const field = $(inputId);
-  // Yazarken her tuşta uygulanmaz: "5" yazıp "50" yapacakken araya girmesin.
-  field.addEventListener("change", () => applyDuration(key, field.value, phase));
-  field.addEventListener("blur", () => syncDurations());
-  field.addEventListener("keydown", e => {
-    if (e.key === "Enter") { e.preventDefault(); field.blur(); }
-  });
+  for (const field of durFields(key)) {
+    // Yazarken her tuşta uygulanmaz: "5" yazıp "50" yapacakken araya girmesin.
+    field.addEventListener("change", () => applyDuration(key, field.value, phase));
+    field.addEventListener("blur", () => syncDurations());
+    field.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); field.blur(); }
+    });
+  }
 }
 
 function wireRoutePicker() {
@@ -657,6 +749,7 @@ function wireGlobe() {
 
 function wireKeyboard() {
   document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && confirmBox.isOpen()) { confirmBox.close(); return; }
     if (e.key === "Escape" && windowView?.isOpen()) { windowView.close(); return; }
     if (e.key === "Escape" && settings.isOpen()) { settings.close(); return; }
     if (e.key === "Escape" && ticketScreen?.isOpen()) { ticketScreen.close(); return; }
@@ -684,7 +777,7 @@ function wireKeyboard() {
 function wirePlatform() {
   platform.onCommand(cmd => {
     if (cmd === "toggle") timer.toggle();
-    else if (cmd === "reset") timer.reset();
+    else if (cmd === "reset") { askReset(); return; }
     else if (cmd === "skip") { timer.pause(); finishPhase(true); return; }
     else if (cmd === "sound") { $("#soundBtn").click(); return; }
     else if (cmd === "clear") { $("#clearBtn").click(); return; }
@@ -725,7 +818,7 @@ function rebuildTrails() {
   for (const entry of db.log) {
     if (seen.has(entry.r)) continue;
     seen.add(entry.r);
-    const r = buildRoute(entry.r, db.focusMin);
+    const r = buildRoute(entry.r);
     if (r) trails.push(samplePath(r, 96));
   }
 }
@@ -737,7 +830,7 @@ async function loadData() {
     journal.read()
   ]);
   records = stored;
-  if (route) route = buildRoute(route.key, db.focusMin) || route;
+  if (route) route = buildRoute(route.key) || route;
   rebuildTrails();
   picker?.sync();
   renderAll();
@@ -801,8 +894,8 @@ function boot() {
   wireChoice("#segSeat", "seatSide");
   // Kalite değişince sahne yeniden kurulur; pencere açıkken de anında geçerli olur.
   wireChoice("#segQuality", "renderQuality", value => windowView?.applyQuality(value));
-  wireDuration("#segFocus", "#focusCustom", "focusMin", "focus");
-  wireDuration("#segBreak", "#breakCustom", "breakMin", "break");
+  wireDuration("focusMin", "focus");
+  wireDuration("breakMin", "break");
   syncDurations();
   wireRoutePicker();
   wireGlobe();

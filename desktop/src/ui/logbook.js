@@ -18,6 +18,8 @@ import {
 import { createGlobe } from "./globe.js";
 
 const $ = s => document.querySelector(s);
+/** Pomodoro sayısı artık kesirli olabilir (37 dk = 1,48); bir ondalık yeter. */
+const pom = n => n.toLocaleString("tr-TR", { maximumFractionDigits: 1 });
 const CAL_WEEKS = 12;
 
 const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -62,7 +64,7 @@ export function createStatement({ getRecords, getData, getWorld }) {
       ["Kayıtlı odak", formatDuration(focusMinutes(records))],
       ["Tamamlanan uçuş", String(db.log.length)],
       ["Uğranan yer", port > 0 ? String(port) : "—"],
-      ["En yoğun gün", busiest ? busiest.count + " pom" : "—"]
+      ["En yoğun gün", busiest ? pom(busiest.count) + " pom" : "—"]
     ];
     $("#stFigures").innerHTML = figures
       .map(([k, v]) => '<div><div class="k">' + k + '</div><div class="v">' + v + "</div></div>")
@@ -79,8 +81,8 @@ export function createStatement({ getRecords, getData, getWorld }) {
       const cell = document.createElement("i");
       cell.dataset.level = String(level(day.count, max));
       cell.dataset.time = String(day.time);
-      cell.dataset.count = String(day.count);
-      cell.title = formatDate(day.time) + " · " + day.count + " pomodoro";
+      cell.dataset.count = pom(day.count);
+      cell.title = formatDate(day.time) + " · " + pom(day.count) + " pomodoro";
       box.appendChild(cell);
     }
 
@@ -108,7 +110,7 @@ export function createStatement({ getRecords, getData, getWorld }) {
       const bar = document.createElement("i");
       bar.style.height = Math.round((n / max) * 100) + "%";
       bar.dataset.peak = String(peak !== null && (h === peak || h === (peak + 1) % 24));
-      bar.title = String(h).padStart(2, "0") + ":00 · " + n + " pomodoro";
+      bar.title = String(h).padStart(2, "0") + ":00 · " + pom(n) + " pomodoro";
       box.appendChild(bar);
     });
 
@@ -125,7 +127,7 @@ export function createStatement({ getRecords, getData, getWorld }) {
           const [o, d] = r.routeKey.split("-");
           return '<div class="hat"><span class="pair">' + o + " → " + d + "</span>" +
             "<span>" + (registry.find(d)?.city ?? d) + "</span>" +
-            '<span class="n">' + r.count + " pom</span></div>";
+            '<span class="n">' + pom(r.count) + " pom</span></div>";
         }).join("")
       : '<p class="note">Kayıt başlayınca en çok uçtuğun hat burada görünecek.</p>';
   }
@@ -162,13 +164,13 @@ export function createStatement({ getRecords, getData, getWorld }) {
     for (const entry of db.log) {
       if (seen.has(entry.r)) continue;
       seen.add(entry.r);
-      const r = buildRoute(entry.r, db.focusMin);
+      const r = buildRoute(entry.r);
       if (r) trails.push(samplePath(r, 96));
     }
 
     map.readTokens();
     map.resize();
-    const first = db.log.length ? buildRoute(db.log[0].r, db.focusMin) : null;
+    const first = db.log.length ? buildRoute(db.log[0].r) : null;
     map.aim(first ? first.center[0] : 20, first ? first.center[1] : 20, true);
 
     cancelAnimationFrame(mapLoop);

@@ -131,7 +131,7 @@ function buildMenu() {
       label: "Uçuş",
       submenu: [
         { label: "Başlat / Beklet", accelerator: "CmdOrCtrl+Space", click: () => send("toggle") },
-        { label: "Sayacı sıfırla", accelerator: "CmdOrCtrl+R", click: () => send("reset") },
+        { label: "Sıfırla…", accelerator: "CmdOrCtrl+R", click: () => send("reset") },
         { label: "Fazı atla", accelerator: "CmdOrCtrl+Right", click: () => send("skip") },
         { type: "separator" },
         { label: "Kabin sesi", accelerator: "CmdOrCtrl+M", click: () => send("sound") },
@@ -173,7 +173,7 @@ function buildMenu() {
               title: "Uçuş Modu hakkında",
               message: "Uçuş Modu " + app.getVersion(),
               detail:
-                "Rota tabanlı pomodoro sayacı.\nBir pomodoro ≈ 850 km seyir.\n\n" +
+                "Rota tabanlı pomodoro sayacı.\nBir pomodoro 25 dk · 850 km/sa seyirle ≈ 354 km.\n\n" +
                 "Electron " + process.versions.electron + " · Chromium " + process.versions.chrome,
               buttons: ["Tamam"],
             });

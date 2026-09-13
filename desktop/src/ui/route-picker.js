@@ -9,7 +9,7 @@
 import { registry, countryName } from "../core/places.js";
 import { buildRoute, isValidPair } from "../core/route.js";
 import {
-  gateOf, remainingScheduleMinutes, focusMinutesFor, realFlightMinutes, formatDuration
+  gateOf, remainingScheduleMinutes, focusMinutesFor, cruiseMinutes, formatDuration
 } from "../core/estimates.js";
 import { formatNumber, formatTimeOfDay } from "../core/format.js";
 import { flightState } from "../core/state.js";
@@ -141,8 +141,8 @@ export function createRoutePicker({ getData, getRoute, onLoad, onIssue }) {
     const row = (k, v) => "<div><dt>" + k + "</dt><dd>" + v + "</dd></div>";
     summary.innerHTML =
       row("Mesafe", formatNumber(route.km) + " km") +
-      row("Odakta geçecek", formatDuration(focusMinutesFor(state.legsLeft, db.focusMin))) +
-      row("Gerçek uçuş süresi", "≈ " + formatDuration(realFlightMinutes(route.km)));
+      row("Odakta geçecek", formatDuration(focusMinutesFor(state.legsLeft))) +
+      row("Gerçek seyir süresi", "≈ " + formatDuration(cruiseMinutes(route.km)));
 
     const btn = $("#issueBtn");
     btn.disabled = false;

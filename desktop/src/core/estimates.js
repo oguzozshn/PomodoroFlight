@@ -3,20 +3,20 @@
  * Android sürümündeki data/Estimates.kt karşılığı.
  */
 
-/** Yolcu uçağının seyir hızı; uçuş süresi tahmininde kullanılır. */
-const CRUISE_KMH = 850;
-
-/** Manevra, taksi ve tırmanış için sabit pay (dakika). */
-const GROUND_MINUTES = 30;
+import { POMODORO_MIN, CRUISE_KMH } from "./geo.js";
 
 /** Uzun molanın süresi (dakika). */
 export const LONG_BREAK_MIN = 15;
 
-/** Rotanın gerçek hayattaki kaba uçuş süresi (dakika). */
-export const realFlightMinutes = km => Math.round((km / CRUISE_KMH) * 60) + GROUND_MINUTES;
+/**
+ * Rotanın gerçek seyir hızıyla süresi (dakika). Kalkış, taksi ve iniş dahil
+ * değil — pomodoro ölçeğiyle aynı tanım, bu yüzden odak süresinden yalnız
+ * 25 dakikaya yuvarlama kadar ayrılır.
+ */
+export const cruiseMinutes = km => Math.round((km / CRUISE_KMH) * 60);
 
 /** Rotayı bitirmek için gereken toplam odak süresi (dakika). */
-export const focusMinutesFor = (legs, focusMin) => legs * focusMin;
+export const focusMinutesFor = legs => legs * POMODORO_MIN;
 
 /** 585 → "9 sa 45 dk", 45 → "45 dk" */
 export function formatDuration(minutes) {
@@ -28,12 +28,15 @@ export function formatDuration(minutes) {
 
 /**
  * Rotanın kalanını bitirmek için gereken takvim süresi: odaklar + aralarındaki
- * molalar. Dördüncü pomodorodan sonraki uzun mola da hesaba katılır.
+ * molalar. Mola sayısı pomodoro sayısına değil oturum sayısına bağlı — 50
+ * dakikalık oturumda iki pomodoro arasına mola girmez. Dördüncü oturumdan
+ * sonraki uzun mola da hesaba katılır.
  */
 export function remainingScheduleMinutes(legsLeft, focusMin, breakMin, cycle) {
   if (legsLeft <= 0) return 0;
-  let total = legsLeft * focusMin;
-  for (let i = 1; i < legsLeft; i++) {
+  const sessions = Math.max(1, Math.ceil((legsLeft * POMODORO_MIN) / Math.max(1, focusMin)));
+  let total = legsLeft * POMODORO_MIN;
+  for (let i = 1; i < sessions; i++) {
     total += (cycle + i) % 4 === 0 ? LONG_BREAK_MIN : breakMin;
   }
   return total;

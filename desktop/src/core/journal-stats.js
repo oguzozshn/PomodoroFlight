@@ -3,10 +3,22 @@
  *
  * Tamamı saf: ne DOM'a ne dosyaya bağlı, o yüzden doğrudan ölçülebiliyor.
  * Gün sınırı makinenin yerel saatine göre çizilir.
+ *
+ * Sayımlar satır değil pomodoro cinsinden: bir satır bir odak oturumu, ama
+ * pomodoro 25 dakika. 50 dakikalık oturum iki pomodoro, 37 dakikalık 1,48
+ * sayılır. Tamamlanmış 25 dakikalık eski kayıtlar tam bir kalıyor.
  */
 
-/** Atlanan pomodorolar odak istatistiklerine katılmaz. */
+import { POMODORO_MIN } from "./geo.js";
+
+/**
+ * Atlanan pomodorolar odak istatistiklerine katılmaz. Artık günlüğe hiç
+ * yazılmıyorlar; süzgeç önceki sürümün "atlandı" işaretli satırları için.
+ */
 export const counted = records => records.filter(r => !r.skipped);
+
+/** Bir kaydın kaç pomodoro ettiği. */
+export const pomodorosOf = record => record.minutes / POMODORO_MIN;
 
 /** Yerel gece yarısına yuvarlanmış tarih. */
 export function startOfDay(time) {
@@ -33,7 +45,7 @@ function bucketByDay(records) {
   const buckets = new Map();
   for (const r of counted(records)) {
     const key = dayKey(r.time);
-    buckets.set(key, (buckets.get(key) ?? 0) + 1);
+    buckets.set(key, (buckets.get(key) ?? 0) + pomodorosOf(r));
   }
   return buckets;
 }
@@ -71,7 +83,7 @@ export function streak(records, today = Date.now()) {
 /** Günün hangi saatlerinde çalışıldığı; 24 kutu. */
 export function hourHistogram(records) {
   const hours = new Array(24).fill(0);
-  for (const r of counted(records)) hours[new Date(r.time).getHours()]++;
+  for (const r of counted(records)) hours[new Date(r.time).getHours()] += pomodorosOf(r);
   return hours;
 }
 
@@ -88,7 +100,9 @@ export function peakWindow(hours) {
 
 export function topRoutes(records, limit) {
   const counts = new Map();
-  for (const r of counted(records)) counts.set(r.routeKey, (counts.get(r.routeKey) ?? 0) + 1);
+  for (const r of counted(records)) {
+    counts.set(r.routeKey, (counts.get(r.routeKey) ?? 0) + pomodorosOf(r));
+  }
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)

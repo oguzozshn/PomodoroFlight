@@ -2,14 +2,14 @@
  * İki havalimanı arasındaki büyük daire rotası ve bunun pomodoro cinsinden
  * karşılığı. Android sürümündeki data/Route.kt karşılığı.
  *
- * Ölçek pomodoro sayısına değil süreye bağlı: bir rotayı bitirmek için gereken
- * toplam odak süresi pomodoro uzunluğundan bağımsızdır.
+ * Ölçek ayardan bağımsız: bir pomodoro 25 dakika ve gerçek seyir hızıyla
+ * ~354 km (850 km/sa), dolayısıyla bir
+ * rotanın kaç pomodoro ettiği odak süresi ayarıyla oynamaz. Ayar yalnız bir
+ * oturumun kaç pomodoro taşıdığını belirler — 50 dakika iki, 37 dakika 1,48.
  */
 
 import { registry } from "./places.js";
-import {
-  vec, ll, slerp, haversine, DEFAULT_FOCUS_MIN, KM_PER_MINUTE, KM_PER_POMODORO
-} from "./geo.js";
+import { vec, ll, slerp, haversine, POMODORO_MIN, KM_PER_POMODORO } from "./geo.js";
 
 export const routeKey = (o, d) => o + "-" + d;
 
@@ -20,12 +20,20 @@ export function flightNumber(key) {
   return "TK" + (1000 + n);
 }
 
+/** Rotayı bitirmek için kaç pomodoro gerektiği; odak süresi ayarına bakmaz. */
+export const legsFor = km => Math.max(1, Math.round(km / KM_PER_POMODORO));
+
 /**
- * Rotayı bitirmek için kaç pomodoro gerektiği. Pomodoro ne kadar uzunsa
- * o kadar az bacak eder; toplam odak süresi aynı kalır.
+ * Bir odak oturumunun bu rotada kazandırdığı mesafe.
+ *
+ * Bacak başına mesafe nominal KM_PER_POMODORO değil rotanın kendi `kmPerLeg`
+ * değeri — bacak sayısı yuvarlanarak bulunuyor (IST-JFK 8.026 km, 23 bacak,
+ * 349 km/bacak).
+ * Oturum bunun `focusMin / 25` katını taşır, böylece bacak sayısı kadar tam
+ * pomodoro rotayı tastamam bitirir.
  */
-export const legsFor = (km, focusMin = DEFAULT_FOCUS_MIN) =>
-  Math.max(1, Math.round(km / (KM_PER_MINUTE * focusMin)));
+export const kmForFocus = (route, focusMin) =>
+  route ? route.kmPerLeg * (focusMin / POMODORO_MIN) : 0;
 
 /** İki kod arasındaki büyük daire mesafesi; kodlar çözülemezse null. */
 export function kmBetween(from, to) {
@@ -34,12 +42,12 @@ export function kmBetween(from, to) {
 }
 
 /** "IST-JFK" ya da (from, to) biçiminden tam rota nesnesi kurar. */
-export function buildRoute(from, to, focusMin = DEFAULT_FOCUS_MIN) {
-  if (to === undefined || typeof to === "number") {
-    // tek anahtarla çağrıldı: buildRoute("IST-JFK", focusMin?)
+export function buildRoute(from, to) {
+  if (to === undefined) {
+    // tek anahtarla çağrıldı: buildRoute("IST-JFK")
     const parts = String(from).split("-");
     if (parts.length !== 2) return null;
-    return buildRoute(parts[0], parts[1], to === undefined ? focusMin : to);
+    return buildRoute(parts[0], parts[1]);
   }
 
   const o = registry.find(from);
@@ -50,7 +58,7 @@ export function buildRoute(from, to, focusMin = DEFAULT_FOCUS_MIN) {
   const a = vec(o.lat, o.lon);
   const b = vec(d.lat, d.lon);
   const key = routeKey(o.code, d.code);
-  const legs = legsFor(km, focusMin);
+  const legs = legsFor(km);
 
   return {
     key, o: o.code, d: d.code,
@@ -79,14 +87,12 @@ export function samplePath(route, n = 240) {
 /**
  * Bacak sayısını kat edilen mesafeye çevirir; eski kayıtların göçürülmesi için.
  *
- * Bacak başına mesafe 850 km değil, rotanın kendi kmPerLeg değeri: bacak sayısı
- * yuvarlanarak bulunduğu için ikisi aynı değil. IST-JFK 8.026 km ve 9 bacak,
- * yani bacak başına 892 km. 850 ile çevirmek kullanıcının ilerlemesini sessizce
- * geri alırdı.
+ * Burada da nominal KM_PER_POMODORO değil rotanın kendi kmPerLeg değeri
+ * kullanılır; nominal değerle çevirmek ilerlemeyi sessizce kaydırırdı.
  */
-export function kmForLegs(key, legs, focusMin = DEFAULT_FOCUS_MIN) {
+export function kmForLegs(key, legs) {
   if (legs <= 0) return 0;
-  const route = buildRoute(key, focusMin);
+  const route = buildRoute(key);
   if (!route) return legs * KM_PER_POMODORO;
   return Math.min(legs * route.kmPerLeg, route.km);
 }
