@@ -131,7 +131,8 @@ function buildMenu() {
       label: "Uçuş",
       submenu: [
         { label: "Başlat / Beklet", accelerator: "CmdOrCtrl+Space", click: () => send("toggle") },
-        { label: "Sıfırla…", accelerator: "CmdOrCtrl+R", click: () => send("reset") },
+        { label: "Sayacı sıfırla", accelerator: "CmdOrCtrl+R", click: () => send("reset") },
+        { label: "Uçuşu bitir…", accelerator: "CmdOrCtrl+E", click: () => send("end") },
         { label: "Fazı atla", accelerator: "CmdOrCtrl+Right", click: () => send("skip") },
         { type: "separator" },
         { label: "Kabin sesi", accelerator: "CmdOrCtrl+M", click: () => send("sound") },

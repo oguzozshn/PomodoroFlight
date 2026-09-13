@@ -23,8 +23,9 @@ export function flightState(db, route, timer) {
   const kmPerLeg = route?.kmPerLeg ?? 0;
 
   /** Bu rotada kat edilen mesafe. */
-  const flownOnRoute = route
-    ? Math.max(0, Math.min(km, db.progress[route.key] ?? 0))
+  // Tek etkin uçuş var; başka rotaya aitse bu rotada yol alınmamış demektir.
+  const flownOnRoute = route && db.flight?.r === route.key
+    ? Math.max(0, Math.min(km, db.flight.flown ?? 0))
     : 0;
 
   const arrived = route ? flownOnRoute >= km - ARRIVAL_EPSILON_KM : false;

@@ -11,6 +11,7 @@
  */
 
 import { kmForLegs } from "./route.js";
+import { flightFromProgress, validFlight } from "./flights.js";
 import { DEFAULT_FOCUS_MIN } from "./geo.js";
 
 export const STORAGE_KEY = "ucus-modu-v2";
@@ -20,14 +21,13 @@ export const LEGACY_KEY = "ucus-modu-v1";
 
 export const defaults = () => ({
   route: "IST-JFK",
-  progress: {},      // rota anahtarı → o rotada kat edilen km
-  log: [],           // { r: rota, km, t: zaman damgası }
+  flight: null,      // etkin uçuş: { r, flown (km), start, landed? } — aynı anda tek
+  log: [],           // biten uçuşlar, yeniden eskiye: { r, km, flown, start, t, done }
   focusMin: DEFAULT_FOCUS_MIN,
   breakMin: 5,
   autoBreak: true,
   sound: true,
   passenger: "",
-  ticketFor: "",   // bileti koparılmış rota; uçuş ancak koparılınca başlar
   windowMode: "realtime",   // pencereden bakış kipi: realtime | globe | video
   wingModel: "distant",     // pencereden görünen kanat: winglet | blended | plain | distant
   seatSide: "left",         // koltuk tarafı: pencere burnun soluna mı sağına mı bakıyor
@@ -89,9 +89,24 @@ export function createStore(adapter = localStorageAdapter()) {
   const data = { ...base, ...(stored?.data ?? {}) };
 
   data.focusMin = Number(data.focusMin) || base.focusMin;
-  data.progress = migrateProgress(data.progress, Boolean(stored?.legacy));
   data.log = Array.isArray(data.log) ? data.log : [];
   data.migratedFromLegs = Boolean(stored?.legacy);
+
+  // Rota başına ilerleme tutan eski kayıt (v1 bacak, v2 km) tek etkin uçuşa
+  // dönüşür. Bir kez olur: sonra `progress` ve `ticketFor` kayıttan silinir.
+  if (data.progress && typeof data.progress === "object") {
+    const migrated = flightFromProgress({
+      progress: migrateProgress(data.progress, Boolean(stored?.legacy)),
+      route: data.route,
+      ticketFor: data.ticketFor,
+      log: data.log
+    });
+    if (!data.flight) data.flight = migrated.flight;
+    data.log = migrated.log;
+  }
+  delete data.progress;
+  delete data.ticketFor;
+  data.flight = validFlight(data.flight);
 
   return {
     data,
@@ -101,9 +116,8 @@ export function createStore(adapter = localStorageAdapter()) {
     },
     /** Günlüğü, ilerlemeyi ve istatistikleri sıfırlar; ayarlara dokunmaz. */
     clearProgress() {
-      data.progress = {};
+      data.flight = null;    // baştan başlıyorsak bilet de yeniden kesilir
       data.log = [];
-      data.ticketFor = "";   // baştan başlıyorsak bilet de yeniden kesilir
       data.cycle = 0;
       data.totalMs = 0;
       data.totalKm = 0;

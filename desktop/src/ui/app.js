@@ -15,6 +15,7 @@ import { createStore } from "../core/store.js";
 import { flightState, durationMsOf } from "../core/state.js";
 import { createWorld } from "../core/shapes.js";
 import { createJournal, focusRecord } from "../core/journal.js";
+import { startFlight, endFlight, flightTrails } from "../core/flights.js";
 import { journalStorage } from "../platform/journal-storage.js";
 import { subsolarPoint } from "../core/sun.js";
 import { platform, syncPlatform } from "../platform/index.js";
@@ -24,6 +25,7 @@ import { createGlobe } from "./globe.js";
 import { createStatement } from "./logbook.js";
 import { createTicketScreen } from "./ticket.js";
 import { createRoutePicker } from "./route-picker.js";
+import { logRow } from "./log-row.js";
 import { createWindowView } from "./window/index.js";
 import { issueTicket } from "../core/ticket.js";
 
@@ -53,7 +55,9 @@ let windowView = null;
  * kendi işini yapar ve pencereyi kapatır.
  */
 const confirmBox = {
-  open({ title, body, actions }) {
+  onCancel: null,
+  open({ title, body, actions, onCancel = null }) {
+    confirmBox.onCancel = onCancel;
     $("#confirmTitle").textContent = title;
     $("#confirmBody").textContent = body;
     const box = $("#confirmActions");
@@ -62,13 +66,20 @@ const confirmBox = {
       const b = document.createElement("button");
       b.className = "btn" + (a.primary ? " btn-go" : "");
       b.textContent = a.label;
-      b.addEventListener("click", () => { confirmBox.close(); a.run?.(); });
+      b.addEventListener("click", () => { confirmBox.onCancel = null; confirmBox.close(); a.run?.(); });
       box.appendChild(b);
     }
     $("#confirm").hidden = false;
     $("#confirmCancel").focus();
   },
   close() { $("#confirm").hidden = true; },
+  /** Vazgeç, Esc ya da dışına tıklama: pencere kapanır, çağıranın kancası çalışır. */
+  cancel() {
+    const hook = confirmBox.onCancel;
+    confirmBox.onCancel = null;
+    confirmBox.close();
+    hook?.();
+  },
   isOpen: () => !$("#confirm").hidden
 };
 
@@ -141,7 +152,9 @@ function finishPhase(skipped = false) {
     // Oturumun kazandırdığı mesafe: 25 dakika bir bacak, 50 dakika iki.
     const earned = kmForFocus(route, db.focusMin);
     const flown = Math.min(route.km, before.flownOnRoute + earned);
-    db.progress[route.key] = flown;
+    // Bilet koparılmadan atlanan oturum da bir uçuş başlatır.
+    if (db.flight?.r !== route.key) startFlight(db, route.key);
+    db.flight.flown = flown;
     // Atlanan pomodoro odak sayılmaz: 25 dakikalığı üçüncü saniyede atlayınca
     // "toplam odak" 25 dakika artmamalı. Mesafe ise işler.
     if (!skipped) db.totalMs += durationOf("focus");
@@ -150,7 +163,7 @@ function finishPhase(skipped = false) {
     db.cycle = (db.cycle + 1) % 4;
 
     const arrivedNow = flown >= route.km - 0.001;
-    if (arrivedNow) db.log.unshift({ r: route.key, km: Math.round(route.km), t: Date.now() });
+    if (arrivedNow) endFlight(db, route, { done: true });
 
     // Günlüğe zaman damgalı kayıt: gün dağılımı, seri ve saat histogramı
     // ancak buradan çıkıyor. Gerçekte odakta geçen süre yazılır.
@@ -206,7 +219,7 @@ function needsTicket() {
   if (timer.phase !== "focus") return false;
   const v = st();
   if (v.started || v.arrived) return false;
-  return db.ticketFor !== route.key;
+  return db.flight?.r !== route.key;
 }
 
 function openTicket() {
@@ -218,42 +231,89 @@ function openTicket() {
  * Günlük, toplam mil ve damgalar durur — yapılmış uçuş yapılmıştır.
  */
 /**
- * Rotayı başa alır: yalnız bu rotanın ilerlemesi ve bileti sıfırlanır.
- * Günlük, toplam mil ve damgalar durur — uçulmuş pomodoro uçulmuştur.
- *
- * @param withTicket Bilet ekranı hemen açılsın mı (tekrar uçarken açılır,
- *                   sıfırlama onayından sonra kullanıcıyı zorlamaz).
+ * İniş yapılmış rotayı yeniden uçmak. Varış günlüğe zaten yazıldı; inmiş uçuş
+ * bırakılır, yeni uçuş bilet koparılınca sıfırdan başlar.
  */
-function resetFlight(withTicket) {
-  db.progress[route.key] = 0;
-  if (db.ticketFor === route.key) db.ticketFor = "";
+function flyAgain() {
+  if (db.flight?.r === route.key) db.flight = null;
   timer.pause();
   timer.setPhase("focus");
   persist();
   renderAll();
-  if (withTicket) openTicket();
+  openTicket();
 }
 
-const flyAgain = () => resetFlight(true);
+/** Uçulan kısmın kısa özeti: "7,5 / 23 pomodoro (2.656 km)". */
+const flownSummary = (r, flown) =>
+  fmtPom(flown / r.kmPerLeg) + " / " + r.legs + " pomodoro (" + nf(flown) + " km)";
+
+/** Bu rotada yarıda bitirilebilecek bir uçuş var mı? */
+function canEnd() {
+  if (!route || db.flight?.r !== route.key || db.flight.landed) return false;
+  const v = st();
+  return v.started && !v.arrived;
+}
 
 /**
- * Sıfırlama onayı. İki ayrı iş var: geri sayımı baştan almak zararsız, uçuşu
- * sıfırlamak kat edilen yolu siliyor — soruyu sorup ikisini ayırıyoruz.
+ * Uçuşu yarıda bitirir. Süren oturum sayılmaz: uçuş son tamamlanan oturumun
+ * bittiği yerde kapanır ve günlüğe yarım olarak düşer.
  */
-function askReset() {
-  const v = st();
-  const body = v.started
-    ? fmtPom(v.flownOnRoute / route.kmPerLeg) + " pomodoro (" + nf(v.flownOnRoute) +
-      " km) silinir. Günlüğe yazılmış odaklar, toplam mil ve damgalar durur."
-    : "Bu rotada henüz yol alınmadı; yalnız sayaç başa döner.";
+function endActiveFlight() {
+  timer.pause();
+  timer.setPhase("focus");
+  endFlight(db, route, { done: false });
+  persist();
+  rebuildTrails();
+  renderAll();
+}
 
+function askEnd() {
+  if (!canEnd()) return;
+  const running = timer.phase === "focus" && timer.elapsed() > 0;
   confirmBox.open({
-    title: route.o + " → " + route.d + " sıfırlansın mı?",
-    body,
-    actions: [
-      { label: "Yalnız sayaç", run: () => { timer.reset(); renderAll(); } },
-      { label: "Uçuşu sıfırla", primary: true, run: () => resetFlight(false) }
-    ]
+    title: route.o + " → " + route.d + " uçuşu bitirilsin mi?",
+    body: flownSummary(route, st().flownOnRoute) +
+      " uçuldu; kalan kısım uçulmayacak. Uçuş günlüğe yarım olarak yazılır" +
+      (running ? ", süren oturum sayılmaz." : "."),
+    actions: [{ label: "Bitir", primary: true, run: endActiveFlight }]
+  });
+}
+
+/**
+ * Rota değişiminin tek kapısı. Yarım uçuş varken başka rota seçilirse sorar:
+ * onaylanırsa uçuş yarım olarak günlüğe düşer, yeni rota sıfırdan açılır.
+ * Kaybedilecek yol yoksa (uçuş yok, inmiş ya da henüz km alınmamış) sormaz.
+ *
+ * @param then (ok) => void — rota gerçekten değişti mi; vazgeçilirse false.
+ */
+function requestRoute(key, then = () => {}) {
+  const f = db.flight;
+  const current = f ? buildRoute(f.r) : null;
+  const atRisk = Boolean(f && f.r !== key && !f.landed && f.flown > 0 &&
+    current && f.flown < current.km - 0.001);
+
+  if (!atRisk) {
+    if (f && f.r !== key) db.flight = null;
+    then(setRoute(key));
+    return;
+  }
+
+  const next = buildRoute(key);
+  confirmBox.open({
+    title: current.o + " → " + current.d + " uçuşu bitirilsin mi?",
+    body: flownSummary(current, f.flown) + " uçuldu. " +
+      (next ? next.o + " → " + next.d : "Yeni rota") + " sıfırdan başlayacak.",
+    actions: [{
+      label: "Bitir ve geç", primary: true,
+      run: () => {
+        timer.pause();
+        timer.setPhase("focus");
+        endFlight(db, current, { done: false });
+        rebuildTrails();
+        then(setRoute(key));
+      }
+    }],
+    onCancel: () => then(false)
   });
 }
 
@@ -272,6 +332,7 @@ const flownFraction = () => st().fraction;
 /* ---------------- çizim ---------------- */
 
 function renderControls() {
+  $("#endBtn").hidden = !canEnd();
   const btn = $("#goBtn");
   // İniş yapılmış rotada düğme tek işe yarar: baştan uçmak. Mola sürerken
   // "Beklet" önceliklidir, molanın kendisi hâlâ işleyen bir faz.
@@ -387,7 +448,8 @@ function renderRoutes() {
     const km = kmBetween(o, d);
     if (km === null) continue;
     const legs = legsFor(km);
-    const flownKm = Math.min(db.progress[key] || 0, km);
+    // Yalnız süren uçuşun rotasında "devam ediyor" işareti; diğerleri sıfırdan başlar.
+    const flownKm = db.flight?.r === key && !db.flight.landed ? Math.min(db.flight.flown, km) : 0;
     const pr = Math.floor(flownKm / (km / legs) + 1e-9);
 
     const b = document.createElement("button");
@@ -397,7 +459,7 @@ function renderRoutes() {
       '<span class="pair">' + o + "<span>→</span>" + d + "</span>" +
       '<span class="nick">' + nick + "</span>" +
       '<span class="km">' + nf(km) + " km · " + legs + " pom" + (pr ? " · " + pr + "✓" : "") + "</span>";
-    b.addEventListener("click", () => { setRoute(key); $("#msg").textContent = ""; picker?.sync(); });
+    b.addEventListener("click", () => requestRoute(key, () => { $("#msg").textContent = ""; picker?.sync(); }));
     list.appendChild(b);
   }
 }
@@ -406,15 +468,7 @@ function renderLog() {
   const ul = $("#logs");
   ul.innerHTML = "";
   $("#logEmpty").style.display = db.log.length ? "none" : "block";
-  for (const e of db.log.slice(0, 8)) {
-    const [o, d] = e.r.split("-");
-    const li = document.createElement("li");
-    li.innerHTML =
-      '<span class="st">' + o + "→" + d + "</span>" +
-      "<span>" + cityOf(d) + "</span>" +
-      '<span class="dt">' + new Date(e.t).toLocaleDateString("tr-TR") + "</span>";
-    ul.appendChild(li);
-  }
+  for (const e of db.log.slice(0, 8)) ul.appendChild(logRow(e));
   $("#sHours").textContent = (db.totalMs / 3600000).toFixed(1).replace(".", ",") + " sa";
   $("#sKm").textContent = nf(db.totalKm) + " km";
 }
@@ -491,11 +545,14 @@ function pickAirport(code) {
   }
   const o = pendingO;
   pendingO = null;
-  if (!setRoute(o + "-" + code)) { mapHint(); return; }
-  picker?.sync();
-  $("#msg").textContent =
-    cityOf(o) + " → " + cityOf(code) + " yüklendi · " + nf(route.km) + " km · " + route.legs + " pomodoro.";
-  mapHint();
+  requestRoute(o + "-" + code, ok => {
+    picker?.sync();
+    if (ok) {
+      $("#msg").textContent =
+        cityOf(o) + " → " + cityOf(code) + " yüklendi · " + nf(route.km) + " km · " + route.legs + " pomodoro.";
+    }
+    mapHint();
+  });
 }
 
 /* ---------------- olay bağlama ---------------- */
@@ -507,7 +564,8 @@ function wireControls() {
     timer.toggle();
     renderAll();
   });
-  $("#resetBtn").addEventListener("click", () => askReset());
+  $("#resetBtn").addEventListener("click", () => { timer.reset(); renderAll(); });
+  $("#endBtn").addEventListener("click", () => askEnd());
   $("#skipBtn").addEventListener("click", () => { timer.pause(); finishPhase(true); });
 
   $("#soundBtn").addEventListener("click", e => {
@@ -532,9 +590,9 @@ function wireControls() {
     persist();
   });
 
-  $("#confirmCancel").addEventListener("click", () => confirmBox.close());
+  $("#confirmCancel").addEventListener("click", () => confirmBox.cancel());
   $("#confirm").addEventListener("click", e => {
-    if (e.target === $("#confirm")) confirmBox.close();
+    if (e.target === $("#confirm")) confirmBox.cancel();
   });
 
   $("#settingsClose").addEventListener("click", () => settings.close());
@@ -635,12 +693,17 @@ function wireRoutePicker() {
   picker = createRoutePicker({
     getData: () => db,
     getRoute: () => route,
-    onLoad: key => {
-      if (!setRoute(key)) { $("#msg").textContent = "Bu rota kurulamadı."; return; }
+    onLoad: key => requestRoute(key, ok => {
+      picker?.sync();
+      if (!ok) {
+        // Vazgeçildiyse sessiz kal; rota kurulamadıysa söyle.
+        if (!buildRoute(key)) $("#msg").textContent = "Bu rota kurulamadı.";
+        return;
+      }
       const [o, d] = key.split("-");
       $("#msg").textContent =
         cityOf(o) + " → " + cityOf(d) + " yüklendi · " + nf(route.km) + " km · " + route.legs + " pomodoro.";
-    },
+    }),
     onIssue: () => {
       if (arrived()) flyAgain();
       else if (needsTicket()) openTicket();
@@ -749,7 +812,7 @@ function wireGlobe() {
 
 function wireKeyboard() {
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape" && confirmBox.isOpen()) { confirmBox.close(); return; }
+    if (e.key === "Escape" && confirmBox.isOpen()) { confirmBox.cancel(); return; }
     if (e.key === "Escape" && windowView?.isOpen()) { windowView.close(); return; }
     if (e.key === "Escape" && settings.isOpen()) { settings.close(); return; }
     if (e.key === "Escape" && ticketScreen?.isOpen()) { ticketScreen.close(); return; }
@@ -777,7 +840,8 @@ function wireKeyboard() {
 function wirePlatform() {
   platform.onCommand(cmd => {
     if (cmd === "toggle") timer.toggle();
-    else if (cmd === "reset") { askReset(); return; }
+    else if (cmd === "reset") timer.reset();
+    else if (cmd === "end") { askEnd(); return; }
     else if (cmd === "skip") { timer.pause(); finishPhase(true); return; }
     else if (cmd === "sound") { $("#soundBtn").click(); return; }
     else if (cmd === "clear") { $("#clearBtn").click(); return; }
@@ -812,15 +876,9 @@ function restoreTimer() {
 
 /** Yer listesi ve kara parçaları arka planda yüklenir; gelince yeniden çizilir. */
 /** Günlükteki tamamlanmış rotaları çizilebilir yollara çevirir. */
+/** Tamamlanan uçuşlar tam yay, yarım bırakılanlar yalnız uçulan kısım. */
 function rebuildTrails() {
-  const seen = new Set();
-  trails = [];
-  for (const entry of db.log) {
-    if (seen.has(entry.r)) continue;
-    seen.add(entry.r);
-    const r = buildRoute(entry.r);
-    if (r) trails.push(samplePath(r, 96));
-  }
+  trails = flightTrails(db.log, 96);
 }
 
 async function loadData() {
@@ -844,7 +902,7 @@ function boot() {
 
   ticketScreen = createTicketScreen({
     onTorn: () => {
-      db.ticketFor = route.key;
+      startFlight(db, route.key);
       persist();
       // Koparılan bileti bir an göster, sonra kalkışa geç.
       setTimeout(() => {
