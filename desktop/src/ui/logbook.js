@@ -7,7 +7,8 @@
  */
 
 import { registry } from "../core/places.js";
-import { buildRoute, samplePath } from "../core/route.js";
+import { buildRoute } from "../core/route.js";
+import { completedFlights, partialFlights, flightTrails } from "../core/flights.js";
 import { worldLaps, currentLapFraction, formatDuration } from "../core/estimates.js";
 import { tierOf, nextTierOf, tierProgress, kmToNextTier } from "../core/card-tier.js";
 import { formatNumber, formatDate, upperTr } from "../core/format.js";
@@ -16,6 +17,7 @@ import {
   busiestDay, activeDays, focusMinutes, airports, firstRecordTime
 } from "../core/journal-stats.js";
 import { createGlobe } from "./globe.js";
+import { logRow } from "./log-row.js";
 
 const $ = s => document.querySelector(s);
 /** Pomodoro sayısı artık kesirli olabilir (37 dk = 1,48); bir ondalık yeter. */
@@ -62,7 +64,12 @@ export function createStatement({ getRecords, getData, getWorld }) {
       ["Seri", s > 0 ? s + " gün" : "—"],
       ["Aktif gün", String(activeDays(records))],
       ["Kayıtlı odak", formatDuration(focusMinutes(records))],
-      ["Tamamlanan uçuş", String(db.log.length)],
+      // Izgara altı hücrelik; yarım bırakılanlar ayrı hücre yerine burada.
+      ["Tamamlanan uçuş", (() => {
+        const done = completedFlights(db.log).length;
+        const partial = partialFlights(db.log).length;
+        return partial ? done + " · " + partial + " yarım" : String(done);
+      })()],
       ["Uğranan yer", port > 0 ? String(port) : "—"],
       ["En yoğun gün", busiest ? pom(busiest.count) + " pom" : "—"]
     ];
@@ -136,14 +143,7 @@ export function createStatement({ getRecords, getData, getWorld }) {
     const ul = $("#stLogs");
     ul.innerHTML = "";
     $("#stLogsEmpty").style.display = db.log.length ? "none" : "block";
-    for (const e of db.log) {
-      const [o, d] = e.r.split("-");
-      const li = document.createElement("li");
-      li.innerHTML = '<span class="st">' + o + "→" + d + "</span>" +
-        "<span>" + (registry.find(d)?.city ?? d) + "</span>" +
-        '<span class="dt">' + formatDate(e.t) + "</span>";
-      ul.appendChild(li);
-    }
+    for (const e of db.log) ul.appendChild(logRow(e));
   }
 
   function renderSince(records) {
@@ -159,14 +159,7 @@ export function createStatement({ getRecords, getData, getWorld }) {
 
   /** Uçulan bütün rotaların izi; küre yavaşça döner. */
   function startMap(db) {
-    const trails = [];
-    const seen = new Set();
-    for (const entry of db.log) {
-      if (seen.has(entry.r)) continue;
-      seen.add(entry.r);
-      const r = buildRoute(entry.r);
-      if (r) trails.push(samplePath(r, 96));
-    }
+    const trails = flightTrails(db.log, 96);
 
     map.readTokens();
     map.resize();

@@ -77,10 +77,13 @@ export const isValidPair = (from, to) =>
 /** Rota üzerinde t∈[0,1] oranındaki noktanın [enlem, boylam] değeri. */
 export const pointAt = (route, t) => ll(slerp(route.a, route.b, t));
 
-/** Büyük daireyi n+1 noktalı bir çizgiye böler. */
-export function samplePath(route, n = 240) {
+/**
+ * Büyük daireyi n+1 noktalı bir çizgiye böler.
+ * @param upTo Rotanın ne kadarı (0..1); yarım bırakılan uçuşun izi için.
+ */
+export function samplePath(route, n = 240, upTo = 1) {
   const out = new Array(n + 1);
-  for (let i = 0; i <= n; i++) out[i] = pointAt(route, i / n);
+  for (let i = 0; i <= n; i++) out[i] = pointAt(route, (i / n) * upTo);
   return out;
 }
 

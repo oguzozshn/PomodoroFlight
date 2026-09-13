@@ -282,12 +282,17 @@ input[type=checkbox]{accent-color:var(--amber);width:15px;height:15px}
 .stats .v{font-family:"IBM Plex Mono",monospace;font-size:18px;margin-top:2px}
 .logs{list-style:none;margin:0;padding:0;display:grid;gap:0}
 .logs li{
-  display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:baseline;
+  display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:baseline;
   padding:8px 0;border-top:1px dashed var(--line);font-size:14px;
 }
 .logs li:first-child{border-top:0}
 .logs .st{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--amber);letter-spacing:.04em}
 .logs .dt{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted)}
+/* Uçuşun özeti: "✓ 23 pom · 8.026 km" ya da "%30 · 7 / 23 pom · 2.444 km". */
+.logs .pr{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink);white-space:nowrap}
+/* Yarıda bitirilen uçuş: aynı satır, soluk; kod rengi de sönük. */
+.logs li.partial{color:var(--muted)}
+.logs li.partial .st,.logs li.partial .pr{color:var(--muted)}
 .empty{font-size:14px;color:var(--muted)}
 .foot{margin-top:22px;font-size:13px;color:var(--muted);text-align:center}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
