@@ -65,7 +65,7 @@ export function issueTicket(route, db, state, now = Date.now()) {
     arrivalAt: now + (BOARDING_MINUTES + scheduleMinutes) * 60_000,
     distanceKm: route.km,
     legs: state.legsLeft,
-    focusMinutes: focusMinutesFor(state.legsLeft, db.focusMin),
+    focusMinutes: focusMinutesFor(state.legsLeft),
     barcode: barcodePattern(flightNo + seat + gate)
   };
 }

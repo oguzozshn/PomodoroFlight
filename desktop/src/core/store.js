@@ -2,9 +2,9 @@
  * Kalıcı durum. Okuma/yazma tek bir adaptör arkasında duruyor.
  *
  * v2 ilerlemeyi **km** olarak tutuyor; v1 bacak sayısı tutuyordu. Eski kayıt
- * bulunursa bacaklar km'ye çevrilir — ama 850 ile değil, rotanın kendi bacak
- * uzunluğuyla: bacak sayısı yuvarlanarak bulunduğu için ikisi aynı değil ve
- * 850 ile çevirmek kullanıcının ilerlemesini sessizce geri alırdı.
+ * bulunursa bacaklar km'ye çevrilir — ama nominal pomodoro mesafesiyle değil,
+ * rotanın kendi bacak uzunluğuyla: bacak sayısı yuvarlanarak bulunduğu için
+ * ikisi aynı değil ve nominal değerle çevirmek ilerlemeyi sessizce kaydırırdı.
  *
  * Sayacın kendisi de saklanıyor (phase/running/endAt): uygulama kapatılıp
  * açıldığında seyir kaldığı yerden sürüyor.
@@ -74,11 +74,11 @@ export const memoryAdapter = (seed = null, legacy = false) => {
 };
 
 /** Eski kaydın bacak sayılarını km'ye çevirir. */
-function migrateProgress(progress, focusMin, legacy) {
+function migrateProgress(progress, legacy) {
   const out = {};
   for (const [key, value] of Object.entries(progress || {})) {
     const n = Number(value) || 0;
-    out[key] = legacy ? kmForLegs(key, Math.round(n), focusMin) : n;
+    out[key] = legacy ? kmForLegs(key, Math.round(n)) : n;
   }
   return out;
 }
@@ -89,7 +89,7 @@ export function createStore(adapter = localStorageAdapter()) {
   const data = { ...base, ...(stored?.data ?? {}) };
 
   data.focusMin = Number(data.focusMin) || base.focusMin;
-  data.progress = migrateProgress(data.progress, data.focusMin, Boolean(stored?.legacy));
+  data.progress = migrateProgress(data.progress, Boolean(stored?.legacy));
   data.log = Array.isArray(data.log) ? data.log : [];
   data.migratedFromLegs = Boolean(stored?.legacy);
 

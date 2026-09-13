@@ -192,6 +192,10 @@ button:focus-visible,select:focus-visible,input:focus-visible{
 }
 .subline{font-size:13px;color:var(--muted);min-height:20px}
 .controls{display:flex;justify-content:center;gap:10px;margin-top:18px;flex-wrap:wrap}
+/* Odak süresi giriş ekranında da duruyor: saatin altında, dar ve ortalanmış. */
+.dur-inline{justify-content:center;margin-top:14px}
+.dur-inline .seg button{padding:0 12px;height:30px;font-size:13px}
+.dur-inline .dur-custom input{width:58px;height:30px;font-size:13px}
 .btn{
   border:1px solid var(--line);background:var(--panel-2);border-radius:var(--radius);
   padding:10px 18px;font-family:"Barlow Condensed",sans-serif;font-weight:500;
@@ -220,6 +224,16 @@ button:focus-visible,select:focus-visible,input:focus-visible{
 .legs i{flex:1;height:14px;background:var(--line-soft);border:1px solid var(--line);border-radius:1px}
 .legs i.done{background:var(--amber);border-color:var(--amber)}
 .legs i.now{background:var(--amber-glow);border-color:var(--amber)}
+/* Oturum 25 dakikanın katı değilse bacak yarım kalıyor; soldan doldurulur. */
+.legs i.part{
+  border-color:var(--amber);
+  background:linear-gradient(to right,
+    var(--amber) 0 var(--fill,0%), var(--line-soft) var(--fill,0%) 100%);
+}
+.legs i.now.part{
+  background:linear-gradient(to right,
+    var(--amber-glow) 0 var(--fill,0%), var(--line-soft) var(--fill,0%) 100%);
+}
 .legnote{font-size:13px;color:var(--muted)}
 
 /* ---------- routes ---------- */
@@ -618,3 +632,11 @@ body{overflow-y:auto;overflow-x:hidden}
 /* Küre üstünde sürükleme ve tekerlekle yakınlaştırma sayfayı kaydırmasın. */
 #map{touch-action:none}
 :focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+/* ---------- onay penceresi ---------- */
+.confirm-card{width:min(460px,100%)}
+.confirm-card .sheet-body{gap:10px;padding:18px}
+.confirm-title{font-size:17px;margin:0}
+.confirm-body{margin:0;font-size:14px;color:var(--muted);line-height:1.5}
+.confirm-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.confirm-actions #confirmActions{display:contents}

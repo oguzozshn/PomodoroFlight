@@ -42,6 +42,18 @@
         <div class="phase" id="phase">Odak · Seyir</div>
         <div class="clock" id="clock">25:00</div>
         <div class="subline" id="subline">Sayacı başlat, uçak rotada ilerlemeye başlasın.</div>
+        <div class="dur dur-inline">
+          <div class="seg" id="segFocusMain" data-dur="focusMin" role="group" aria-label="Odak süresi">
+          <button data-v="15" aria-pressed="false">15</button>
+          <button data-v="25" aria-pressed="true">25</button>
+          <button data-v="50" aria-pressed="false">50</button>
+          </div>
+          <label class="dur-custom">
+            <input type="number" id="focusMain" data-dur-field="focusMin" min="1" max="180" step="1"
+                   inputmode="numeric" aria-label="Odak süresi (dakika)">
+            <span>dk odak</span>
+          </label>
+        </div>
         <div class="controls">
           <button class="btn btn-go" id="goBtn">Kalkış</button>
           <button class="btn" id="skipBtn">Atla</button>
@@ -140,6 +152,19 @@
   </div>
 
   <!-- Ayarlar: sağ sütunu kalabalık etmesin diye kendi penceresinde. -->
+  <div class="overlay" id="confirm" hidden>
+    <div class="sheet-card confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="sheet-body">
+        <h2 class="confirm-title" id="confirmTitle">Emin misin?</h2>
+        <p class="confirm-body" id="confirmBody"></p>
+        <div class="confirm-actions">
+          <button class="btn" id="confirmCancel">Vazgeç</button>
+          <span id="confirmActions"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="overlay" id="settings" hidden>
     <div class="sheet-card" role="dialog" aria-modal="true" aria-label="Ayarlar">
       <header class="sheet-head">
@@ -153,13 +178,13 @@
           <div class="opt">
           <span class="label">Odak</span>
           <div class="dur">
-            <div class="seg" id="segFocus" role="group" aria-label="Odak süresi">
+            <div class="seg" id="segFocus" data-dur="focusMin" role="group" aria-label="Odak süresi">
             <button data-v="15" aria-pressed="false">15</button>
             <button data-v="25" aria-pressed="true">25</button>
             <button data-v="50" aria-pressed="false">50</button>
             </div>
             <label class="dur-custom">
-              <input type="number" id="focusCustom" min="1" max="180" step="1"
+              <input type="number" id="focusCustom" data-dur-field="focusMin" min="1" max="180" step="1"
                      inputmode="numeric" aria-label="Özel odak süresi (dakika)">
               <span>dk</span>
             </label>
@@ -168,12 +193,12 @@
           <div class="opt">
           <span class="label">Mola</span>
           <div class="dur">
-            <div class="seg" id="segBreak" role="group" aria-label="Mola süresi">
+            <div class="seg" id="segBreak" data-dur="breakMin" role="group" aria-label="Mola süresi">
             <button data-v="5" aria-pressed="true">5</button>
             <button data-v="10" aria-pressed="false">10</button>
             </div>
             <label class="dur-custom">
-              <input type="number" id="breakCustom" min="1" max="60" step="1"
+              <input type="number" id="breakCustom" data-dur-field="breakMin" min="1" max="60" step="1"
                      inputmode="numeric" aria-label="Özel mola süresi (dakika)">
               <span>dk</span>
             </label>
@@ -340,7 +365,7 @@
     </div>
   </div>
 
-  <p class="foot">Bir pomodoro ≈ 850 km seyir. İlerleme bu bilgisayarda saklanır.</p>
+  <p class="foot">Bir pomodoro 25 dk · 850 km/sa seyirle ≈ 354 km. İlerleme bu bilgisayarda saklanır.</p>
 </div>
 
 <script type="module" src="ui/app.js"></script>
