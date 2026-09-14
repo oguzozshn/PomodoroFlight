@@ -15,6 +15,10 @@
       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 15.5v-2l-8-4.5V3.7c0-.9-.7-1.7-1.5-1.7s-1.5.8-1.5 1.7V9l-8 4.5v2l8-2.4v4.6l-2.2 1.5V21l3.7-1 3.7 1v-1.8L13 17.7v-4.6l8 2.4z"/></svg>
       <b>Uçuş Modu</b>
     </div>
+    <nav class="tabs" role="tablist" aria-label="Bölümler">
+      <button role="tab" id="tabFlight" aria-selected="true" aria-controls="flightView">Uçuş</button>
+      <button role="tab" id="tabLog" aria-selected="false" aria-controls="logView">Uçuş günlüğü</button>
+    </nav>
     <div class="tailno">
       <span id="flightNo">TK—</span>
       <button class="ghost" id="windowBtn">Pencereden bak</button>
@@ -22,7 +26,10 @@
     </div>
   </header>
 
-  <main class="grid">
+  <main>
+  <!-- Uçuş sekmesi. Hazırlıkta: küre + 1 rota · 2 süreler · 3 biniş kartı.
+       Uçuşta: küre + sayaç ve uçuş planı. Alttaki düğme ikisinde de aynı yerde. -->
+  <div class="grid flight-view" id="flightView" data-mode="prep">
     <div class="col">
       <section class="panel mapwrap" aria-label="Uçuş rotası ekranı">
         <canvas id="map" aria-label="Dünya küresi: havalimanlarına tıklayarak rota seç, sürükleyerek çevir"></canvas>
@@ -37,81 +44,120 @@
           <div class="cell"><div class="label">Varışa</div><div class="v" id="rEta">0<small>pom</small></div></div>
         </div>
       </section>
+    </div>
 
-      <section class="panel timer">
+    <div class="col side">
+      <section class="panel steps prep-only" aria-label="Uçuşa hazırlık">
+        <div class="step">
+          <div class="step-h"><span class="n">1</span><h2>Rota</h2></div>
+          <div id="routeList"></div>
+          <div class="custom">
+            <div class="label">Kendi rotanı kur</div>
+            <div class="slots" role="group" aria-label="Kalkış ve varış">
+              <button type="button" class="slot-card" id="slotFrom" aria-pressed="true">
+                <span class="k">Kalkış</span>
+                <span class="v" id="slotFromCity">İstanbul</span>
+                <span class="s" id="slotFromMeta">IST · Türkiye</span>
+              </button>
+              <span class="arrow" aria-hidden="true">→</span>
+              <button type="button" class="slot-card" id="slotTo" aria-pressed="false">
+                <span class="k">Varış</span>
+                <span class="v" id="slotToCity">New York</span>
+                <span class="s" id="slotToMeta">JFK · ABD</span>
+              </button>
+            </div>
+
+            <label class="field">
+              <span class="label" id="searchLabel">Kalkış şehri ara</span>
+              <input type="search" id="search" autocomplete="off" spellcheck="false"
+                     placeholder="şehir ya da kod — örn. Tokyo, ADB" aria-describedby="searchLabel">
+            </label>
+            <ul class="results" id="results" role="listbox" aria-label="Arama sonuçları"></ul>
+
+            <div class="msg" id="msg"></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-h"><span class="n">2</span><h2>Süreler</h2></div>
+          <div class="pv-dur" id="pvDur">
+            <div class="pv-dur-row">
+              <span class="label">Odak</span>
+              <div class="seg" id="segFocusMain" data-dur="focusMin" role="group" aria-label="Odak süresi">
+              <button data-v="15" aria-pressed="false">15</button>
+              <button data-v="25" aria-pressed="true">25</button>
+              <button data-v="50" aria-pressed="false">50</button>
+              </div>
+              <label class="dur-custom">
+                <input type="number" id="focusMain" data-dur-field="focusMin" min="1" max="180" step="1"
+                       inputmode="numeric" aria-label="Odak süresi (dakika)">
+                <span>dk</span>
+              </label>
+            </div>
+            <div class="pv-dur-row">
+              <span class="label">Mola</span>
+              <div class="seg" id="segBreakMain" data-dur="breakMin" role="group" aria-label="Mola süresi">
+              <button data-v="5" aria-pressed="true">5</button>
+              <button data-v="10" aria-pressed="false">10</button>
+              </div>
+              <label class="dur-custom">
+                <input type="number" id="breakMain" data-dur-field="breakMin" min="1" max="60" step="1"
+                       inputmode="numeric" aria-label="Mola süresi (dakika)">
+                <span>dk</span>
+              </label>
+            </div>
+            <div class="pv-dur-row">
+              <span class="label">Uzun mola</span>
+              <div class="seg" id="segLongMain" data-dur="longBreakMin" role="group" aria-label="Uzun mola süresi">
+              <button data-v="15" aria-pressed="true">15</button>
+              <button data-v="20" aria-pressed="false">20</button>
+              <button data-v="30" aria-pressed="false">30</button>
+              </div>
+              <label class="dur-custom">
+                <input type="number" id="longMain" data-dur-field="longBreakMin" min="1" max="60" step="1"
+                       inputmode="numeric" aria-label="Uzun mola süresi (dakika)">
+                <span>dk</span>
+              </label>
+            </div>
+            <p class="dur-lock" id="durLock" hidden>Uçuş sürerken süreler değiştirilemez; uçuş bitince yeniden açılır.</p>
+          </div>
+        </div>
+        <div class="step preview" id="preview">
+          <div class="step-h"><span class="n">3</span><h2>Biniş kartı</h2></div>
+          <div class="cells" id="pvCells"></div>
+          <dl class="summary" id="pvSummary"></dl>
+        </div>
+      </section>
+
+      <section class="panel timer fly-only" aria-label="Sayaç">
         <div class="phase" id="phase">Odak · Seyir</div>
         <div class="clock" id="clock">25:00</div>
-        <div class="subline" id="subline">Sayacı başlat, uçak rotada ilerlemeye başlasın.</div>
-        <div class="dur dur-inline">
-          <div class="seg" id="segFocusMain" data-dur="focusMin" role="group" aria-label="Odak süresi">
-          <button data-v="15" aria-pressed="false">15</button>
-          <button data-v="25" aria-pressed="true">25</button>
-          <button data-v="50" aria-pressed="false">50</button>
-          </div>
-          <label class="dur-custom">
-            <input type="number" id="focusMain" data-dur-field="focusMin" min="1" max="180" step="1"
-                   inputmode="numeric" aria-label="Odak süresi (dakika)">
-            <span>dk odak</span>
-          </label>
-        </div>
-        <div class="controls">
-          <button class="btn btn-go" id="goBtn">Kalkış</button>
-          <button class="btn" id="skipBtn">Atla</button>
+        <div class="subline" id="subline">Rota seç, süreleri ayarla, bileti kes.</div>
+        <!-- Yalnız uçuş sürerken: başlatma, bitirme ve yeniden uçma biniş kartında. -->
+        <div class="controls" id="controls" hidden>
+          <button class="btn btn-go" id="goBtn">Beklet</button>
+          <button class="btn" id="skipBtn" hidden>Molayı atla</button>
           <button class="btn" id="resetBtn">Sıfırla</button>
-          <button class="btn btn-end" id="endBtn" hidden>Bitir</button>
         </div>
         <div class="cycle" id="cycle" aria-hidden="true"></div>
       </section>
-    </div>
 
-    <div class="col">
-      <section class="panel pad">
+      <section class="panel pad fly-only" aria-label="Uçuş planı">
         <div class="head"><h2>Uçuş planı</h2><span class="aux" id="legAux">0 / 0</span></div>
         <div class="legs" id="legs"></div>
         <div class="legnote" id="legNote"></div>
       </section>
 
-      <section class="panel">
-        <div class="pad pad-tight"><div class="head flush"><h2>Rota seç</h2></div></div>
-        <div id="routeList"></div>
-        <div class="custom">
-          <div class="label">Kendi rotanı kur</div>
-          <div class="slots" role="group" aria-label="Kalkış ve varış">
-            <button type="button" class="slot-card" id="slotFrom" aria-pressed="true">
-              <span class="k">Kalkış</span>
-              <span class="v" id="slotFromCity">İstanbul</span>
-              <span class="s" id="slotFromMeta">IST · Türkiye</span>
-            </button>
-            <span class="arrow" aria-hidden="true">→</span>
-            <button type="button" class="slot-card" id="slotTo" aria-pressed="false">
-              <span class="k">Varış</span>
-              <span class="v" id="slotToCity">New York</span>
-              <span class="s" id="slotToMeta">JFK · ABD</span>
-            </button>
-          </div>
+      <div class="side-foot">
+        <button class="btn full btn-go" id="issueBtn">Bilet kes</button>
+      </div>
+    </div>
+  </div>
 
-          <label class="field">
-            <span class="label" id="searchLabel">Kalkış şehri ara</span>
-            <input type="search" id="search" autocomplete="off" spellcheck="false"
-                   placeholder="şehir ya da kod — örn. Tokyo, ADB" aria-describedby="searchLabel">
-          </label>
-          <ul class="results" id="results" role="listbox" aria-label="Arama sonuçları"></ul>
-
-          <div class="msg" id="msg"></div>
-        </div>
-
-        <!-- Biniş kartı önizlemesi: rota kurulunca ne kadar süreceği burada. -->
-        <div class="preview" id="preview">
-          <div class="head flush"><h2>Biniş kartı</h2></div>
-          <div class="cells" id="pvCells"></div>
-          <dl class="summary" id="pvSummary"></dl>
-          <button class="btn full btn-go" id="issueBtn">Bilet kes</button>
-        </div>
-      </section>
-
+  <!-- Uçuş günlüğü sekmesi: tamamlanan ve yarım bırakılan bütün uçuşlar. -->
+  <div class="log-view" id="logView" hidden>
       <section class="panel pad">
         <div class="head"><h2>Uçuş günlüğü</h2>
-          <button class="ghost" id="statementBtn">Tümü</button>
+          <button class="ghost" id="statementBtn">İstatistikler</button>
           <button class="ghost" id="clearBtn">Temizle</button></div>
         <div class="stats">
           <div><div class="label">Toplam odak</div><div class="v" id="sHours">0 sa</div></div>
@@ -120,7 +166,7 @@
         <ul class="logs" id="logs"></ul>
         <div class="empty" id="logEmpty">Henüz uçuş yok. Bir yolculuğu tamamladığında ya da yarıda bitirdiğinde burada görünecek.</div>
       </section>
-    </div>
+  </div>
   </main>
 
   <!-- Pencereden bakış: tam ekran, göstergeler dokununca çekilir. -->
@@ -145,7 +191,7 @@
         <div class="win-actions">
           <button class="btn" id="winRelock" hidden>Uçağa dön</button>
           <button class="btn" id="winGo">Beklet</button>
-          <button class="btn" id="winSkip">Atla</button>
+          <button class="btn" id="winSkip" hidden>Molayı atla</button>
         </div>
       </div>
       <p class="win-note" id="winNote"></p>
@@ -201,6 +247,21 @@
             <label class="dur-custom">
               <input type="number" id="breakCustom" data-dur-field="breakMin" min="1" max="60" step="1"
                      inputmode="numeric" aria-label="Özel mola süresi (dakika)">
+              <span>dk</span>
+            </label>
+          </div>
+          </div>
+          <div class="opt">
+          <span class="label">Uzun mola</span>
+          <div class="dur">
+            <div class="seg" id="segLong" data-dur="longBreakMin" role="group" aria-label="Uzun mola süresi">
+            <button data-v="15" aria-pressed="true">15</button>
+            <button data-v="20" aria-pressed="false">20</button>
+            <button data-v="30" aria-pressed="false">30</button>
+            </div>
+            <label class="dur-custom">
+              <input type="number" id="longCustom" data-dur-field="longBreakMin" min="1" max="60" step="1"
+                     inputmode="numeric" aria-label="Özel uzun mola süresi (dakika)">
               <span>dk</span>
             </label>
           </div>

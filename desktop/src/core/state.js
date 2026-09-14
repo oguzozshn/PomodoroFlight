@@ -7,7 +7,7 @@
  * = 25 dk), odak süresi yalnız bacakların ne hızla dolduğunu belirliyor.
  */
 
-import { LONG_BREAK_MIN } from "./estimates.js";
+import { DEFAULT_LONG_BREAK_MIN } from "./estimates.js";
 import { kmForFocus } from "./route.js";
 
 /** Kayan noktalı toplamada varışın kaçmaması için birkaç metrelik pay. */
@@ -77,4 +77,6 @@ export function flightState(db, route, timer) {
 
 /** Fazın süresi (ms). */
 export const durationMsOf = (db, phase) =>
-  (phase === "focus" ? db.focusMin : phase === "long" ? LONG_BREAK_MIN : db.breakMin) * 60000;
+  (phase === "focus" ? db.focusMin
+    : phase === "long" ? (db.longBreakMin ?? DEFAULT_LONG_BREAK_MIN)
+    : db.breakMin) * 60000;

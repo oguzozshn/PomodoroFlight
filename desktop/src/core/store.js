@@ -25,6 +25,7 @@ export const defaults = () => ({
   log: [],           // biten uçuşlar, yeniden eskiye: { r, km, flown, start, t, done }
   focusMin: DEFAULT_FOCUS_MIN,
   breakMin: 5,
+  longBreakMin: 15,  // her dört oturumda bir gelen uzun mola
   autoBreak: true,
   sound: true,
   passenger: "",
@@ -89,12 +90,14 @@ export function createStore(adapter = localStorageAdapter()) {
   const data = { ...base, ...(stored?.data ?? {}) };
 
   data.focusMin = Number(data.focusMin) || base.focusMin;
+  data.longBreakMin = Number(data.longBreakMin) || base.longBreakMin;
   data.log = Array.isArray(data.log) ? data.log : [];
   data.migratedFromLegs = Boolean(stored?.legacy);
 
   // Rota başına ilerleme tutan eski kayıt (v1 bacak, v2 km) tek etkin uçuşa
   // dönüşür. Bir kez olur: sonra `progress` ve `ticketFor` kayıttan silinir.
-  if (data.progress && typeof data.progress === "object") {
+  const migrating = Boolean(data.progress && typeof data.progress === "object");
+  if (migrating) {
     const migrated = flightFromProgress({
       progress: migrateProgress(data.progress, Boolean(stored?.legacy)),
       route: data.route,
@@ -108,7 +111,7 @@ export function createStore(adapter = localStorageAdapter()) {
   delete data.ticketFor;
   data.flight = validFlight(data.flight);
 
-  return {
+  const store = {
     data,
     save() {
       const { migratedFromLegs, ...persist } = data;
@@ -124,4 +127,9 @@ export function createStore(adapter = localStorageAdapter()) {
       this.save();
     }
   };
+
+  // Dönüştürülen kayıt hemen yazılır. Açılışta başka bir şey kaydetmiyor; yazılmazsa
+  // eski biçim diskte kalır ve dönüşüm her açılışta baştan yapılır.
+  if (migrating) store.save();
+  return store;
 }

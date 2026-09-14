@@ -50,7 +50,7 @@ export const passengerOrDefault = name => upperTr((name ?? "").trim() || "Yolcu"
  */
 export function issueTicket(route, db, state, now = Date.now()) {
   const scheduleMinutes = remainingScheduleMinutes(
-    state.legsLeft, db.focusMin, db.breakMin, db.cycle
+    state.legsLeft, db.focusMin, db.breakMin, db.cycle, db.longBreakMin
   );
   const flightNo = route.flightNo;
   const gate = gateOf(route.key);

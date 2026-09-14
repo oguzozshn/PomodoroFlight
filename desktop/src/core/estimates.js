@@ -5,8 +5,8 @@
 
 import { POMODORO_MIN, CRUISE_KMH } from "./geo.js";
 
-/** Uzun molanın süresi (dakika). */
-export const LONG_BREAK_MIN = 15;
+/** Uzun molanın varsayılan süresi (dakika); kullanıcı biniş kartından değiştirir. */
+export const DEFAULT_LONG_BREAK_MIN = 15;
 
 /**
  * Rotanın gerçek seyir hızıyla süresi (dakika). Kalkış, taksi ve iniş dahil
@@ -32,12 +32,13 @@ export function formatDuration(minutes) {
  * dakikalık oturumda iki pomodoro arasına mola girmez. Dördüncü oturumdan
  * sonraki uzun mola da hesaba katılır.
  */
-export function remainingScheduleMinutes(legsLeft, focusMin, breakMin, cycle) {
+export function remainingScheduleMinutes(legsLeft, focusMin, breakMin, cycle,
+  longBreakMin = DEFAULT_LONG_BREAK_MIN) {
   if (legsLeft <= 0) return 0;
   const sessions = Math.max(1, Math.ceil((legsLeft * POMODORO_MIN) / Math.max(1, focusMin)));
   let total = legsLeft * POMODORO_MIN;
   for (let i = 1; i < sessions; i++) {
-    total += (cycle + i) % 4 === 0 ? LONG_BREAK_MIN : breakMin;
+    total += (cycle + i) % 4 === 0 ? longBreakMin : breakMin;
   }
   return total;
 }

@@ -126,7 +126,8 @@ export function createRoutePicker({ getData, getRoute, onLoad, onIssue }) {
 
     const db = getData();
     const state = flightState(db, route, { phase: "focus", elapsed: () => 0 });
-    const schedule = remainingScheduleMinutes(state.legsLeft, db.focusMin, db.breakMin, db.cycle);
+    const schedule = remainingScheduleMinutes(
+      state.legsLeft, db.focusMin, db.breakMin, db.cycle, db.longBreakMin);
     const now = Date.now();
     const arrival = now + schedule * 60000;
 
@@ -144,10 +145,13 @@ export function createRoutePicker({ getData, getRoute, onLoad, onIssue }) {
       row("Odakta geçecek", formatDuration(focusMinutesFor(state.legsLeft))) +
       row("Gerçek seyir süresi", "≈ " + formatDuration(cruiseMinutes(route.km)));
 
+    // Uçuşu başlatan ve bitiren tek düğme: bilet keser, uçuş sürerken bitirir,
+    // inişten sonra yeniden uçurur.
+    const active = db.flight?.r === route.key && !db.flight.landed;
     const btn = $("#issueBtn");
     btn.disabled = false;
-    btn.textContent = state.arrived ? "Tekrar uç"
-      : state.started ? "Uçuşa devam et" : "Bilet kes";
+    btn.textContent = state.arrived ? "Tekrar uç" : active ? "Uçuşu bitir" : "Bilet kes";
+    btn.classList.toggle("btn-go", !active || state.arrived);
   }
 
   /* ---------------- olaylar ---------------- */

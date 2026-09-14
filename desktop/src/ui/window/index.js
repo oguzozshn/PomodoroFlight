@@ -195,7 +195,11 @@ export function createWindowView({ getScene, getData, onToggle, onSkip, onModeCh
 
     $("#winClock").textContent = formatClock(scene.remaining);
     $("#winSub").textContent = scene.phaseLabel;
-    $("#winGo").textContent = scene.running ? "Beklet" : "Devam";
+    $("#winGo").textContent = scene.running ? "Beklet"
+      : scene.phase === "focus" ? "Devam" : "Molayı başlat";
+    // Uçuş yokken başlatılacak bir şey yok; odak oturumu atlanamaz.
+    $("#winGo").hidden = !scene.active;
+    $("#winSkip").hidden = !scene.active || scene.phase === "focus";
   }
 
   /* ---------------- göstergelerin çekilmesi ---------------- */
