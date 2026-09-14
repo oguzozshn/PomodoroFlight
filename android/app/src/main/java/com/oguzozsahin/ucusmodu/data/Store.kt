@@ -75,6 +75,7 @@ class Store(context: Context) {
                 log = log,
                 focusMin = focus,
                 breakMin = o.optInt("breakMin", 5),
+                longBreakMin = o.optInt("longBreakMin", 15),
                 autoBreak = o.optBoolean("autoBreak", true),
                 sound = o.optBoolean("sound", true),
                 passenger = o.optString("passenger", ""),
@@ -121,6 +122,7 @@ class Store(context: Context) {
         o.put("log", arr)
         o.put("focusMin", p.focusMin)
         o.put("breakMin", p.breakMin)
+        o.put("longBreakMin", p.longBreakMin)
         o.put("autoBreak", p.autoBreak)
         o.put("sound", p.sound)
         o.put("passenger", p.passenger)

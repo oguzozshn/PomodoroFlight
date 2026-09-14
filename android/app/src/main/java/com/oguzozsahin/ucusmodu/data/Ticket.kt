@@ -55,6 +55,7 @@ fun issueTicket(state: FlightUiState, now: Long = System.currentTimeMillis()): T
         focusMin = state.focusMin,
         breakMin = state.breakMin,
         cycle = state.cycle,
+        longBreakMin = state.longBreakMin,
     )
     return Ticket(
         route = state.route,

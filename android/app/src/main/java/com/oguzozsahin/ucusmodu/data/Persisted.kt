@@ -11,6 +11,8 @@ data class Persisted(
     val log: List<LogEntry> = emptyList(),
     val focusMin: Int = 25,
     val breakMin: Int = 5,
+    /** Her dort oturumda bir gelen uzun mola (dakika). */
+    val longBreakMin: Int = 15,
     val autoBreak: Boolean = true,
     val sound: Boolean = true,
     val passenger: String = "",

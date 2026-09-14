@@ -98,7 +98,12 @@ object Notifications {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .addAction(0, "Beklet", serviceAction(context, TimerService.ACTION_PAUSE, 11))
-            .addAction(0, "Atla", serviceAction(context, TimerService.ACTION_SKIP, 12))
+            .apply {
+                // Odak oturumu atlanamaz; yalniz mola atlanabilir.
+                if (state.phase != Phase.FOCUS) {
+                    addAction(0, "Molayı atla", serviceAction(context, TimerService.ACTION_SKIP, 12))
+                }
+            }
             .build()
     }
 

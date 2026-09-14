@@ -111,6 +111,7 @@ fun FlightRoot(
                 places = places,
                 onBack = { back() },
                 onDeparture = { goTo(Stage.TICKET) },
+                onResume = { goTo(Stage.FLIGHT) },
             )
 
             Stage.TICKET -> TicketScreen(
@@ -133,6 +134,11 @@ fun FlightRoot(
                 onWindow = { goTo(Stage.WINDOW) },
                 onLogbook = { goTo(Stage.LOGBOOK) },
                 onFlightEnded = { goTo(Stage.ROUTE) },
+                onFlyAgain = {
+                    // Inmis ucus birakilir; bilet yeniden kesilince sifirdan baslar.
+                    actions.onRoute(state.route.key)
+                    goTo(Stage.TICKET)
+                },
                 onBack = { back() },
                 theme = theme,
                 onTheme = onTheme,

@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
             onRoute = engine::setRoute,
             onFocusMin = engine::setFocusMin,
             onBreakMin = engine::setBreakMin,
+            onLongBreakMin = engine::setLongBreakMin,
             onAutoBreak = engine::setAutoBreak,
             onSound = engine::setSound,
             onResetEverything = engine::resetEverything,

@@ -95,7 +95,10 @@ class FlightEngine private constructor(context: Context) {
     fun toggle() = if (running) pause() else start()
 
     fun start() {
-        if (phase == Phase.FOCUS && currentState().arrived) return
+        // Sayac yalniz suren bir ucusta isler: bilet koparilmadan odak baslamaz.
+        val current = currentState()
+        if (!current.flightActive) return
+        if (phase == Phase.FOCUS && current.arrived) return
         if (remaining <= 0L) remaining = currentState().phaseDurationMs
         running = true
         endAt = now() + remaining
@@ -125,11 +128,12 @@ class FlightEngine private constructor(context: Context) {
         publish()
     }
 
-    /** Fazi erken bitirir; odak fazinda bacak tamamlanmis sayilir. */
+    /** Molayi erken bitirir. Odak oturumu atlanamaz; odakta hicbir sey yapmaz. */
     fun skip() {
+        if (phase == Phase.FOCUS || !currentState().flightActive) return
         val at = now()
         pause()
-        finishPhase(notify = false, endedAt = at, skipped = true)
+        finishPhase(notify = false, endedAt = at)
         publish()
     }
 
@@ -180,6 +184,8 @@ class FlightEngine private constructor(context: Context) {
     }
 
     fun setFocusMin(minutes: Int) {
+        // Sureler ucustan once ayarlanir; ucus surerken kilitli.
+        if (currentState().flightActive) return
         data = data.copy(focusMin = minutes)
         // Bacak sayisi odak suresinden bagimsiz; rota yeniden kurulmaz, yalniz
         // bir oturumun kac bacak tasidigi degisir.
@@ -189,8 +195,17 @@ class FlightEngine private constructor(context: Context) {
     }
 
     fun setBreakMin(minutes: Int) {
+        if (currentState().flightActive) return
         data = data.copy(breakMin = minutes)
         if (!running && phase == Phase.BREAK) remaining = minutes * 60_000L
+        persist()
+        publish()
+    }
+
+    fun setLongBreakMin(minutes: Int) {
+        if (currentState().flightActive) return
+        data = data.copy(longBreakMin = minutes)
+        if (!running && phase == Phase.LONG) remaining = minutes * 60_000L
         persist()
         publish()
     }
@@ -276,9 +291,9 @@ class FlightEngine private constructor(context: Context) {
      * hesaplaniyor; burada kalan yalnizca sonucun uygulanmasi: ses, titresim,
      * bildirim, gunluk dosyasi ve servis.
      */
-    private fun finishPhase(notify: Boolean, endedAt: Long, skipped: Boolean = false) {
+    private fun finishPhase(notify: Boolean, endedAt: Long) {
         val before = currentState()
-        val outcome = FlightCore.finishPhase(before, data, endedAt, skipped)
+        val outcome = FlightCore.finishPhase(before, data, endedAt)
 
         data = outcome.data
         // Gunluge zaman damgali kayit: gun dagilimi, seri ve saat
@@ -408,6 +423,7 @@ class FlightEngine private constructor(context: Context) {
         log = data.log,
         focusMin = data.focusMin,
         breakMin = data.breakMin,
+        longBreakMin = data.longBreakMin,
         autoBreak = data.autoBreak,
         sound = data.sound,
         passenger = data.passenger,

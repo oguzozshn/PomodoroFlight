@@ -11,6 +11,7 @@ data class FlightUiState(
     val log: List<LogEntry>,
     val focusMin: Int,
     val breakMin: Int,
+    val longBreakMin: Int = LONG_BREAK_MIN,
     val autoBreak: Boolean,
     val sound: Boolean,
     val passenger: String,
@@ -62,7 +63,7 @@ data class FlightUiState(
     fun durationMsOf(phase: Phase): Long = when (phase) {
         Phase.FOCUS -> focusMin * 60_000L
         Phase.BREAK -> breakMin * 60_000L
-        Phase.LONG -> LONG_BREAK_MIN * 60_000L
+        Phase.LONG -> longBreakMin * 60_000L
     }
 
     val phaseDurationMs: Long get() = durationMsOf(phase)

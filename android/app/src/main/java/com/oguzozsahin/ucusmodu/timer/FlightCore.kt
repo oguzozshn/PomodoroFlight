@@ -49,15 +49,14 @@ object FlightCore {
      *   surec olmusken biten bir faz saatler sonra fark edilebiliyor ve o
      *   pomodoroyu bugune yazmak gun dagilimini de saat histogramini de
      *   yanlis yerden dolduruyordu.
-     * @param skipped ATLA ile erken gecildi mi. Mesafe ve rota ilerlemesi
-     *   normal biten pomodorodakiyle ayni isler; degisen, toplam odak suresine
-     *   sayilmamasi ve gunlukte isaretlenmesi.
+     *
+     * Odak oturumu atlanamaz: bu yol yalniz sure dolunca ya da molada "Molayi
+     * atla" ile cagrilir, dolayisiyla her odak oturumu tam sayilir.
      */
     fun finishPhase(
         before: FlightUiState,
         data: Persisted,
         endedAt: Long,
-        skipped: Boolean = false,
     ): PhaseOutcome {
         val route = before.route
 
@@ -113,9 +112,7 @@ object FlightCore {
 
         val advanced = data.copy(
             flight = current.copy(flown = flown),
-            // Atlanan pomodoro odak sayilmaz: 25 dakikaligi ucuncu
-            // saniyede atlayinca "toplam odak" 25 dakika artmamali.
-            totalMs = data.totalMs + if (skipped) 0L else focusMs,
+            totalMs = data.totalMs + focusMs,
             totalKm = data.totalKm + gained,
             cycle = (data.cycle + 1) % 4,
         )
@@ -135,7 +132,7 @@ object FlightCore {
                 routeKey = route.key,
                 minutes = (focusedMs / 60_000L).toInt(),
                 km = gained,
-                skipped = skipped,
+                skipped = false,
             ),
             alert = if (arrivedNow) PhaseAlert.LAND else PhaseAlert.LEVEL,
             arrived = arrivedNow,

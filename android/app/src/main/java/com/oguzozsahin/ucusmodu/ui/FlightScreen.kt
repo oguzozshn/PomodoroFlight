@@ -78,6 +78,7 @@ data class FlightActions(
     val onRoute: (String) -> Unit,
     val onFocusMin: (Int) -> Unit,
     val onBreakMin: (Int) -> Unit,
+    val onLongBreakMin: (Int) -> Unit = {},
     val onAutoBreak: (Boolean) -> Unit,
     val onSound: (Boolean) -> Unit,
     /** Gunlugu, ilerlemeyi ve toplamlari birden siler. */
@@ -104,6 +105,8 @@ fun FlightScreen(
     theme: ThemeChoice,
     /** Ucus yarida bitirilince cagrilir; rota secimine donulur. */
     onFlightEnded: () -> Unit = {},
+    /** Iniş yapilmis rotayi sifirdan yeniden ucmak: bilet yeniden kesilir. */
+    onFlyAgain: () -> Unit = {},
     onTheme: (ThemeChoice) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -141,7 +144,7 @@ fun FlightScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     TopBar(state, colors, actions, onChangeRoute, onBack)
-                    TimerPanel(state, colors, actions, onFlightEnded)
+                    TimerPanel(state, colors, actions, onFlightEnded, onFlyAgain)
                     FlightPlanPanel(state, colors)
                     SettingsPanel(state, colors, actions, theme, onTheme)
                     LogPanel(state, colors, onLogbook)
@@ -162,7 +165,7 @@ fun FlightScreen(
                         // kalmamasi icin kure biraz alcak tutuluyor.
                         .aspectRatio(1.18f),
                 )
-                TimerPanel(state, colors, actions, onFlightEnded)
+                TimerPanel(state, colors, actions, onFlightEnded, onFlyAgain)
                 FlightPlanPanel(state, colors)
                 SettingsPanel(state, colors, actions, theme, onTheme)
                 LogPanel(state, colors, onLogbook)
@@ -383,6 +386,7 @@ private fun TimerPanel(
     colors: FlightColors,
     actions: FlightActions,
     onFlightEnded: () -> Unit,
+    onFlyAgain: () -> Unit,
 ) {
     val phaseText = when (state.phase) {
         Phase.FOCUS -> "Odak · Seyir"
@@ -391,7 +395,7 @@ private fun TimerPanel(
     }
     val subline = when {
         state.arrived && state.phase == Phase.FOCUS ->
-            "${state.route.dest.city}'a indin. Günlüğe damga düştü — yeni bir rota seç."
+            "${state.route.dest.city}'a indin. Günlüğe damga düştü — tekrar uç ya da yeni bir rota seç."
         state.phase == Phase.FOCUS -> {
             // Oturum 25 dakikanin kati degilse kac pomodoro ettigini soylemek
             // gerekiyor; "1,48 pomodoro" yarim kalan kutuyu acikliyor.
@@ -405,10 +409,10 @@ private fun TimerPanel(
         }
         else -> "Uçak rotada bekliyor; mola bitince seyre devam."
     }
+    // Kalkis biletle olur; burada yalniz suren ucus yonetilir.
     val primaryLabel = when {
         state.running -> "Beklet"
-        state.phase == Phase.FOCUS && state.started -> "Devam"
-        state.phase == Phase.FOCUS -> "Kalkış"
+        state.phase == Phase.FOCUS -> "Devam"
         else -> "Molayı başlat"
     }
 
@@ -454,34 +458,47 @@ private fun TimerPanel(
             Spacer(Modifier.height(18.dp))
             // Birincil dugme kendi satirinda: seans ortasinda "Beklet"e
             // basarken yanindaki sifirlamaya kaymak fazla kolaydi.
-            FlightButton(
-                text = primaryLabel,
-                colors = colors,
-                primary = true,
-                enabled = !(state.phase == Phase.FOCUS && state.arrived),
-                modifier = Modifier.fillMaxWidth(),
-                onClick = actions.onToggle,
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Varilmis rotada atlanacak bir sey yok.
+            if (state.arrived) {
+                // Inis yapildi: sayacin isi bitti, yolculuk sifirdan yeniden baslar.
                 FlightButton(
-                    text = "Atla",
+                    text = "Tekrar uç",
                     colors = colors,
-                    enabled = !(state.phase == Phase.FOCUS && state.arrived),
-                    modifier = Modifier.weight(1f),
-                    onClick = actions.onSkip,
+                    primary = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onFlyAgain,
                 )
-                // "Sifirla" adi "Her seyi sil" ile karisiyordu; bu yalnizca
-                // suren fazi basa aliyor.
+            } else {
                 FlightButton(
-                    text = "Fazı başa al",
+                    text = primaryLabel,
                     colors = colors,
-                    modifier = Modifier.weight(1f),
-                    onClick = actions.onReset,
+                    primary = true,
+                    enabled = state.flightActive,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = actions.onToggle,
                 )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Odak oturumu atlanamaz; yalniz molada gorunur.
+                    if (state.phase != Phase.FOCUS) {
+                        FlightButton(
+                            text = "Molayı atla",
+                            colors = colors,
+                            enabled = state.flightActive,
+                            modifier = Modifier.weight(1f),
+                            onClick = actions.onSkip,
+                        )
+                    }
+                    // "Sifirla" adi "Her seyi sil" ile karisiyordu; bu yalnizca
+                    // suren fazi basa aliyor.
+                    FlightButton(
+                        text = "Sayacı başa al",
+                        colors = colors,
+                        modifier = Modifier.weight(1f),
+                        onClick = actions.onReset,
+                    )
+                }
             }
-            if (state.flightActive && state.started && !state.arrived) {
+            if (state.flightActive && !state.arrived) {
                 Spacer(Modifier.height(8.dp))
                 var confirmEnd by remember { mutableStateOf(false) }
                 GhostButton(
@@ -493,9 +510,14 @@ private fun TimerPanel(
                     val runningFocus = state.running && state.phase == Phase.FOCUS
                     ConfirmDialog(
                         title = "${state.route.origin.code} → ${state.route.dest.code} uçuşu bitirilsin mi?",
-                        body = Flights.summary(state.route, state.flownOnRoute) +
-                            " uçuldu; kalan kısım uçulmayacak. Uçuş günlüğe yarım olarak yazılır" +
-                            if (runningFocus) ", süren oturum sayılmaz." else ".",
+                        body = (
+                            if (state.flownOnRoute > 0.0) {
+                                Flights.summary(state.route, state.flownOnRoute) +
+                                    " uçuldu; kalan kısım uçulmayacak. Uçuş günlüğe yarım olarak yazılır"
+                            } else {
+                                "Henüz yol alınmadı; uçuş günlüğe yazılmadan kapanır"
+                            }
+                            ) + if (runningFocus) ", süren oturum sayılmaz." else ".",
                         confirmText = "Bitir",
                         colors = colors,
                         onConfirm = {
@@ -582,33 +604,11 @@ private fun SettingsPanel(
             PanelHead("Ayarlar", colors)
             Spacer(Modifier.height(12.dp))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("ODAK", style = labelStyle(colors.ink2).copy(fontSize = 12.sp))
-                Spacer(Modifier.weight(1f))
-                // Seyir sirasinda kilitli: olcek dakikaya bagli oldugu icin
-                // suren pomodoronun ortasinda uzunlugu degistirmek, 25 dakika
-                // odaklanip 50 dakikalik mesafe kazanmak demek olurdu.
-                SegmentedOptions(
-                    options = listOf(15, 25, 50),
-                    selected = state.focusMin,
-                    colors = colors,
-                    enabled = !state.running,
-                    onSelect = actions.onFocusMin,
-                )
-            }
-            if (state.running) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Odak süresi seyir sırasında değiştirilemez — önce beklet.",
-                    style = monoStyle(colors.muted, 10),
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("MOLA", style = labelStyle(colors.ink2).copy(fontSize = 12.sp))
-                Spacer(Modifier.weight(1f))
-                SegmentedOptions(listOf(5, 10), state.breakMin, colors, onSelect = actions.onBreakMin)
-            }
+            // Sureler buradan kalkti: ucustan once, bilet kesilmeden ayarlaniyor.
+            Text(
+                "Odak, mola ve uzun mola süreleri bilet kesmeden önce rota ekranında ayarlanır.",
+                style = monoStyle(colors.muted, 10),
+            )
             Spacer(Modifier.height(14.dp))
             Text("GÖRÜNÜM", style = labelStyle(colors.ink2).copy(fontSize = 12.sp))
             Spacer(Modifier.height(6.dp))

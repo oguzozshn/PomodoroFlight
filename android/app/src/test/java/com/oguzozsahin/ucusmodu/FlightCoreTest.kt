@@ -40,6 +40,7 @@ class FlightCoreTest {
         log = data.log,
         focusMin = data.focusMin,
         breakMin = data.breakMin,
+        longBreakMin = data.longBreakMin,
         autoBreak = data.autoBreak,
         sound = data.sound,
         passenger = data.passenger,
@@ -54,7 +55,7 @@ class FlightCoreTest {
     fun `tamamlanan pomodoro bir bacak ilerletir ve molaya gecer`() {
         val r = route()
         val data = Persisted(routeKey = r.key)
-        val out = FlightCore.finishPhase(state(r, data), data, now, skipped = false)
+        val out = FlightCore.finishPhase(state(r, data), data, now)
 
         assertEquals(r.kmPerLeg, out.data.flight!!.flown, 1e-9)
         assertEquals(r.kmPerLeg, out.gainedKm, 1e-9)
@@ -88,6 +89,15 @@ class FlightCoreTest {
         val out = FlightCore.finishPhase(state(r, data), data, now)
         assertEquals(Phase.LONG, out.phase)
         assertEquals(FlightUiState.LONG_BREAK_MIN * 60_000L, out.remainingMs)
+    }
+
+    @Test
+    fun `uzun mola suresi ayardan gelir`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key, cycle = 3, longBreakMin = 30)
+        val out = FlightCore.finishPhase(state(r, data), data, now)
+        assertEquals(Phase.LONG, out.phase)
+        assertEquals(30 * 60_000L, out.remainingMs)
     }
 
     @Test
@@ -127,7 +137,7 @@ class FlightCoreTest {
     }
 
     @Test
-    fun `varilmis rotada atlamak bedava mesafe vermez`() {
+    fun `varilmis rotada biten faz bedava mesafe vermez`() {
         val r = route()
         val data = Persisted(
             routeKey = r.key,
@@ -135,7 +145,7 @@ class FlightCoreTest {
             totalKm = r.km,
             totalMs = 9 * 25 * 60_000L,
         )
-        val out = FlightCore.finishPhase(state(r, data), data, now, skipped = true)
+        val out = FlightCore.finishPhase(state(r, data), data, now)
 
         assertSame("hicbir sey eklenmemeli", data, out.data)
         assertEquals(0.0, out.gainedKm, 0.0)
@@ -144,29 +154,14 @@ class FlightCoreTest {
         assertEquals(Phase.FOCUS, out.phase)
     }
 
-    // ---------------- atlama ----------------
-
-    @Test
-    fun `atlanan pomodoro toplam odaga sayilmaz ama mesafeyi verir`() {
-        val r = route()
-        val data = Persisted(routeKey = r.key)
-        // 25 dakikaliktan 3 saniye sonra atlandi.
-        val before = state(r, data, remainingMs = 25 * 60_000L - 3_000L)
-        val out = FlightCore.finishPhase(before, data, now, skipped = true)
-
-        assertEquals("toplam odak artmamali", 0L, out.data.totalMs)
-        assertEquals(r.kmPerLeg, out.gainedKm, 1e-9)
-        assertNotNull(out.record)
-        assertTrue(out.record!!.skipped)
-        assertEquals("uc saniye sifir dakika eder", 0, out.record!!.minutes)
-    }
+    // ---------------- odak kaydi ----------------
 
     @Test
     fun `gunluk kaydi gercekte odakta gecen dakikayi yazar`() {
         val r = route()
         val data = Persisted(routeKey = r.key)
         val before = state(r, data, remainingMs = 25 * 60_000L - 12 * 60_000L - 30_000L)
-        val out = FlightCore.finishPhase(before, data, now, skipped = true)
+        val out = FlightCore.finishPhase(before, data, now)
 
         assertEquals(12, out.record!!.minutes)
         assertEquals(now, out.record!!.time)

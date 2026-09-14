@@ -76,6 +76,8 @@ fun RouteScreen(
     places: List<Airport>,
     onBack: () -> Unit,
     onDeparture: () -> Unit,
+    /** Ucus surerken rota ekranina gelinmisse suren ucusa donus. */
+    onResume: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalFlightColors.current
@@ -327,7 +329,7 @@ fun RouteScreen(
                 Text(message, style = monoStyle(colors.amber, 11))
             }
 
-            RouteSummary(state, colors, onDeparture)
+            RouteSummary(state, colors, actions, onDeparture, onResume)
 
             PresetList(state, colors) { preset ->
                 from = preset.from
@@ -484,7 +486,13 @@ private fun SearchCard(
 
 /** Secilen rotanin binis karti: ucus no, kapi, saatler ve mesafe. */
 @Composable
-private fun RouteSummary(state: FlightUiState, colors: FlightColors, onDeparture: () -> Unit) {
+private fun RouteSummary(
+    state: FlightUiState,
+    colors: FlightColors,
+    actions: FlightActions,
+    onDeparture: () -> Unit,
+    onResume: () -> Unit,
+) {
     val route = state.route
     val focusMinutes = focusMinutesFor(route.legs - state.done)
     val cruise = cruiseMinutes(route.km)
@@ -493,6 +501,7 @@ private fun RouteSummary(state: FlightUiState, colors: FlightColors, onDeparture
         focusMin = state.focusMin,
         breakMin = state.breakMin,
         cycle = state.cycle,
+        longBreakMin = state.longBreakMin,
     )
     // Saatler her yeniden cizimde degil, rota degistikce tazelenir.
     val now = remember(route.key, scheduleMinutes) { System.currentTimeMillis() }
@@ -551,16 +560,74 @@ private fun RouteSummary(state: FlightUiState, colors: FlightColors, onDeparture
             SummaryRow("Odakta geçecek", formatDuration(focusMinutes), colors)
             SummaryRow("Gerçek seyir süresi", "≈ ${formatDuration(cruise)}", colors)
 
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider(color = colors.lineSoft)
+            Spacer(Modifier.height(12.dp))
+
+            // Rota -> sureler -> bilet. Ucus surerken sureler kilitli.
+            val locked = state.flightActive
+            DurationRow("Odak", listOf(15, 25, 50), state.focusMin, locked, colors, actions.onFocusMin)
+            Spacer(Modifier.height(8.dp))
+            DurationRow("Mola", listOf(5, 10), state.breakMin, locked, colors, actions.onBreakMin)
+            Spacer(Modifier.height(8.dp))
+            DurationRow("Uzun mola", listOf(15, 20, 30), state.longBreakMin, locked, colors, actions.onLongBreakMin)
+            if (locked) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Uçuş sürerken süreler değiştirilemez; uçuş bitince yeniden açılır.",
+                    style = monoStyle(colors.muted, 10),
+                )
+            }
+
             Spacer(Modifier.height(18.dp))
+            // Tek dugme: bilet keser, suren ucusa doner, inisten sonra yeniden ucurur.
             FlightButton(
-                text = if (state.arrived) "Bu rota tamamlandı" else "Bilet kes",
+                text = when {
+                    state.arrived -> "Tekrar uç"
+                    state.flightActive -> "Uçuşa dön"
+                    else -> "Bilet kes"
+                },
                 colors = colors,
                 primary = true,
-                enabled = !state.arrived,
                 modifier = Modifier.fillMaxWidth(),
-                onClick = onDeparture,
+                onClick = {
+                    when {
+                        // Inmis ucus birakilir, yolculuk sifirdan: bilet yeniden kesilir.
+                        state.arrived -> {
+                            actions.onRoute(state.route.key)
+                            onDeparture()
+                        }
+                        state.flightActive -> onResume()
+                        else -> onDeparture()
+                    }
+                },
             )
         }
+    }
+}
+
+/** Binis kartindaki sure satiri: etiket ve hazir secenekler; ucus surerken kilitli. */
+@Composable
+private fun DurationRow(
+    label: String,
+    options: List<Int>,
+    selected: Int,
+    locked: Boolean,
+    colors: FlightColors,
+    onSelect: (Int) -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label.upperTr(), style = labelStyle(colors.ink2).copy(fontSize = 12.sp))
+        Spacer(Modifier.weight(1f))
+        SegmentedOptions(
+            options = options,
+            selected = selected,
+            colors = colors,
+            enabled = !locked,
+            onSelect = onSelect,
+        )
+        Spacer(Modifier.width(6.dp))
+        Text("dk", style = monoStyle(colors.muted, 11))
     }
 }
 
