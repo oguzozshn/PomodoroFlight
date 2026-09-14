@@ -116,7 +116,10 @@ function setRoute(key, quiet) {
   }
   $("#flightNo").textContent = route.flightNo;
   picker?.sync();
-  persist();
+  // Açılıştaki sessiz kurulum kaydetmez: o an sayaç henüz geri yüklenmedi ve
+  // kaydetmek, süren oturumun bitiş anını sıfır bir sayaçla ezerdi. Uygulama
+  // oturum sürerken kapanıp açılınca sayaç 25:00'a dönüyordu.
+  if (!quiet) persist();
   renderAll();
   return true;
 }
@@ -125,16 +128,21 @@ function setRoute(key, quiet) {
 
 const durationOf = phase => durationMsOf(db, phase);
 
+/**
+ * Sayaç yalnız süren bir uçuşta işler: bilet kesilmeden odak başlamaz. Space,
+ * menüdeki "Başlat / Beklet" ve pencereden bakıştaki düğme hep buradan geçiyor.
+ */
 const timer = createTimer({
   durationOf,
-  canStart: phase => !(phase === "focus" && arrived())
+  canStart: phase => flightActive() && !(phase === "focus" && arrived())
 });
 
 /**
  * Faz doldu: mesafeyi işle, günlüğe yaz, sıradaki faza geç.
- * @param skipped Atla ile geçildiyse odak süresi toplama eklenmez.
+ * Odak oturumu atlanamaz: bu yol yalnız süre dolunca ya da molada "Molayı atla"
+ * ile çağrılır.
  */
-function finishPhase(skipped = false) {
+function finishPhase() {
   const remainingAtEntry = timer.remaining;
   if (timer.phase === "focus") {
     const before = st();
@@ -152,12 +160,11 @@ function finishPhase(skipped = false) {
     // Oturumun kazandırdığı mesafe: 25 dakika bir bacak, 50 dakika iki.
     const earned = kmForFocus(route, db.focusMin);
     const flown = Math.min(route.km, before.flownOnRoute + earned);
-    // Bilet koparılmadan atlanan oturum da bir uçuş başlatır.
+    // Sayaç bilet olmadan başlamıyor; bu yalnız eski bir kayıttan geri yüklenen
+    // oturum için bir güvence.
     if (db.flight?.r !== route.key) startFlight(db, route.key);
     db.flight.flown = flown;
-    // Atlanan pomodoro odak sayılmaz: 25 dakikalığı üçüncü saniyede atlayınca
-    // "toplam odak" 25 dakika artmamalı. Mesafe ise işler.
-    if (!skipped) db.totalMs += durationOf("focus");
+    db.totalMs += durationOf("focus");
     // Varışta artakalan pay toplama girmesin: gerçekten alınan yol kadar.
     db.totalKm += flown - before.flownOnRoute;
     db.cycle = (db.cycle + 1) % 4;
@@ -167,21 +174,15 @@ function finishPhase(skipped = false) {
 
     // Günlüğe zaman damgalı kayıt: gün dağılımı, seri ve saat histogramı
     // ancak buradan çıkıyor. Gerçekte odakta geçen süre yazılır.
-    //
-    // Atlanan oturum hiç yazılmaz. Uçak yine ilerliyor ama bu bir çalışma
-    // kaydı değil; günlüğe girseydi "atlandı" işaretiyle bile saat
-    // histogramını ve seriyi kirletirdi.
-    if (!skipped) {
-      const focusMs = Math.max(0, Math.min(durationOf("focus"), durationOf("focus") - remainingAtEntry));
-      const record = focusRecord({
-        time: Date.now(),
-        routeKey: route.key,
-        minutes: Math.floor(focusMs / 60000),
-        km: flown - before.flownOnRoute
-      });
-      journal.append(record);
-      records.push(record);
-    }
+    const focusMs = Math.max(0, Math.min(durationOf("focus"), durationOf("focus") - remainingAtEntry));
+    const record = focusRecord({
+      time: Date.now(),
+      routeKey: route.key,
+      minutes: Math.floor(focusMs / 60000),
+      km: flown - before.flownOnRoute
+    });
+    journal.append(record);
+    records.push(record);
 
     if (db.sound) chime(arrivedNow ? "land" : "level");
     if (arrivedNow) {
@@ -214,13 +215,6 @@ function finishPhase(skipped = false) {
  * Uçuş ancak bilet koparılınca başlar. Bilet rotaya bağlı: yeni bir rota
  * seçilince yeniden kesilir, yarım kalmış uçuşta tekrar sorulmaz.
  */
-function needsTicket() {
-  if (!route || timer.running) return false;
-  if (timer.phase !== "focus") return false;
-  const v = st();
-  if (v.started || v.arrived) return false;
-  return db.flight?.r !== route.key;
-}
 
 function openTicket() {
   ticketScreen.open(issueTicket(route, db, st()));
@@ -247,11 +241,24 @@ function flyAgain() {
 const flownSummary = (r, flown) =>
   fmtPom(flown / r.kmPerLeg) + " / " + r.legs + " pomodoro (" + nf(flown) + " km)";
 
-/** Bu rotada yarıda bitirilebilecek bir uçuş var mı? */
+/**
+ * Bu rotada süren (inmemiş) bir uçuş var mı? Süre kilidi, sayaç düğmeleri ve
+ * sayaç izni hep bu tek soruya bakıyor.
+ */
+function flightActive() {
+  return Boolean(route && db.flight?.r === route.key && !db.flight.landed);
+}
+
+/** Bu rotada bitirilebilecek bir uçuş var mı? Bilet koparılmış olması yeter. */
 function canEnd() {
-  if (!route || db.flight?.r !== route.key || db.flight.landed) return false;
-  const v = st();
-  return v.started && !v.arrived;
+  return flightActive() && !st().arrived;
+}
+
+/** Yalnız mola atlanabilir; odak oturumu atlanamaz. */
+function skipBreak() {
+  if (timer.phase === "focus" || !flightActive()) return;
+  timer.pause();
+  finishPhase();
 }
 
 /**
@@ -270,10 +277,12 @@ function endActiveFlight() {
 function askEnd() {
   if (!canEnd()) return;
   const running = timer.phase === "focus" && timer.elapsed() > 0;
+  const flown = st().flownOnRoute;
   confirmBox.open({
     title: route.o + " → " + route.d + " uçuşu bitirilsin mi?",
-    body: flownSummary(route, st().flownOnRoute) +
-      " uçuldu; kalan kısım uçulmayacak. Uçuş günlüğe yarım olarak yazılır" +
+    body: (flown > 0
+      ? flownSummary(route, flown) + " uçuldu; kalan kısım uçulmayacak. Uçuş günlüğe yarım olarak yazılır"
+      : "Henüz yol alınmadı; uçuş günlüğe yazılmadan kapanır") +
       (running ? ", süren oturum sayılmaz." : "."),
     actions: [{ label: "Bitir", primary: true, run: endActiveFlight }]
   });
@@ -317,6 +326,16 @@ function requestRoute(key, then = () => {}) {
   });
 }
 
+/**
+ * Başlat/beklet: sayacı çevirir ve hemen kaydeder. Beklet, Devam, Space, menü ve
+ * pencereden bakış hep buradan geçiyor; kaydetmeyi unutan tek bir yol kalmasın.
+ */
+function toggleTimer() {
+  timer.toggle();
+  persist();
+  renderAll();
+}
+
 /** Sayacın kendisi de saklanır: uygulama kapanıp açılınca seyir kaldığı yerden sürer. */
 function persist() {
   db.phase = timer.phase;
@@ -331,20 +350,27 @@ const flownFraction = () => st().fraction;
 
 /* ---------------- çizim ---------------- */
 
+let durationsLocked = null;   // son çizimdeki kilit durumu; değişince alanlar eşitlenir
+
+/**
+ * Sayaç panelinin düğmeleri yalnız uçuş sürerken var. Uçuşu başlatan (Bilet
+ * kes), bitiren (Uçuşu bitir) ve yeniden uçuran (Tekrar uç) biniş kartında.
+ */
 function renderControls() {
-  $("#endBtn").hidden = !canEnd();
-  const btn = $("#goBtn");
-  // İniş yapılmış rotada düğme tek işe yarar: baştan uçmak. Mola sürerken
-  // "Beklet" önceliklidir, molanın kendisi hâlâ işleyen bir faz.
-  if (arrived() && !timer.running) {
-    btn.textContent = "Tekrar uç";
-    btn.disabled = false;
-    return;
+  // Uçuş sekmesi iki durumlu: bilet koparılınca (ve inişten sonra, "Tekrar uç"a
+  // kadar) sayaç ve uçuş planı; öncesinde rota, süreler ve biniş kartı.
+  $("#flightView").dataset.mode = route && db.flight?.r === route.key ? "fly" : "prep";
+  const active = flightActive() && !arrived();
+  if (flightActive() !== durationsLocked) {
+    durationsLocked = flightActive();
+    syncDurations();
   }
-  btn.textContent = timer.running
+  $("#controls").hidden = !active;
+  if (!active) return;
+  $("#goBtn").textContent = timer.running
     ? "Beklet"
-    : timer.phase === "focus" ? (done() > 0 ? "Devam" : "Kalkış") : "Molayı başlat";
-  btn.disabled = false;
+    : timer.phase === "focus" ? "Devam" : "Molayı başlat";
+  $("#skipBtn").hidden = timer.phase === "focus";
 }
 
 function renderHud() {
@@ -385,7 +411,9 @@ function renderTimer() {
 
   const v = st();
   let sub;
-  if (v.arrived) {
+  if (!v.arrived && !flightActive()) {
+    sub = "Rota seç, süreleri ayarla, bileti kes.";
+  } else if (v.arrived) {
     sub = route.dName + "'a indin. Günlüğe damga düştü — yeni bir rota seç ya da tekrar uç.";
   } else if (timer.phase === "focus") {
     // Oturum 25 dakikanın katı değilse kaç pomodoro ettiğini söylemek gerekiyor;
@@ -468,7 +496,8 @@ function renderLog() {
   const ul = $("#logs");
   ul.innerHTML = "";
   $("#logEmpty").style.display = db.log.length ? "none" : "block";
-  for (const e of db.log.slice(0, 8)) ul.appendChild(logRow(e));
+  // Kendi sekmesinde duruyor, yer sıkıntısı yok: bütün uçuşlar listelenir.
+  for (const e of db.log) ul.appendChild(logRow(e));
   $("#sHours").textContent = (db.totalMs / 3600000).toFixed(1).replace(".", ",") + " sa";
   $("#sKm").textContent = nf(db.totalKm) + " km";
 }
@@ -510,7 +539,7 @@ function loop(now = performance.now()) {
   lastFrame = now;
 
   if (timer.running) {
-    if (timer.sync()) finishPhase(false);
+    if (timer.sync()) finishPhase();
     else { renderTimer(); renderHud(); renderLegs(); }
   }
   if (now - sunAt > 60000) { sun = subsolarPoint(); sunAt = now; }
@@ -555,18 +584,25 @@ function pickAirport(code) {
   });
 }
 
+/* ---------------- sekmeler ---------------- */
+
+/** Uçuş ve uçuş günlüğü sekmeleri. Küre gizliyken boyutu sıfırlanır; geri
+ *  gelince boyut gözlemcisi yeniden ölçer. */
+function showTab(name) {
+  const log = name === "log";
+  $("#flightView").hidden = log;
+  $("#logView").hidden = !log;
+  $("#tabFlight").setAttribute("aria-selected", String(!log));
+  $("#tabLog").setAttribute("aria-selected", String(log));
+}
+
 /* ---------------- olay bağlama ---------------- */
 
 function wireControls() {
-  $("#goBtn").addEventListener("click", () => {
-    if (arrived() && !timer.running) { flyAgain(); return; }
-    if (needsTicket()) { openTicket(); return; }
-    timer.toggle();
-    renderAll();
-  });
-  $("#resetBtn").addEventListener("click", () => { timer.reset(); renderAll(); });
-  $("#endBtn").addEventListener("click", () => askEnd());
-  $("#skipBtn").addEventListener("click", () => { timer.pause(); finishPhase(true); });
+  // Yalnız uçuş sürerken görünür: bekletir, devam ettirir, molayı başlatır.
+  $("#goBtn").addEventListener("click", () => toggleTimer());
+  $("#resetBtn").addEventListener("click", () => { timer.reset(); persist(); renderAll(); });
+  $("#skipBtn").addEventListener("click", () => skipBreak());
 
   $("#soundBtn").addEventListener("click", e => {
     db.sound = !db.sound;
@@ -574,6 +610,9 @@ function wireControls() {
     e.currentTarget.setAttribute("aria-pressed", String(db.sound));
     e.currentTarget.textContent = db.sound ? "Kabin sesi" : "Sessiz";
   });
+
+  $("#tabFlight").addEventListener("click", () => showTab("flight"));
+  $("#tabLog").addEventListener("click", () => showTab("log"));
 
   $("#clearBtn").addEventListener("click", () => {
     store.clearProgress();
@@ -621,7 +660,7 @@ function wireChoice(id, key, onChange) {
 }
 
 /** Süre ayarlarının sınırları: dakika. */
-const DURATION_LIMITS = { focusMin: [1, 180], breakMin: [1, 60] };
+const DURATION_LIMITS = { focusMin: [1, 180], breakMin: [1, 60], longBreakMin: [1, 60] };
 
 /** Aynı süre ayarının ekrandaki bütün kopyaları. */
 const durSegs = key => document.querySelectorAll('[data-dur="' + key + '"]');
@@ -633,6 +672,8 @@ const durFields = key => document.querySelectorAll('[data-dur-field="' + key + '
  * bacakların dolma hızı değişir.
  */
 function applyDuration(key, value, phase) {
+  // Süreler uçuştan önce ayarlanır; uçuş sürerken kilitli.
+  if (flightActive()) { syncDurations(); return false; }
   const [min, max] = DURATION_LIMITS[key];
   const n = Math.round(Number(value));
   if (!Number.isFinite(n)) return false;
@@ -654,21 +695,25 @@ function applyDuration(key, value, phase) {
  * eşitleniyor, biri değişince öbürü de güncelleniyor.
  */
 function syncDurations() {
-  for (const key of ["focusMin", "breakMin"]) {
+  const locked = flightActive();
+  for (const key of ["focusMin", "breakMin", "longBreakMin"]) {
     const value = db[key];
     let preset = false;
     for (const seg of durSegs(key)) {
       for (const b of seg.children) {
         const on = +b.dataset.v === value;
         b.setAttribute("aria-pressed", String(on));
+        b.disabled = locked;
         if (on) preset = true;
       }
     }
     for (const field of durFields(key)) {
       if (document.activeElement !== field) field.value = String(value);
       field.dataset.custom = String(!preset);
+      field.disabled = locked;
     }
   }
+  $("#durLock").hidden = !locked;
 }
 
 function wireDuration(key, phase) {
@@ -704,10 +749,11 @@ function wireRoutePicker() {
       $("#msg").textContent =
         cityOf(o) + " → " + cityOf(d) + " yüklendi · " + nf(route.km) + " km · " + route.legs + " pomodoro.";
     }),
+    // Biniş kartının tek düğmesi: bilet kes · uçuşu bitir · tekrar uç.
     onIssue: () => {
       if (arrived()) flyAgain();
-      else if (needsTicket()) openTicket();
-      else { timer.start(); renderAll(); }
+      else if (flightActive()) askEnd();
+      else openTicket();
     }
   });
 }
@@ -831,22 +877,22 @@ function wireKeyboard() {
     if (e.target && e.target.matches && e.target.matches("input,select,button")) return;
     if (e.code === "Space") {
       e.preventDefault();
-      timer.toggle();
-      renderAll();
+      toggleTimer();
     }
   });
 }
 
 function wirePlatform() {
   platform.onCommand(cmd => {
-    if (cmd === "toggle") timer.toggle();
-    else if (cmd === "reset") timer.reset();
+    if (cmd === "toggle") { toggleTimer(); return; }
+    else if (cmd === "reset") { timer.reset(); persist(); }
     else if (cmd === "end") { askEnd(); return; }
-    else if (cmd === "skip") { timer.pause(); finishPhase(true); return; }
+    else if (cmd === "skip") { skipBreak(); return; }
     else if (cmd === "sound") { $("#soundBtn").click(); return; }
     else if (cmd === "clear") { $("#clearBtn").click(); return; }
     else if (cmd === "settings") { settings.open(); return; }
     else if (cmd === "stats") { statement.open(); return; }
+    else if (cmd === "log") { showTab("log"); return; }
     renderAll();
   });
 }
@@ -870,7 +916,7 @@ function restoreTimer() {
   if (db.running && db.endAt > 0) {
     timer.running = true;
     timer.endAt = db.endAt;
-    if (timer.sync()) finishPhase(false);
+    if (timer.sync()) finishPhase();
   }
 }
 
@@ -903,11 +949,13 @@ function boot() {
   ticketScreen = createTicketScreen({
     onTorn: () => {
       startFlight(db, route.key);
+      timer.setPhase("focus");
       persist();
       // Koparılan bileti bir an göster, sonra kalkışa geç.
       setTimeout(() => {
         ticketScreen.close();
         timer.start();
+        persist();
         renderAll();
       }, 700);
     },
@@ -927,14 +975,16 @@ function boot() {
         places: registry.isLoaded ? registry.visibleAt(1) : [],
         remaining: timer.remaining,
         running: timer.running,
+        phase: timer.phase,
+        active: flightActive() && !arrived(),
         phaseLabel: timer.phase === "focus" ? "Odak · Seyir"
           : timer.phase === "long" ? "Uzun mola · Aktarma" : "Mola · Kabin",
         cameraLat: at[0],
         cameraLon: at[1]
       };
     },
-    onToggle: () => { timer.toggle(); renderAll(); },
-    onSkip: () => { timer.pause(); finishPhase(true); },
+    onToggle: () => toggleTimer(),
+    onSkip: () => skipBreak(),
     onModeChange: next => { db.windowMode = next; persist(); },
     onPickVideo: () => platform.pickVideo()
   });
@@ -954,6 +1004,7 @@ function boot() {
   wireChoice("#segQuality", "renderQuality", value => windowView?.applyQuality(value));
   wireDuration("focusMin", "focus");
   wireDuration("breakMin", "break");
+  wireDuration("longBreakMin", "long");
   syncDurations();
   wireRoutePicker();
   wireGlobe();

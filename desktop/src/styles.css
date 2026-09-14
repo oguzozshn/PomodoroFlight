@@ -192,10 +192,15 @@ button:focus-visible,select:focus-visible,input:focus-visible{
 }
 .subline{font-size:13px;color:var(--muted);min-height:20px}
 .controls{display:flex;justify-content:center;gap:10px;margin-top:18px;flex-wrap:wrap}
-/* Odak süresi giriş ekranında da duruyor: saatin altında, dar ve ortalanmış. */
-.dur-inline{justify-content:center;margin-top:14px}
-.dur-inline .seg button{padding:0 12px;height:30px;font-size:13px}
-.dur-inline .dur-custom input{width:58px;height:30px;font-size:13px}
+/* Biniş kartındaki süreler: etiket · hazır seçenekler · elle yazılan dakika. */
+.pv-dur{display:grid;gap:8px;margin:14px 0 12px}
+.pv-dur-row{display:grid;grid-template-columns:7.5em auto 1fr;align-items:center;gap:10px}
+.pv-dur-row .label{font-size:13px;color:var(--muted);white-space:nowrap}
+.pv-dur .seg button{padding:0 12px;height:30px;font-size:13px}
+.pv-dur .dur-custom input{width:58px;height:30px;font-size:13px}
+/* Uçuş sürerken süreler kilitli: soluk ve tıklanmaz. */
+[data-dur] button:disabled,[data-dur-field]:disabled{opacity:.45;cursor:not-allowed}
+.dur-lock{margin:0;font-size:12px;color:var(--muted)}
 .btn{
   border:1px solid var(--line);background:var(--panel-2);border-radius:var(--radius);
   padding:10px 18px;font-family:"Barlow Condensed",sans-serif;font-weight:500;
@@ -645,3 +650,63 @@ body{overflow-y:auto;overflow-x:hidden}
 .confirm-body{margin:0;font-size:14px;color:var(--muted);line-height:1.5}
 .confirm-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .confirm-actions #confirmActions{display:contents}
+
+/* ---------- sekmeler: uçuş · uçuş günlüğü ---------- */
+[hidden]{display:none!important}
+.tabs{display:flex;gap:2px;margin-left:22px;align-self:stretch;align-items:flex-end}
+.tabs button{
+  background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-17px;
+  padding:6px 12px 14px;font-family:"Barlow Condensed",sans-serif;font-weight:500;
+  text-transform:uppercase;letter-spacing:.14em;font-size:13px;color:var(--muted);
+}
+.tabs button:hover{color:var(--ink)}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--amber)}
+
+/* ---------- uçuş sekmesi: hazırlık ve uçuş ---------- */
+.flight-view[data-mode="prep"] .fly-only,
+.flight-view[data-mode="fly"] .prep-only{display:none}
+/* Uçuşta rota seçmek uçuşu bitirmeyi gerektiriyor; ipucu durum etiketiyle de çakışıyordu. */
+.flight-view[data-mode="fly"] .maphint{display:none}
+.side{gap:14px}
+.steps{display:flex;flex-direction:column}
+.step{padding:14px 16px 16px;border-top:1px solid var(--line)}
+.step:first-child{border-top:0}
+.step-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.step-h h2{
+  font-family:"Barlow Condensed",sans-serif;font-weight:600;text-transform:uppercase;
+  letter-spacing:.14em;font-size:14px;margin:0;
+}
+.step-h .n{
+  display:grid;place-items:center;width:20px;height:20px;border-radius:50%;
+  border:1px solid var(--amber);color:var(--amber);
+  font-family:"IBM Plex Mono",monospace;font-size:11px;line-height:1;
+}
+/* Adımların içine taşınan eski panel parçalarının kendi çerçeveleri kalkıyor. */
+.steps #routeList{margin:0 -16px}
+.steps .custom{border-top:1px solid var(--line-soft);padding:12px 0 0;margin-top:4px}
+.steps .pv-dur{margin:0}
+.step.preview{display:grid;gap:11px}
+.step.preview .step-h{margin-bottom:0}
+.side-foot .btn{padding:13px 18px;font-size:15px}
+.log-view{max-width:860px;margin:0 auto}
+
+/* Geniş pencerede sayfa kaymaz: iki sütun pencere yüksekliğine oturur, hazırlık
+   adımları kendi içinde kayar, alttaki düğme hep görünür. */
+@media (min-width:980px){
+  html,body{overflow:hidden}
+  .wrap{height:100%;box-sizing:border-box;display:flex;flex-direction:column;padding-bottom:16px}
+  .wrap>main{flex:1;min-height:0}
+  .wrap>.foot{margin-top:10px}
+  .flight-view{height:100%;grid-template-rows:minmax(0,1fr)}
+  .flight-view>.col{min-height:0}
+  .mapwrap{height:100%}
+  #map{aspect-ratio:auto;height:100%}
+  .side{height:100%}
+  /* Yalnız rota adımı kayar; süreler ve biniş kartı özeti bilet düğmesinin
+     üstünde hep görünür kalır, bileti kesmeden önce ne ayarlandığı görülür. */
+  .steps{flex:1;min-height:0}
+  .steps>.step:first-child{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+  .steps>.step:not(:first-child){flex:0 0 auto}
+  .flight-view[data-mode="fly"] .side>.timer{flex:1;display:flex;flex-direction:column;justify-content:center}
+  .log-view{height:100%;overflow-y:auto;overscroll-behavior:contain}
+}

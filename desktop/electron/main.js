@@ -133,7 +133,7 @@ function buildMenu() {
         { label: "Başlat / Beklet", accelerator: "CmdOrCtrl+Space", click: () => send("toggle") },
         { label: "Sayacı sıfırla", accelerator: "CmdOrCtrl+R", click: () => send("reset") },
         { label: "Uçuşu bitir…", accelerator: "CmdOrCtrl+E", click: () => send("end") },
-        { label: "Fazı atla", accelerator: "CmdOrCtrl+Right", click: () => send("skip") },
+        { label: "Molayı atla", accelerator: "CmdOrCtrl+Right", click: () => send("skip") },
         { type: "separator" },
         { label: "Kabin sesi", accelerator: "CmdOrCtrl+M", click: () => send("sound") },
         { label: "Günlüğü temizle…", click: () => confirmClear() },
@@ -142,6 +142,7 @@ function buildMenu() {
       ],
     },
     { label: "Ayarlar", click: () => send("settings") },
+    { label: "Uçuş günlüğü", click: () => send("log") },
     { label: "İstatistikler", click: () => send("stats") },
     {
       label: "Görünüm",
