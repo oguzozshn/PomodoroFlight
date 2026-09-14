@@ -31,7 +31,7 @@ SDK olmadan da saf katman derlenip sınanabiliyor; bkz. [Testler](#testler).
 | `localStorage` | `data/Store.kt` — SharedPreferences üzerinde JSON; kaydın kendisi `data/Persisted.kt` |
 | `requestAnimationFrame` sayacı | `timer/FlightEngine.kt` — tek otorite, `StateFlow`; faz geçişi `timer/FlightCore.kt` |
 | WebAudio kabin sesi | `audio/Chime.kt` — aynı notalar `AudioTrack` ile sentezleniyor |
-| Sekme başlığındaki geri sayım | Foreground service bildirimi (Beklet / Atla eylemleriyle) |
+| Sekme başlığındaki geri sayım | Foreground service bildirimi (Beklet; molada Molayı atla) |
 | Barlow · Barlow Condensed · IBM Plex Mono (CDN) | Aynı fontlar `res/font` içinde gömülü |
 | — | `ui/window/` — uçuş sırasında tam ekran pencere görünümü (web sürümünde yok) |
 
@@ -39,26 +39,31 @@ Havalimanı tablosu, ön tanımlı rotalar, `TKxxxx` uçuş numarası üretimi v
 4 pomodoroda bir uzun mola döngüsü web sürümüyle birebir aynıdır; sayısal
 çıktılar orijinal JavaScript'e karşı doğrulanmıştır.
 
-**Ölçek pomodoro sayısına değil süreye bağlı.** Web sürümünde her pomodoro
-sabit 850 km taşıyordu, yani odak süresini uzatmak mesafeyi değiştirmiyordu.
-Burada ölçek dakikaya bağlı: odakta geçen her dakika 34 km. Varsayılan
-25 dakikada rakamlar birebir aynı (25 × 34 = 850), ama 50 dakikalık bir
-pomodoro artık iki kat yol alıyor ve bir rotayı bitirmek için gereken toplam
-odak süresi pomodoro uzunluğundan bağımsız hale geliyor. İlerleme de bacak
-sayısı olarak değil kat edilen km olarak saklanıyor; böylece odak süresini
-değiştirmek yarım kalmış bir rotayı bozmuyor. Eski kayıtlar (`state-v1`) ilk
-açılışta rotanın kendi bacak uzunluğuyla km'ye çevriliyor.
+**Bir pomodoro 25 dakika ve uçağın gerçekten aldığı yol kadar.** Web
+sürümünde her pomodoro sabit 850 km taşıyordu; bu, uçağın bir saatte aldığı
+yol. Artık ölçek gerçek seyir hızına bağlı (`data/Geo.kt`): 850 km/sa ×
+25 dk ≈ **354 km / pomodoro**, odakta geçen her dakika ≈ 14 km.
+
+- Rotanın pomodoro (bacak) sayısı `km / 354` yuvarlanarak bulunur ve odak
+  süresinden bağımsızdır: IST–JFK 23 pomodoro, bacak başına 349 km.
+- 50 dakikalık bir oturum iki bacak, 15 dakikalık bir oturum 0,6 bacak yol
+  alır; uçuş planındaki kutu kesirli dolar.
+- Rota ekranındaki süre yer payı eklenmemiş **gerçek seyir süresi**; odak
+  süresiyle arasındaki fark yalnızca molalardan gelir.
+- İstatistiklerdeki pomodoro sayıları `dakika / 25`, yani kesirli.
 
 ## Uygulama akışı
 
-Gerçek bir uçuş günü gibi üç adım:
+Gerçek bir uçuş günü gibi dört adım:
 
 1. **Terminal** (`ui/WelcomeScreen.kt`) — saat, küre, toplam istatistikler ve
-   **Yolculuğa başla**. Yarım kalmış bir rota varsa doğrudan devam edilebilir.
+   **Yolculuğa başla**. Süren bir uçuş varsa doğrudan devam edilebilir.
 2. **Rota seç** (`ui/RouteScreen.kt`) — küreyi çevirip şehre dokunarak ya da
    arama kutusundan kalkış ve varış seçilir; hazır rotalar da duruyor. Biniş
    kartında uçuş no, kapı, kalkış ve tahmini varış saati, odakta geçecek süre
-   ve gerçek uçuş süresi yazar. **Uçuşa başlat**.
+   ve gerçek seyir süresi yazar. **Odak, mola ve uzun mola** süreleri de
+   burada, düğmenin hemen üstünde seçilir; uçuş sürerken kilitlidir.
+   Düğme duruma göre **Bilet kes**, **Uçuşa dön** ya da **Tekrar uç** olur.
 3. **Bilet** (`ui/TicketScreen.kt`) — "Bilet kes" denince biniş kartı yazıcı
    yuvasından duraklayarak beslenir, sonra **parmakla koparılır**: perforasyon
    üzerinde sağa kaydırdıkça yırtık ilerler, koparılan parça açıyla sarkar ve
@@ -67,12 +72,38 @@ Gerçek bir uçuş günü gibi üç adım:
    Koçanda havayolu ve rota, koparılan parçada yolcu adı, uçuş numarası, kapı,
    koltuk, biniş/kalkış/varış saatleri, mesafe ve dekoratif barkod var. Koltuk
    rotaya ve güne sabitlenmiştir: aynı gün aynı rota aynı koltuğu verir.
-4. **Uçuş** (`ui/FlightScreen.kt`) — küre, sayaç, uçuş planı, ayarlar ve günlük.
-   Üstteki **Rota** düğmesi ikinci adıma döner. Yolcu adı buradaki ayarlardan
-   giriliyor; boş bırakılırsa bilette "YOLCU" yazar.
+4. **Uçuş** (`ui/FlightScreen.kt`) — küre, sayaç, uçuş planı ve ayarlar.
+   Kalkış bilette olduğu için ayrı bir Kalkış düğmesi yok: sayaç yalnızca
+   Beklet / Devam / Molayı başlat. **Odak oturumu atlanamaz**, mola
+   atlanabilir. **Uçuşu bitir** kalan kısmı bırakır; inişte **Tekrar uç** aynı
+   rotayı yeni biletle sıfırdan başlatır. Üstteki **Rota** düğmesi ikinci
+   adıma döner. Yolcu adı buradaki ayarlardan giriliyor; boş bırakılırsa
+   bilette "YOLCU" yazar.
 
 Geri tuşu bu zinciri tersten yürür; sayaç hangi ekranda olursanız olun işlemeye
 devam eder.
+
+## Uçuş kaydı
+
+Aynı anda **tek bir etkin uçuş** var (`data/Flights.kt`, `ActiveFlight`).
+Eskiden ilerleme rota başına bir km sayacıydı: bir rotadan çıkıp dönünce uçak
+kaldığı yerden devam ediyor, yarıda bırakılan uçuş hiçbir listede görünmüyordu.
+
+- Uçuş **bilet koparılınca sıfırdan** başlar; aynı rotada önceki ilerleme
+  devralınmaz.
+- **Varışta** günlüğe tamamlanmış satır düşer (`✓ 23 pom · 8.026 km`), ekran
+  yeni bilet kesilene kadar "İniş yapıldı" durumunda kalır.
+- **Uçuşu bitir** ile yarıda bırakılan uçuş, yol alındıysa yarım satır olarak
+  yazılır (`%30 · 7 / 23 pom · 2.444 km`); süren oturum sayılmaz. Hiç yol
+  alınmadıysa iz bırakmaz.
+- Uçuş sürerken başka rota seçilince onay sorulur (Vazgeç / Bitir ve geç).
+- Kürede yarım uçuşun yalnızca uçulan kısmı çizilir.
+
+Eski kayıttaki rota başına ilerleme ilk açılışta bir kez dönüştürülür: açık
+rotanınki etkin uçuş, diğerleri yarım satır olur. Günlükte tamamlanmış satırı
+olan rotanın ilerlemesi atlanır — çok eski bir sürümün dönüşümü o değeri
+850 yazmıştı ve rotadan hem uzun hem kısa olabiliyordu; bu gerçek bir emülatör
+kaydında görüldü ve teste bağlandı.
 
 ## Küre
 
@@ -207,8 +238,8 @@ yazıyor; süresini değiştirmeyen kullanıcıda davranış birebir aynı.
 tarihleniyordu. Oysa faz ekran kapalıyken ya da süreç ölmüşken bitmiş olabilir
 ve saatler sonra fark edilir. Dokuz saat önce biten bir pomodoro bugüne
 yazılıyor, gün dağılımını ve saat histogramını yanlış yerden dolduruyordu.
-Artık fazın gerçekten bittiği an (`endAt`) taşınıyor; ATLA'da bu an zaten
-şimdiki zaman, yani orada bir değişiklik yok.
+Artık fazın gerçekten bittiği an (`endAt`) taşınıyor; molayı atlamada bu an
+zaten şimdiki zaman, yani orada bir değişiklik yok.
 
 ## Pencereden bakış
 
@@ -257,8 +288,8 @@ Video uygulamanın içine kopyalanmaz, APK'ya da girmez: SAF ile seçtiğiniz
 dosyaya kalıcı okuma izni alınıp dosyanın kendisi okunur. Böylece depoda
 hiçbir telifli görüntü durmuyor ve istediğiniz çekimi kullanabiliyorsunuz.
 
-Göstergeler açıkken sayacı bekletip atlayabilirsiniz; pencereden çıkmak
-gerekmiyor.
+Göstergeler açıkken sayacı bekletebilir, molada molayı atlayabilirsiniz;
+pencereden çıkmak gerekmiyor.
 
 İyi bir pencere döngüsü için:
 
@@ -268,15 +299,16 @@ gerekmiyor.
 - Sesi olmasın (uygulama zaten susturur), 720×1280 fazlasıyla yeter
 - Günün farklı saatleri için ayrı dosyalar: gündüz, gün batımı, gece
 
-## Mil bildirimi
+## Uçuş günlüğü sekmesi
 
-Terminal ekranındaki istatistik paneline (ya da uçuş günlüğündeki **Tümü**
-düğmesine) dokununca açılır. Kasıtlı olarak diğer pomodoro uygulamalarının
+Alt gezinme çubuğundaki **Uçuş günlüğü** sekmesi (`ui/LogbookScreen.kt`);
+terminal ekranındaki istatistik paneline dokununca da açılır. Kasıtlı olarak diğer pomodoro uygulamalarının
 çubuk grafiğine benzemiyor: bu uygulamada dakikalar zaten mesafeye ve rotaya
 çevrildiği için havayolu bildirimi daha doğru bir çerçeve.
 
 - **Uçuş kartı** — toplam mil ve kart seviyesi (Classic / Silver / Elite /
   Elite Plus, eşikler dünya turuna bağlı), bir sonrakine kalan mesafe
+- **Uçuşlar** — tamamlanan ve yarıda bitirilen bütün uçuşlar, en yenisi üstte
 - **Dünya turu** — kaçıncı turda, turun neresinde
 - **Uçuş haritası** — uçtuğunuz bütün rotaların izi küre üzerinde
 - **Rakamlar** — seri, aktif gün, kayıtlı odak, tamamlanan uçuş, uğranan yer,
@@ -285,7 +317,7 @@ düğmesine) dokununca açılır. Kasıtlı olarak diğer pomodoro uygulamaları
   o günün sayısı altta yazar
 - **Saat dağılımı** — günün hangi saatlerinde çalıştığınız, en verimli aralık
   vurgulu
-- **En çok uçulan hat** ve **uçuş günlüğü**
+- **En çok uçulan hat**
 
 ### Günlük kayıt
 
@@ -296,7 +328,7 @@ tamamlanan her odak pomodorosu için bir satır.
 
 ```
 # ucus-gunlugu v1: zaman	rota	dakika	km	atlandi
-1757030400000	IST-JFK	25	850.0	0
+1757030400000	IST-JFK	25	349.0	0
 ```
 
 `Store` içindeki JSON blob'una konmadı: o blob 12 ayrı yerden `persist()` ile
@@ -307,9 +339,9 @@ geçmişi yeniden yazmak olurdu. Room da alınmadı — günde 20 pomodoro yıld
 okunur varlıklar; bu ise kullanıcının kendi verisi, `adb shell cat` ile
 okunabilmesi daha değerli. Dosya 4 MB'ı geçerse son 50.000 kayıt tutulur.
 
-**ATLA ile geçilen pomodoro** kayda düşer ama işaretlenir: seriye, günlük
-toplama ve saat dağılımına girmez. Mesafe ve rota ilerlemesi eskisi gibi
-işler — orada bir davranış değişikliği yok.
+**Odak oturumu artık atlanamaz.** Eski sürümlerde ATLA ile geçilen
+pomodorolar kayıtta işaretli durur (`atlandi` = 1); seriye, günlük toplama ve
+saat dağılımına girmez.
 
 **Geriye dönük veri gelmez.** Toplam mil ve uçuş günlüğü baştan beri gerçek,
 duruyorlar; gün bazlı görünümler kayıt başladığı andan itibaren dolar. Mevcut
@@ -322,6 +354,11 @@ Ekranlar arası geçiş gerçek bir yığın tutuyor (`ui/FlightRoot.kt`): geri 
 nereden gelindiğini biliyor. Önce sabit bir "ebeveyn" tablosu vardı ve
 terminalden uçuşa devam edip geri basınca rota seçimine düşülüyordu.
 Bilet koparılınca yığından düşürülür — geri tuşu yırtık bilete dönmez.
+
+Kökte iki sekme var: **Uçuş** (bu yığın) ve **Uçuş günlüğü**. Telefonda alt
+gezinme çubuğu, 720dp üstünde yan ray (`ui/FlightTabs.kt`). Bilet ve
+pencereden bakış tam ekran kalsın diye orada çubuk gizlenir. Sekme değişince
+uçuş yığını olduğu gibi kalır; geri tuşu önce günlükten uçuşa döner.
 
 Çıkış her ekranda aynı yerde: **sol üstte "← Geri"**. Geri alınamayan tek
 eylem (her şeyi sil) gezinme düğmelerinden ayrı, kendi satırında ve tehlike
@@ -349,7 +386,7 @@ ulaşmak için kaydırmak gerekiyordu. `ui/Adaptive.kt` iki eşik tanımlar:
 
 Rota ekranında küre bir haritadır, metinden geniş olabilir: `GlobeMaxWidth`
 (900dp) kadar büyür ve geniş ekranda yüksekliği 300dp yerine 440dp olur.
-Bilet ve mil bildirimi ortalanmış tek sütun olarak kalır.
+Bilet ve uçuş günlüğü ortalanmış tek sütun olarak kalır.
 
 Yön kilidi yok; düzen genişliğe göre kendini ayarlar.
 
@@ -361,13 +398,13 @@ o cihazlarda olmaz.
 
 ```bash
 cd android
-./gradlew test          # 125 birim test, JVM'de çalışır, cihaz gerekmez
+./gradlew test          # 141 birim test, JVM'de çalışır, cihaz gerekmez
 ```
 
 Android SDK yoksa Gradle daha ilk adımda durur. Testler yine de koşar:
 
 ```bash
-python3 tools/run_tests.py            # aynı 125 test, gerçek derleyiciyle
+python3 tools/run_tests.py            # aynı 141 test, gerçek derleyiciyle
 python3 tools/run_tests.py --offline  # ağa hiç çıkma
 ```
 

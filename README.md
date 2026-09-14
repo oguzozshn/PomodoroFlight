@@ -1,9 +1,10 @@
 # Uçuş Modu — Flight Mode
 
 A pomodoro timer that flies you somewhere. Pick a departure and a destination,
-and every minute you stay focused carries you 34 km along the great-circle
-route between them. Finish the route and you land — the flight gets a stamp in
-your logbook.
+and every 25-minute pomodoro carries you about 354 km — what an airliner
+covers at an 850 km/h cruise — along the great-circle route between them.
+Finish the route and you land — the flight gets a stamp in your logbook. End a
+flight early and the part you flew is logged too.
 
 The interface is in Turkish. This README is the English entry point; the
 detailed implementation notes live in [`android/README.md`](android/README.md)
@@ -27,6 +28,8 @@ original JavaScript.
 **A flight day in four steps.** Terminal → route selection → boarding pass →
 flight. The boarding pass is fed out of a printer slot and then torn along the
 perforation with your finger; let go before halfway and it sticks back.
+Focus, break and long-break lengths are picked on the boarding card and stay
+locked while the flight is on. A focus session can't be skipped; a break can.
 
 **An offline globe.** Filled landmasses, a day/night terminator that follows
 the real sun, drag-to-spin with momentum, anchored pinch-zoom, and roughly
@@ -47,8 +50,8 @@ with three sources you can switch between:
   the Storage Access Framework, so no licensed footage ever enters the
   repository.
 
-**A mileage statement.** Total distance and card tier, laps of the Earth, a
-map of every route you have flown, a streak, a twelve-week activity calendar,
+**A logbook tab.** Every flight, completed or ended early, with total
+distance and card tier, laps of the Earth, a map of every route you have flown, a streak, a twelve-week activity calendar,
 an hour-of-day distribution, and your most-flown routes.
 
 **A timer that survives.** A foreground service plus exact alarms keep the
@@ -58,7 +61,8 @@ wall clock if the process is killed. The cabin chime is synthesised with
 
 **Phone and tablet.** Below 720dp the layout is a single centred column; above
 it, the terminal and flight screens split into two panes — globe on the left,
-controls on the right.
+controls on the right. The Flight and Logbook tabs sit in a bottom navigation
+bar on phones and in a side rail on wider screens.
 
 ## The Windows desktop app
 
@@ -93,13 +97,13 @@ JDK 17, AGP 8.7.3, Kotlin 2.0.21, Compose BOM 2024.12.
 cd android
 ./gradlew assembleDebug     # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew installDebug      # install onto a connected device
-./gradlew test              # 125 unit tests, JVM only, no device needed
+./gradlew test              # 141 unit tests, JVM only, no device needed
 ```
 
 Without an Android SDK, Gradle stops at the first step. The tests still run:
 
 ```bash
-python3 tools/run_tests.py   # same 125 tests, real Kotlin compiler, no SDK
+python3 tools/run_tests.py   # same 141 tests, real Kotlin compiler, no SDK
 ```
 
 It pulls the Kotlin 2.0.21 compiler and JUnit from Maven Central, verifies
@@ -116,7 +120,7 @@ cannot be compiled. Everything else is compiled and executed:
    phase transitions, state derivation, formatting, the binary asset parsers,
    the ticket, the journal format, both cameras — the globe's and the
    window's — and the horizon clamping that puts coastlines on screen have no
-   Android dependencies. 125 unit tests cover them, many against closed-form
+   Android dependencies. 141 unit tests cover them, many against closed-form
    formulas rather than recorded values.
 2. **An oracle extracted from the original HTML.** Route distances, leg
    counts, flight numbers, interpolated positions, progress fractions and
