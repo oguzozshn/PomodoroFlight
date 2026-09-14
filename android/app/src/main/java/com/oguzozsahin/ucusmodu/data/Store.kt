@@ -12,42 +12,66 @@ class Store(context: Context) {
 
     fun load(): Persisted {
         // v2 ilerlemeyi km olarak tutuyor; v1 bacak sayisi tutuyordu. Eski
-        // kayit bulunursa bacaklar km'ye cevrilir — v1'de her bacak tam olarak
-        // bir varsayilan pomodoro, yani 850 km ediyordu.
+        // kayit bulunursa bacaklar rotanin kendi bacak boyuyla km'ye cevrilir.
         val fromV2 = prefs.getString(KEY, null)
         val raw = fromV2 ?: prefs.getString(LEGACY_KEY, null) ?: return Persisted()
         val legacy = fromV2 == null
         return try {
             val o = JSONObject(raw)
             val focus = o.optInt("focusMin", DEFAULT_FOCUS_MIN)
+            val routeKey = o.optString("route", "IST-JFK")
 
-            val progress = mutableMapOf<String, Double>()
-            o.optJSONObject("progress")?.let { p ->
-                val it = p.keys()
-                while (it.hasNext()) {
-                    val k = it.next()
-                    progress[k] = if (legacy) {
-                        Route.kmForLegs(k, p.optInt(k, 0))
-                    } else {
-                        p.optDouble(k, 0.0)
-                    }
+            var log: List<LogEntry> = buildList {
+                val arr = o.optJSONArray("log") ?: JSONArray()
+                for (i in 0 until arr.length()) {
+                    val e = arr.optJSONObject(i) ?: continue
+                    val km = e.optInt("km")
+                    val time = e.optLong("t")
+                    add(
+                        LogEntry(
+                            routeKey = e.optString("r"),
+                            km = km,
+                            time = time,
+                            // Eski satirlar yalniz varista yaziliyordu: tamamlanmis sayilir.
+                            flown = e.optDouble("flown", km.toDouble()),
+                            start = e.optLong("start", time),
+                            done = e.optBoolean("done", true),
+                        ),
+                    )
                 }
             }
 
-            val log = mutableListOf<LogEntry>()
-            val arr = o.optJSONArray("log") ?: JSONArray()
-            for (i in 0 until arr.length()) {
-                val e = arr.optJSONObject(i) ?: continue
-                log += LogEntry(
-                    routeKey = e.optString("r"),
-                    km = e.optInt("km"),
-                    time = e.optLong("t"),
-                )
+            var flight = o.optJSONObject("flight")?.let { f ->
+                ActiveFlight(
+                    routeKey = f.optString("r"),
+                    flown = f.optDouble("flown", 0.0).coerceAtLeast(0.0),
+                    start = f.optLong("start", 0L),
+                    landedAt = f.optLong("landed", 0L),
+                ).takeIf { it.routeKey.isNotBlank() }
             }
 
-            Persisted(
-                routeKey = o.optString("route", "IST-JFK"),
-                progress = progress,
+            // Rota basina ilerleme tutan eski kayit tek etkin ucusa donusur.
+            // Bir kez olur: donusen kayit asagida hemen yazilir.
+            val progressJson = o.optJSONObject("progress")
+            if (progressJson != null) {
+                val progress = mutableMapOf<String, Double>()
+                val keys = progressJson.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    progress[k] = if (legacy) {
+                        Route.kmForLegs(k, progressJson.optInt(k, 0))
+                    } else {
+                        progressJson.optDouble(k, 0.0)
+                    }
+                }
+                val (migrated, rows) = Flights.fromProgress(progress, routeKey, log, System.currentTimeMillis())
+                if (flight == null) flight = migrated
+                log = rows
+            }
+
+            val loaded = Persisted(
+                routeKey = routeKey,
+                flight = flight,
                 log = log,
                 focusMin = focus,
                 breakMin = o.optInt("breakMin", 5),
@@ -62,6 +86,8 @@ class Store(context: Context) {
                 endAt = o.optLong("endAt", 0L),
                 remainingMs = o.optLong("remainingMs", focus * 60_000L),
             )
+            if (progressJson != null || legacy) save(loaded)
+            loaded
         } catch (e: Exception) {
             Persisted()
         }
@@ -70,16 +96,26 @@ class Store(context: Context) {
     fun save(p: Persisted) {
         val o = JSONObject()
         o.put("route", p.routeKey)
-        val prog = JSONObject()
-        for ((k, v) in p.progress) prog.put(k, v)
-        o.put("progress", prog)
+        p.flight?.let { f ->
+            o.put(
+                "flight",
+                JSONObject()
+                    .put("r", f.routeKey)
+                    .put("flown", f.flown)
+                    .put("start", f.start)
+                    .put("landed", f.landedAt),
+            )
+        }
         val arr = JSONArray()
         for (e in p.log) {
             arr.put(
                 JSONObject()
                     .put("r", e.routeKey)
                     .put("km", e.km)
-                    .put("t", e.time),
+                    .put("t", e.time)
+                    .put("flown", e.flown)
+                    .put("start", e.start)
+                    .put("done", e.done),
             )
         }
         o.put("log", arr)

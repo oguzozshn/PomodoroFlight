@@ -6,8 +6,8 @@ data class FlightUiState(
     val phase: Phase,
     val running: Boolean,
     val remainingMs: Long,
-    /** Rota anahtari -> o rotada kat edilen km. */
-    val progress: Map<String, Double>,
+    /** Etkin ucus; baska rotaya aitse bu rotada yol alinmamistir. */
+    val flight: ActiveFlight?,
     val log: List<LogEntry>,
     val focusMin: Int,
     val breakMin: Int,
@@ -19,7 +19,8 @@ data class FlightUiState(
     val totalKm: Double,
 ) {
     /** Bu rotada kat edilen mesafe. */
-    val flownOnRoute: Double get() = (progress[route.key] ?: 0.0).coerceIn(0.0, route.km)
+    val flownOnRoute: Double
+        get() = flight?.takeIf { it.routeKey == route.key }?.flown?.coerceIn(0.0, route.km) ?: 0.0
 
     /** Tamamlanmis bacak sayisi; gosterim icin mesafeden turetilir. */
     val done: Int
@@ -36,6 +37,17 @@ data class FlightUiState(
     val started: Boolean get() = flownOnRoute > 0.0
 
     val legsLeft: Int get() = (route.legs - done).coerceAtLeast(0)
+
+    /** Bu rotada suren (inmemis) bir ucus var mi. */
+    val flightActive: Boolean
+        get() = flight?.let { it.routeKey == route.key && !it.landed } ?: false
+
+    /**
+     * Baska rotaya gecmek bu ucusu yarida birakir mi? Yol alinmis ve inmemis
+     * bir ucus varsa evet; arayuz once sormali.
+     */
+    fun switchEndsFlight(key: String): Boolean =
+        key != route.key && flightActive && flownOnRoute > 0.0 && !arrived
 
     /**
      * Suren bacagin dolulugu (0..1). Oturum 25 dakikanin kati degilse bacak

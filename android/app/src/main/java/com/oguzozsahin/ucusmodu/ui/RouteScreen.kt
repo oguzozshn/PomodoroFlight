@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.data.Airport
 import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.Flights
 import com.oguzozsahin.ucusmodu.data.PlaceRegistry
 import com.oguzozsahin.ucusmodu.data.Preset
 import com.oguzozsahin.ucusmodu.data.Presets
@@ -87,6 +88,37 @@ fun RouteScreen(
     var query by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
 
+    // Yol alinmis ucus surerken secilen rota; onay bekliyor.
+    var pendingKey by remember { mutableStateOf<String?>(null) }
+    var pendingAfter by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    pendingKey?.let { key ->
+        val next = Route.of(key)
+        ConfirmDialog(
+            title = "${state.route.origin.code} → ${state.route.dest.code} uçuşu bitirilsin mi?",
+            body = Flights.summary(state.route, state.flownOnRoute) + " uçuldu. " +
+                (next?.let { "${it.origin.code} → ${it.dest.code}" } ?: "Yeni rota") +
+                " sıfırdan başlayacak.",
+            confirmText = "Bitir ve geç",
+            colors = colors,
+            onConfirm = {
+                val after = pendingAfter
+                pendingKey = null
+                pendingAfter = null
+                actions.onRoute(key)
+                after?.invoke()
+            },
+            onDismiss = {
+                pendingKey = null
+                pendingAfter = null
+                // Vazgecildi: yuvalar suren ucusun rotasina geri doner.
+                from = state.route.origin.code
+                to = state.route.dest.code
+                active = Slot.FROM
+            },
+        )
+    }
+
     val results = remember(query, places) {
         if (query.isBlank()) emptyList() else PlaceRegistry.search(query, 8)
     }
@@ -94,6 +126,20 @@ fun RouteScreen(
     fun flyToPlace(place: Airport) {
         scope.launch {
             globe.flyTo(place.lat, place.lon, targetZoom = maxOf(globe.zoom, 2.6f))
+        }
+    }
+
+    /**
+     * Rota degisiminin tek kapisi. Yol alinmis bir ucus suruyorsa once sorar:
+     * onaylanirsa ucus gunluge yarim duser, yeni rota sifirdan acilir.
+     */
+    fun requestRoute(key: String, after: () -> Unit) {
+        if (state.switchEndsFlight(key)) {
+            pendingKey = key
+            pendingAfter = after
+        } else {
+            actions.onRoute(key)
+            after()
         }
     }
 
@@ -121,14 +167,16 @@ fun RouteScreen(
             message = "Bu rota kurulamadı."
             return
         }
-        actions.onRoute(route.key)
-        if (active == Slot.FROM) {
-            // Rota tamamlandi: tumunu gorecek sekilde geri cekil.
-            scope.launch {
-                globe.flyTo(route.center.lat, route.center.lon, targetZoom = 1f, resetTouch = true)
+        val completed = active == Slot.FROM
+        requestRoute(route.key) {
+            if (completed) {
+                // Rota tamamlandi: tumunu gorecek sekilde geri cekil.
+                scope.launch {
+                    globe.flyTo(route.center.lat, route.center.lon, targetZoom = 1f, resetTouch = true)
+                }
+            } else {
+                flyToPlace(place)
             }
-        } else {
-            flyToPlace(place)
         }
     }
 
@@ -185,7 +233,7 @@ fun RouteScreen(
                 state = globe,
                 places = places,
                 highlighted = setOf(from, to),
-                trails = state.log.map { it.routeKey },
+                trails = Flights.trails(state.log),
                 onPlaceTap = { choose(it) },
             )
 
@@ -286,10 +334,11 @@ fun RouteScreen(
                 to = preset.to
                 active = Slot.FROM
                 message = ""
-                actions.onRoute(preset.key)
-                Route.of(preset.key)?.let { route ->
-                    scope.launch {
-                        globe.flyTo(route.center.lat, route.center.lon, targetZoom = 1f, resetTouch = true)
+                requestRoute(preset.key) {
+                    Route.of(preset.key)?.let { route ->
+                        scope.launch {
+                            globe.flyTo(route.center.lat, route.center.lon, targetZoom = 1f, resetTouch = true)
+                        }
                     }
                 }
             }
@@ -556,8 +605,10 @@ private fun PresetList(
 
             for (preset in Presets.list) {
                 val presetRoute = remember(preset.key) { Route.of(preset.key) } ?: continue
-                // Ilerleme km olarak saklandigi icin bacaga burada cevriliyor.
-                val flown = (state.progress[preset.key] ?: 0.0).coerceIn(0.0, presetRoute.km)
+                // Yalniz suren ucusun rotasinda "devam ediyor" isareti; digerleri sifirdan baslar.
+                val flown = state.flight
+                    ?.takeIf { it.routeKey == preset.key && !it.landed }
+                    ?.flown?.coerceIn(0.0, presetRoute.km) ?: 0.0
                 val progress = if (presetRoute.km <= 0.0) {
                     0
                 } else {

@@ -1,5 +1,6 @@
 package com.oguzozsahin.ucusmodu
 
+import com.oguzozsahin.ucusmodu.data.ActiveFlight
 import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.Phase
 import com.oguzozsahin.ucusmodu.data.Route
@@ -25,7 +26,7 @@ class StateTest {
         running = running,
         remainingMs = remainingMs,
         // Ilerleme km olarak saklaniyor; testler bacak sayisiyla konusuyor.
-        progress = mapOf("IST-JFK" to done.toDouble() * route.kmPerLeg),
+        flight = ActiveFlight("IST-JFK", done.toDouble() * route.kmPerLeg),
         log = emptyList(),
         focusMin = focusMin,
         breakMin = 5,

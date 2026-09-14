@@ -14,6 +14,7 @@ import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.Journal
 import com.oguzozsahin.ucusmodu.data.Persisted
 import com.oguzozsahin.ucusmodu.data.Phase
+import com.oguzozsahin.ucusmodu.data.Flights
 import com.oguzozsahin.ucusmodu.data.Route
 import com.oguzozsahin.ucusmodu.data.Store
 import com.oguzozsahin.ucusmodu.data.formatNumber
@@ -132,8 +133,43 @@ class FlightEngine private constructor(context: Context) {
         publish()
     }
 
+    /** Bilet koparildi: bu rotada sifirdan bir ucus baslar ve sayac calisir. */
+    fun departure() {
+        pause()
+        data = Flights.start(data, route.key, now())
+        phase = Phase.FOCUS
+        remaining = data.focusMin * 60_000L
+        start()
+    }
+
+    /**
+     * Ucusu yarida bitirir. Suren oturum sayilmaz: ucus son tamamlanan
+     * oturumun bittigi yerde kapanir ve gunluge yarim olarak duser.
+     */
+    fun endFlight() {
+        pause()
+        data = Flights.end(data, route, done = false, now = now())
+        phase = Phase.FOCUS
+        remaining = data.focusMin * 60_000L
+        persist()
+        publish()
+    }
+
+    /**
+     * Rotayi degistirir. Baska rotaya geciliyorsa etkin ucus kapanir: yol
+     * alinmissa gunluge yarim duser (arayuz once sorar), alinmamissa iz
+     * birakmaz. Inmis ucus da birakilir; ayni rota secilince yolculuk sifirdan.
+     */
     fun setRoute(key: String) {
         val next = Route.of(key) ?: return
+        val flight = data.flight
+        if (flight != null && (flight.landed || flight.routeKey != next.key)) {
+            data = if (flight.landed) {
+                data.copy(flight = null)
+            } else {
+                Flights.end(data, routeFor(flight.routeKey), done = false, now = now()).copy(flight = null)
+            }
+        }
         pause()
         route = next
         data = data.copy(routeKey = next.key)
@@ -213,7 +249,7 @@ class FlightEngine private constructor(context: Context) {
     fun resetEverything() {
         pause()
         journal.clear()
-        data = data.copy(log = emptyList(), progress = emptyMap(), totalMs = 0L, totalKm = 0.0, cycle = 0)
+        data = data.copy(log = emptyList(), flight = null, totalMs = 0L, totalKm = 0.0, cycle = 0)
         phase = Phase.FOCUS
         remaining = data.focusMin * 60_000L
         persist()
@@ -368,7 +404,7 @@ class FlightEngine private constructor(context: Context) {
         phase = phase,
         running = running,
         remainingMs = remaining,
-        progress = data.progress,
+        flight = data.flight,
         log = data.log,
         focusMin = data.focusMin,
         breakMin = data.breakMin,

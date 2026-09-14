@@ -6,8 +6,8 @@ package com.oguzozsahin.ucusmodu.data
  */
 data class Persisted(
     val routeKey: String = "IST-JFK",
-    /** Rota anahtari -> kat edilen km. */
-    val progress: Map<String, Double> = emptyMap(),
+    /** Etkin ucus; ayni anda tek bir tane (bkz. [Flights]). */
+    val flight: ActiveFlight? = null,
     val log: List<LogEntry> = emptyList(),
     val focusMin: Int = 25,
     val breakMin: Int = 5,

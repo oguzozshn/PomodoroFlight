@@ -1,5 +1,6 @@
 package com.oguzozsahin.ucusmodu
 
+import com.oguzozsahin.ucusmodu.data.ActiveFlight
 import com.oguzozsahin.ucusmodu.data.BOARDING_MINUTES
 import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.Phase
@@ -23,7 +24,7 @@ class TicketTest {
         running = false,
         remainingMs = 25 * 60_000L,
         // Ilerleme km olarak saklaniyor; test bacak sayisiyla konusuyor.
-        progress = mapOf("IST-JFK" to done * Route.of("IST-JFK")!!.kmPerLeg),
+        flight = ActiveFlight("IST-JFK", done * Route.of("IST-JFK")!!.kmPerLeg),
         log = emptyList(),
         focusMin = 25,
         breakMin = 5,

@@ -40,6 +40,7 @@ import com.oguzozsahin.ucusmodu.data.CardTier
 import com.oguzozsahin.ucusmodu.data.DayCount
 import com.oguzozsahin.ucusmodu.data.EARTH_CIRCUMFERENCE_KM
 import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.Flights
 import com.oguzozsahin.ucusmodu.data.FocusRecord
 import com.oguzozsahin.ucusmodu.data.Journal
 import com.oguzozsahin.ucusmodu.data.JournalStats
@@ -239,7 +240,7 @@ private fun FlightMapPanel(state: FlightUiState, colors: FlightColors) {
             route = state.route,
             fraction = state.fraction,
             colors = colors,
-            trails = state.log.map { it.routeKey },
+            trails = Flights.trails(state.log),
             modifier = Modifier.fillMaxSize(),
         )
         Text(
@@ -278,7 +279,15 @@ private fun NumbersPanel(
             }
             Spacer(Modifier.height(14.dp))
             Row {
-                Figure("Tamamlanan uçuş", "${state.log.size}", colors, Modifier.weight(1f))
+                // Yarida birakilanlar ayri kutu yerine burada; rakam izgarasi alti hucrelik.
+                val completed = Flights.completedCount(state.log)
+                val partial = Flights.partialCount(state.log)
+                Figure(
+                    "Tamamlanan uçuş",
+                    if (partial > 0) "$completed · $partial yarım" else "$completed",
+                    colors,
+                    Modifier.weight(1f),
+                )
                 Figure("Uğranan yer", if (airports > 0) "$airports" else "—", colors, Modifier.weight(1f))
                 Figure(
                     "En yoğun gün",
@@ -513,7 +522,7 @@ private fun TopRoutesPanel(records: List<FocusRecord>, colors: FlightColors) {
     }
 }
 
-/** Pasaport damgalari: tamamlanan ucuslar. */
+/** Ucus gunlugu: tamamlanan ve yarida birakilan butun ucuslar. */
 @Composable
 private fun StampsPanel(state: FlightUiState, colors: FlightColors) {
     Panel(colors) {
@@ -522,28 +531,12 @@ private fun StampsPanel(state: FlightUiState, colors: FlightColors) {
             Spacer(Modifier.height(10.dp))
             if (state.log.isEmpty()) {
                 Text(
-                    "Henüz tamamlanmış uçuş yok. İlk rotanı bitirdiğinde buraya damga düşecek.",
+                    "Henüz uçuş yok. Bir yolculuğu tamamladığında ya da yarıda bitirdiğinde burada görünecek.",
                     style = monoStyle(colors.muted, 11),
                 )
             } else {
-                for (entry in state.log.take(20)) {
-                    val parts = entry.routeKey.split("-")
-                    val destCity = Airports[parts.getOrNull(1) ?: ""]?.city ?: parts.getOrNull(1).orEmpty()
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(entry.routeKey.replace("-", "→"), style = monoStyle(colors.amber, 12))
-                        Spacer(Modifier.width(10.dp))
-                        Text(destCity, style = monoStyle(colors.ink2, 12), modifier = Modifier.weight(1f))
-                        Text("${formatNumber(entry.km.toDouble())} km", style = monoStyle(colors.muted, 11))
-                        Spacer(Modifier.width(10.dp))
-                        Text(formatDate(entry.time), style = monoStyle(colors.muted, 11))
-                    }
-                    HorizontalDivider(color = colors.lineSoft)
-                }
+                // Butun ucuslar; eskiden ilk 20 tamamlanan gorunuyordu.
+                for (entry in state.log) FlightLogRow(entry, colors)
             }
         }
     }

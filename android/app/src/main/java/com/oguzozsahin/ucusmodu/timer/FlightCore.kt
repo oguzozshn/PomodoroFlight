@@ -2,7 +2,8 @@ package com.oguzozsahin.ucusmodu.timer
 
 import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.FocusRecord
-import com.oguzozsahin.ucusmodu.data.LogEntry
+import com.oguzozsahin.ucusmodu.data.ActiveFlight
+import com.oguzozsahin.ucusmodu.data.Flights
 import com.oguzozsahin.ucusmodu.data.Persisted
 import com.oguzozsahin.ucusmodu.data.Phase
 import com.oguzozsahin.ucusmodu.data.Route
@@ -104,24 +105,23 @@ object FlightCore {
         val flown = (flownBefore + route.kmForFocus(before.focusMin)).coerceAtMost(route.km)
         val gained = (flown - flownBefore).coerceAtLeast(0.0)
 
-        val progress = data.progress.toMutableMap()
-        progress[route.key] = flown
+        // Oturum etkin ucusa isler. Sayac bilet koparilmadan baslamiyor; ucus
+        // yoksa bu yalniz eski bir kayittan geri yuklenen oturum icin guvence.
+        val current = data.flight?.takeIf { it.routeKey == route.key }
+            ?: ActiveFlight(routeKey = route.key, start = endedAt)
         val arrivedNow = flown >= route.km - FlightUiState.ARRIVAL_EPSILON_KM
-        val log = if (arrivedNow) {
-            listOf(LogEntry(route.key, route.km.roundToInt(), endedAt)) + data.log
-        } else {
-            data.log
-        }
 
-        val next = data.copy(
-            progress = progress,
-            log = log,
+        val advanced = data.copy(
+            flight = current.copy(flown = flown),
             // Atlanan pomodoro odak sayilmaz: 25 dakikaligi ucuncu
             // saniyede atlayinca "toplam odak" 25 dakika artmamali.
             totalMs = data.totalMs + if (skipped) 0L else focusMs,
             totalKm = data.totalKm + gained,
             cycle = (data.cycle + 1) % 4,
         )
+
+        // Varis gunluge tamamlanmis satir yazar; ucus inmis olarak ekranda kalir.
+        val next = if (arrivedNow) Flights.end(advanced, route, done = true, now = endedAt) else advanced
 
         val phase = if (next.cycle == 0) Phase.LONG else Phase.BREAK
         return PhaseOutcome(

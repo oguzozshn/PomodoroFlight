@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.R
+import com.oguzozsahin.ucusmodu.data.Flights
 import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.KM_PER_MINUTE
@@ -168,7 +169,7 @@ private fun TerminalGlobe(
             route = state.route,
             fraction = state.fraction,
             colors = colors,
-            trails = state.log.map { it.routeKey },
+            trails = Flights.trails(state.log),
             modifier = Modifier.fillMaxSize(),
         )
     }
@@ -183,7 +184,7 @@ private fun TerminalContent(
     onResume: () -> Unit,
     onLogbook: () -> Unit,
 ) {
-    val resumable = state.started && !state.arrived
+    val resumable = state.flightActive && !state.arrived
 
     Column {
         Text(
@@ -226,7 +227,7 @@ private fun TerminalContent(
             Row {
                 Stat("Toplam odak", formatHours(state.totalMs), colors, Modifier.weight(1f))
                 Stat("Kat edilen yol", "${formatNumber(state.totalKm)} km", colors, Modifier.weight(1f))
-                Stat("Tamamlanan", "${state.log.size} uçuş", colors, Modifier.weight(1f))
+                Stat("Tamamlanan", "${Flights.completedCount(state.log)} uçuş", colors, Modifier.weight(1f))
             }
             Spacer(Modifier.height(16.dp))
             WorldTour(state.totalKm, colors)

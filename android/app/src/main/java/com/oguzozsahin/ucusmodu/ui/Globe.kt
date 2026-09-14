@@ -89,8 +89,11 @@ fun GlobeMap(
     state: GlobeState? = null,
     places: List<Airport> = emptyList(),
     highlighted: Set<String> = emptySet(),
-    /** Tamamlanmis ucuslarin rota anahtarlari; kurede soluk iz birakirlar. */
-    trails: List<String> = emptyList(),
+    /**
+     * Ucuslarin izleri: rota anahtari ve cizilecek pay (0..1). Tamamlanan ucus
+     * tam yay, yarida birakilan yalniz uculan kisim.
+     */
+    trails: List<Pair<String, Float>> = emptyList(),
     onPlaceTap: ((Airport) -> Unit)? = null,
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -107,13 +110,12 @@ fun GlobeMap(
     }
     val graticule = remember { buildGraticule() }
 
-    // Tamamlanan ucuslarin izleri
+    // Ucuslarin izleri; yarim birakilanin yalniz uculan kismi
     val trailPoints = remember(trails) {
         trails.asSequence()
-            .distinct()
             .take(24)
-            .mapNotNull { Route.of(it) }
-            .map { route -> List(64) { i -> route.pointAt(i / 63.0) } }
+            .mapNotNull { (key, extent) -> Route.of(key)?.let { it to extent } }
+            .map { (route, extent) -> List(64) { i -> route.pointAt(i / 63.0 * extent) } }
             .toList()
     }
 

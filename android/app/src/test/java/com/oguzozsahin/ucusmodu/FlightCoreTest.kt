@@ -1,5 +1,6 @@
 package com.oguzozsahin.ucusmodu
 
+import com.oguzozsahin.ucusmodu.data.ActiveFlight
 import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.Persisted
 import com.oguzozsahin.ucusmodu.data.Phase
@@ -35,7 +36,7 @@ class FlightCoreTest {
         phase = phase,
         running = false,
         remainingMs = remainingMs,
-        progress = data.progress,
+        flight = data.flight,
         log = data.log,
         focusMin = data.focusMin,
         breakMin = data.breakMin,
@@ -55,7 +56,7 @@ class FlightCoreTest {
         val data = Persisted(routeKey = r.key)
         val out = FlightCore.finishPhase(state(r, data), data, now, skipped = false)
 
-        assertEquals(r.kmPerLeg, out.data.progress[r.key]!!, 1e-9)
+        assertEquals(r.kmPerLeg, out.data.flight!!.flown, 1e-9)
         assertEquals(r.kmPerLeg, out.gainedKm, 1e-9)
         assertEquals(r.kmPerLeg, out.data.totalKm, 1e-9)
         assertEquals(25 * 60_000L, out.data.totalMs)
@@ -112,8 +113,8 @@ class FlightCoreTest {
         repeat(r.legs) { data = FlightCore.finishPhase(state(r, data), data, now).data }
 
         val last = FlightCore.finishPhase(
-            state(r, Persisted(routeKey = r.key, progress = mapOf(r.key to r.km - r.kmPerLeg))),
-            Persisted(routeKey = r.key, progress = mapOf(r.key to r.km - r.kmPerLeg)),
+            state(r, Persisted(routeKey = r.key, flight = ActiveFlight(r.key, r.km - r.kmPerLeg))),
+            Persisted(routeKey = r.key, flight = ActiveFlight(r.key, r.km - r.kmPerLeg)),
             now,
         )
         assertTrue(last.arrived)
@@ -122,7 +123,7 @@ class FlightCoreTest {
         assertEquals(1, last.data.log.size)
         assertEquals(r.key, last.data.log[0].routeKey)
         assertEquals(0, last.legsLeft)
-        assertEquals(r.km, data.progress[r.key]!!, 1e-6)
+        assertEquals(r.km, data.flight!!.flown, 1e-6)
     }
 
     @Test
@@ -130,7 +131,7 @@ class FlightCoreTest {
         val r = route()
         val data = Persisted(
             routeKey = r.key,
-            progress = mapOf(r.key to r.km),
+            flight = ActiveFlight(r.key, r.km),
             totalKm = r.km,
             totalMs = 9 * 25 * 60_000L,
         )
@@ -181,7 +182,7 @@ class FlightCoreTest {
         val out = FlightCore.finishPhase(state(r, data), data, now)
 
         assertEquals(2 * r.kmPerLeg, out.gainedKm, 1e-9)
-        assertEquals(2 * r.kmPerLeg, out.data.progress[r.key]!!, 1e-9)
+        assertEquals(2 * r.kmPerLeg, out.data.flight!!.flown, 1e-9)
         assertEquals(50 * 60_000L, out.data.totalMs)
         assertEquals(r.legs - 2, out.legsLeft)
     }
@@ -206,7 +207,7 @@ class FlightCoreTest {
         val data = Persisted(
             routeKey = r.key,
             focusMin = 50,
-            progress = mapOf(r.key to flown),
+            flight = ActiveFlight(r.key, flown),
             totalKm = flown,
         )
         val out = FlightCore.finishPhase(state(r, data), data, now)
@@ -261,7 +262,7 @@ class FlightCoreTest {
     @Test
     fun `varis damgasi da fazin bittigi ani tasir`() {
         val r = route()
-        val data = Persisted(routeKey = r.key, progress = mapOf(r.key to r.km - r.kmPerLeg))
+        val data = Persisted(routeKey = r.key, flight = ActiveFlight(r.key, r.km - r.kmPerLeg))
         val endedAt = now - 3 * 60 * 60_000L
         val out = FlightCore.finishPhase(state(r, data), data, endedAt)
         assertTrue(out.arrived)
@@ -269,15 +270,25 @@ class FlightCoreTest {
     }
 
     @Test
-    fun `baska rotanin ilerlemesi bozulmaz`() {
+    fun `varista ucus inmis olarak kalir ve gunluge tamamlanmis satir duser`() {
         val r = route()
-        val data = Persisted(
-            routeKey = r.key,
-            progress = mapOf("ESB-AMS" to 1234.0),
-        )
+        val data = Persisted(routeKey = r.key, flight = ActiveFlight(r.key, r.km - r.kmPerLeg, start = now - 1000L))
         val out = FlightCore.finishPhase(state(r, data), data, now)
-        assertEquals(1234.0, out.data.progress["ESB-AMS"]!!, 0.0)
-        assertEquals(2, out.data.progress.size)
+
+        assertTrue(out.data.flight!!.landed)
+        assertEquals(now, out.data.flight!!.landedAt)
+        assertTrue(out.data.log[0].done)
+        assertEquals(now - 1000L, out.data.log[0].start)
+        assertEquals(r.km, out.data.log[0].flown, 1e-9)
+    }
+
+    @Test
+    fun `ucus yokken biten oturum bu rotada ucus baslatir`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key)
+        val out = FlightCore.finishPhase(state(r, data), data, now)
+        assertEquals(r.key, out.data.flight!!.routeKey)
+        assertEquals(r.kmPerLeg, out.data.flight!!.flown, 1e-9)
     }
 
     @Test

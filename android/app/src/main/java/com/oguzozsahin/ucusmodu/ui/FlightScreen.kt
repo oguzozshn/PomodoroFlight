@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.data.Airports
 import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.Flights
 import com.oguzozsahin.ucusmodu.data.KM_PER_MINUTE
 import com.oguzozsahin.ucusmodu.data.POMODORO_MIN
 import com.oguzozsahin.ucusmodu.data.formatPomodoros
@@ -81,8 +82,10 @@ data class FlightActions(
     val onSound: (Boolean) -> Unit,
     /** Gunlugu, ilerlemeyi ve toplamlari birden siler. */
     val onResetEverything: () -> Unit,
-    /** Sayaci dogrudan baslatir (bilet ekranindaki "Uçuşa başla" icin). */
+    /** Bilet koparildi: sifirdan bir ucus baslatir ve sayaci calistirir. */
     val onStart: () -> Unit,
+    /** Ucusu yarida bitirir; gunluge yarim duser. */
+    val onEndFlight: () -> Unit = {},
     val onPassenger: (String) -> Unit,
     /** Bilet basilirken kisa titresim. */
     val onTicketPrinted: () -> Unit,
@@ -99,6 +102,8 @@ fun FlightScreen(
     onLogbook: () -> Unit,
     onBack: () -> Unit,
     theme: ThemeChoice,
+    /** Ucus yarida bitirilince cagrilir; rota secimine donulur. */
+    onFlightEnded: () -> Unit = {},
     onTheme: (ThemeChoice) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -136,7 +141,7 @@ fun FlightScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     TopBar(state, colors, actions, onChangeRoute, onBack)
-                    TimerPanel(state, colors, actions)
+                    TimerPanel(state, colors, actions, onFlightEnded)
                     FlightPlanPanel(state, colors)
                     SettingsPanel(state, colors, actions, theme, onTheme)
                     LogPanel(state, colors, onLogbook)
@@ -157,7 +162,7 @@ fun FlightScreen(
                         // kalmamasi icin kure biraz alcak tutuluyor.
                         .aspectRatio(1.18f),
                 )
-                TimerPanel(state, colors, actions)
+                TimerPanel(state, colors, actions, onFlightEnded)
                 FlightPlanPanel(state, colors)
                 SettingsPanel(state, colors, actions, theme, onTheme)
                 LogPanel(state, colors, onLogbook)
@@ -228,7 +233,7 @@ private fun MapPanel(
             route = state.route,
             fraction = state.fraction,
             colors = colors,
-            trails = state.log.map { it.routeKey },
+            trails = Flights.trails(state.log),
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -373,7 +378,12 @@ private fun ReadoutCell(
 }
 
 @Composable
-private fun TimerPanel(state: FlightUiState, colors: FlightColors, actions: FlightActions) {
+private fun TimerPanel(
+    state: FlightUiState,
+    colors: FlightColors,
+    actions: FlightActions,
+    onFlightEnded: () -> Unit,
+) {
     val phaseText = when (state.phase) {
         Phase.FOCUS -> "Odak · Seyir"
         Phase.BREAK -> "Mola · Kabin"
@@ -470,6 +480,32 @@ private fun TimerPanel(state: FlightUiState, colors: FlightColors, actions: Flig
                     modifier = Modifier.weight(1f),
                     onClick = actions.onReset,
                 )
+            }
+            if (state.flightActive && state.started && !state.arrived) {
+                Spacer(Modifier.height(8.dp))
+                var confirmEnd by remember { mutableStateOf(false) }
+                GhostButton(
+                    text = "Uçuşu bitir",
+                    colors = colors,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { confirmEnd = true }
+                if (confirmEnd) {
+                    val runningFocus = state.running && state.phase == Phase.FOCUS
+                    ConfirmDialog(
+                        title = "${state.route.origin.code} → ${state.route.dest.code} uçuşu bitirilsin mi?",
+                        body = Flights.summary(state.route, state.flownOnRoute) +
+                            " uçuldu; kalan kısım uçulmayacak. Uçuş günlüğe yarım olarak yazılır" +
+                            if (runningFocus) ", süren oturum sayılmaz." else ".",
+                        confirmText = "Bitir",
+                        colors = colors,
+                        onConfirm = {
+                            confirmEnd = false
+                            actions.onEndFlight()
+                            onFlightEnded()
+                        },
+                        onDismiss = { confirmEnd = false },
+                    )
+                }
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -714,26 +750,11 @@ private fun LogPanel(
 
             if (state.log.isEmpty()) {
                 Text(
-                    "Henüz tamamlanmış uçuş yok. İlk rotanı bitirdiğinde buraya damga düşecek.",
+                    "Henüz uçuş yok. Bir yolculuğu tamamladığında ya da yarıda bitirdiğinde burada görünecek.",
                     style = monoStyle(colors.muted, 11),
                 )
             } else {
-                for (entry in state.log.take(8)) {
-                    val parts = entry.routeKey.split("-")
-                    val destCity = Airports[parts.getOrNull(1) ?: ""]?.city ?: parts.getOrNull(1).orEmpty()
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(entry.routeKey.replace("-", "→"), style = monoStyle(colors.amber, 12))
-                        Spacer(Modifier.width(10.dp))
-                        Text(destCity, style = monoStyle(colors.ink2, 12), modifier = Modifier.weight(1f))
-                        Text(formatDate(entry.time), style = monoStyle(colors.muted, 11))
-                    }
-                    HorizontalDivider(color = colors.lineSoft)
-                }
+                for (entry in state.log.take(8)) FlightLogRow(entry, colors)
             }
         }
     }

@@ -132,6 +132,7 @@ fun FlightRoot(
                 onChangeRoute = { goTo(Stage.ROUTE) },
                 onWindow = { goTo(Stage.WINDOW) },
                 onLogbook = { goTo(Stage.LOGBOOK) },
+                onFlightEnded = { goTo(Stage.ROUTE) },
                 onBack = { back() },
                 theme = theme,
                 onTheme = onTheme,
