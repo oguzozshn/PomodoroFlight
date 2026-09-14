@@ -118,6 +118,22 @@ class FlightsTest {
     }
 
     @Test
+    fun `donusum - tamamlanmis rotanin ilerlemesi degeri ne olursa olsun yarim satir olmaz`() {
+        // Gercek bir emulator kaydindan: eski surumun hatali donusumu ilerlemeyi
+        // 850 yazmis; rota 268 km'den uzun da, 1016 km'den kisa da olabiliyor.
+        val log = listOf(
+            LogEntry("ESL-VOG", 268, now - 86_400_000L),
+            LogEntry("TZX-BZI", 1016, now - 2 * 86_400_000L),
+        )
+        val progress = mapOf("ESL-VOG" to 850.0, "TZX-BZI" to 850.0, "IST-LHR" to 829.2)
+        val (flight, rows) = Flights.fromProgress(progress, "IST-JFK", log, now)
+        assertNull(flight)
+        assertEquals(3, rows.size)
+        assertEquals(2, rows.count { it.done })
+        assertEquals("IST-LHR", rows.single { !it.done }.routeKey)
+    }
+
+    @Test
     fun `donusum - acik rota bossa etkin ucus yok`() {
         val (flight, rows) = Flights.fromProgress(mapOf("IST-LHR" to 700.0), "IST-JFK", emptyList(), now)
         assertNull(flight)

@@ -1,6 +1,5 @@
 package com.oguzozsahin.ucusmodu.data
 
-import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -106,7 +105,11 @@ object Flights {
      * Donusum (bir kez): rota basina ilerlemeyi tek etkin ucusa cevirir.
      *  - acik rotanin ilerlemesi etkin ucus olur;
      *  - diger rotalardaki yarim ilerlemeler gunluge yarim satir olarak eklenir;
-     *  - gunlukte varisi zaten yazilmis tam ilerlemeler atlanir, cift satir olmaz.
+     *  - gunlukte tamamlanmis satiri olan rotanin ilerlemesi atlanir. Eski
+     *    modelde tamamlanan rota yeniden ucualamiyordu, yani o ilerleme ancak
+     *    o varisa ait. Degerine bakilamaz: cok eski bir surumun bacak -> km
+     *    donusumu 850 ile carpiyordu ve ilerleme rotadan uzun da (268 km'lik
+     *    rotada 850) kisa da (1016 km'lik rotada 850) olabiliyor.
      */
     fun fromProgress(
         progress: Map<String, Double>,
@@ -114,15 +117,13 @@ object Flights {
         log: List<LogEntry>,
         now: Long,
     ): Pair<ActiveFlight?, List<LogEntry>> {
-        val landedKm = HashMap<String, Int>()
-        for (entry in log) if (entry.done && entry.km > 0) landedKm[entry.routeKey] = entry.km
+        val landed = log.filter { it.done }.mapTo(HashSet()) { it.routeKey }
 
         var flight: ActiveFlight? = null
         val rows = log.toMutableList()
         for ((key, flown) in progress) {
             if (flown <= 0.0) continue
-            val alreadyLanded = landedKm[key]?.let { abs(it - flown) <= 1.0 } ?: false
-            if (alreadyLanded) continue
+            if (key in landed) continue
             if (key == openRoute) {
                 flight = ActiveFlight(routeKey = key, flown = flown)
             } else {
