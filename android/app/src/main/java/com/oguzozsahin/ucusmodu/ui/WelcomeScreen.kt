@@ -221,7 +221,7 @@ private fun TerminalContent(
         )
     }
 
-    // Panelin tamami mil bildirimine acilan kapi.
+    // Panelin tamami ucus gunlugu sekmesine acilan kapi.
     Panel(colors, modifier = Modifier.clickable { onLogbook() }) {
         Column(Modifier.padding(14.dp)) {
             Row {
@@ -233,7 +233,7 @@ private fun TerminalContent(
             WorldTour(state.totalKm, colors)
             Spacer(Modifier.height(12.dp))
             Text(
-                "MİL BİLDİRİMİNİ AÇ  →",
+                "UÇUŞ GÜNLÜĞÜNÜ AÇ  →",
                 style = labelStyle(colors.amber).copy(fontSize = 10.sp),
             )
         }

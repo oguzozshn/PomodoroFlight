@@ -61,7 +61,6 @@ import com.oguzozsahin.ucusmodu.data.Phase
 import com.oguzozsahin.ucusmodu.data.ThemeChoice
 import com.oguzozsahin.ucusmodu.data.formatClock
 import com.oguzozsahin.ucusmodu.data.formatDate
-import com.oguzozsahin.ucusmodu.data.formatHours
 import com.oguzozsahin.ucusmodu.data.formatNumber
 import com.oguzozsahin.ucusmodu.ui.theme.BarlowCondensed
 import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
@@ -100,7 +99,6 @@ fun FlightScreen(
     actions: FlightActions,
     onChangeRoute: () -> Unit,
     onWindow: () -> Unit,
-    onLogbook: () -> Unit,
     onBack: () -> Unit,
     theme: ThemeChoice,
     /** Ucus yarida bitirilince cagrilir; rota secimine donulur. */
@@ -147,7 +145,6 @@ fun FlightScreen(
                     TimerPanel(state, colors, actions, onFlightEnded, onFlyAgain)
                     FlightPlanPanel(state, colors)
                     SettingsPanel(state, colors, actions, theme, onTheme)
-                    LogPanel(state, colors, onLogbook)
                     DangerPanel(colors, actions)
                     Footer(colors)
                 }
@@ -168,7 +165,6 @@ fun FlightScreen(
                 TimerPanel(state, colors, actions, onFlightEnded, onFlyAgain)
                 FlightPlanPanel(state, colors)
                 SettingsPanel(state, colors, actions, theme, onTheme)
-                LogPanel(state, colors, onLogbook)
                 DangerPanel(colors, actions)
                 Footer(colors)
             }
@@ -719,42 +715,6 @@ private fun DangerPanel(colors: FlightColors, actions: FlightActions) {
                 confirming = false
             } else {
                 confirming = true
-            }
-        }
-    }
-}
-
-@Composable
-private fun LogPanel(
-    state: FlightUiState,
-    colors: FlightColors,
-    onLogbook: () -> Unit,
-) {
-    Panel(colors) {
-        Column(Modifier.padding(14.dp)) {
-            PanelHead("Uçuş günlüğü", colors) {
-                GhostButton("Tümünü gör", colors, onClick = onLogbook)
-            }
-            Spacer(Modifier.height(12.dp))
-            Row {
-                Column(Modifier.weight(1f)) {
-                    Text("TOPLAM ODAK", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
-                    Text(formatHours(state.totalMs), style = monoStyle(colors.ink, 17))
-                }
-                Column(Modifier.weight(1f)) {
-                    Text("KAT EDİLEN YOL", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
-                    Text("${formatNumber(state.totalKm)} km", style = monoStyle(colors.ink, 17))
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-
-            if (state.log.isEmpty()) {
-                Text(
-                    "Henüz uçuş yok. Bir yolculuğu tamamladığında ya da yarıda bitirdiğinde burada görünecek.",
-                    style = monoStyle(colors.muted, 11),
-                )
-            } else {
-                for (entry in state.log.take(8)) FlightLogRow(entry, colors)
             }
         }
     }

@@ -82,7 +82,8 @@ private val TR = Locale("tr", "TR")
 @Composable
 fun LogbookScreen(
     state: FlightUiState,
-    onBack: () -> Unit,
+    /** Sekme olarak acildiginda geri dugmesi yok; geri tusu ucus sekmesine doner. */
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalFlightColors.current
@@ -109,13 +110,15 @@ fun LogbookScreen(
                 .padding(top = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Cikis her ekranda ayni yerde: sol ust.
-            GhostButton("← Geri", colors, onClick = onBack)
-            Spacer(Modifier.width(10.dp))
-            Text("MİL BİLDİRİMİ", style = labelStyle(colors.ink2).copy(fontSize = 13.sp))
+            if (onBack != null) {
+                GhostButton("← Geri", colors, onClick = onBack)
+                Spacer(Modifier.width(10.dp))
+            }
+            Text("UÇUŞ GÜNLÜĞÜ", style = labelStyle(colors.ink2).copy(fontSize = 13.sp))
         }
 
         MembershipCard(state, colors)
+        StampsPanel(state, colors)
         WorldTourPanel(state.totalKm, colors)
         FlightMapPanel(state, colors)
 
@@ -133,8 +136,6 @@ fun LogbookScreen(
             HoursPanel(loaded, zone, colors)
             TopRoutesPanel(loaded, colors)
         }
-
-        StampsPanel(state, colors)
 
         Text(
             text = "Toplam mil ve uçuş günlüğü baştan beri tutuluyor; " +
@@ -527,7 +528,7 @@ private fun TopRoutesPanel(records: List<FocusRecord>, colors: FlightColors) {
 private fun StampsPanel(state: FlightUiState, colors: FlightColors) {
     Panel(colors) {
         Column(Modifier.padding(14.dp)) {
-            Text("UÇUŞ GÜNLÜĞÜ", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
+            Text("UÇUŞLAR", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
             Spacer(Modifier.height(10.dp))
             if (state.log.isEmpty()) {
                 Text(
