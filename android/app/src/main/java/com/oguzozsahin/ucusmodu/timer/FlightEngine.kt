@@ -39,7 +39,7 @@ class FlightEngine private constructor(context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private var data: Persisted = store.load()
-    private var route: Route = routeFor(data.routeKey, data.focusMin)
+    private var route: Route = routeFor(data.routeKey)
     private var remaining: Long = data.remainingMs
     private var phase: Phase = data.phase
     private var running: Boolean = false
@@ -133,7 +133,7 @@ class FlightEngine private constructor(context: Context) {
     }
 
     fun setRoute(key: String) {
-        val next = Route.of(key, data.focusMin) ?: return
+        val next = Route.of(key) ?: return
         pause()
         route = next
         data = data.copy(routeKey = next.key)
@@ -145,9 +145,8 @@ class FlightEngine private constructor(context: Context) {
 
     fun setFocusMin(minutes: Int) {
         data = data.copy(focusMin = minutes)
-        // Bacak sayisi pomodoro uzunluguna bagli; rota yeniden kurulmali.
-        // Ilerleme km olarak saklandigi icin bu degisiklikte hicbir sey kaybolmuyor.
-        route = routeFor(data.routeKey, minutes)
+        // Bacak sayisi odak suresinden bagimsiz; rota yeniden kurulmaz, yalniz
+        // bir oturumun kac bacak tasidigi degisir.
         if (!running && phase == Phase.FOCUS) remaining = minutes * 60_000L
         persist()
         publish()
@@ -358,9 +357,9 @@ class FlightEngine private constructor(context: Context) {
 
     private fun now() = System.currentTimeMillis()
 
-    /** Kayitli rota okunamazsa varsayilana duser; ikisi de ayni odak uzunlugunda kurulur. */
-    private fun routeFor(key: String, focusMin: Int): Route =
-        Route.of(key, focusMin) ?: Route.of("IST-JFK", focusMin)!!
+    /** Kayitli rota okunamazsa varsayilana duser. */
+    private fun routeFor(key: String): Route =
+        Route.of(key) ?: Route.of("IST-JFK")!!
 
     private fun currentState() = snapshot()
 

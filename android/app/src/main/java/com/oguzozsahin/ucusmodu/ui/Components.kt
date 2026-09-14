@@ -321,23 +321,37 @@ fun SegmentedOptions(
     }
 }
 
-/** Ilerleme noktalari: tamamlanan bacaklar dolu, siradaki vurgulu. */
+/**
+ * Ilerleme noktalari: tamamlanan bacaklar dolu, siradaki vurgulu. Kesirli
+ * oturumda yarim kalan bacak [fill] oraninda soldan boyanir.
+ */
 @Composable
 fun Tick(
     state: TickState,
     colors: FlightColors,
     modifier: Modifier = Modifier,
+    fill: Float = 0f,
 ) {
     val color = when (state) {
         TickState.DONE -> colors.amber
         TickState.NOW -> colors.amber2
-        TickState.TODO -> colors.line
+        TickState.TODO, TickState.PART -> colors.line
     }
-    Column(
+    val shape = RoundedCornerShape(1.dp)
+    Box(
         modifier = modifier
             .size(width = 14.dp, height = 6.dp)
-            .background(color, RoundedCornerShape(1.dp)),
-    ) {}
+            .background(color, shape),
+    ) {
+        if (state == TickState.PART && fill > 0f) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(fill.coerceIn(0f, 1f))
+                    .background(colors.amber, shape),
+            )
+        }
+    }
 }
 
-enum class TickState { DONE, NOW, TODO }
+enum class TickState { DONE, NOW, TODO, PART }

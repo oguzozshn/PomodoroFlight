@@ -23,8 +23,7 @@ class FlightCoreTest {
 
     private val now = 1_757_030_400_000L
 
-    private fun route(key: String = "IST-JFK", focusMin: Int = 25): Route =
-        Route.of(key, focusMin)!!
+    private fun route(key: String = "IST-JFK"): Route = Route.of(key)!!
 
     private fun state(
         route: Route,
@@ -173,46 +172,50 @@ class FlightCoreTest {
         assertEquals(r.key, out.record!!.routeKey)
     }
 
-    // ---------------- odak suresi degisince ----------------
+    // ---------------- odak suresi ----------------
 
     @Test
-    fun `uzayan pomodoro rotanin ucundan tasan mesafeyi kazandirmaz`() {
-        // IST-JFK 25 dakikada 9 bacak; 8 bacak ucup 50 dakikaya gecilince
-        // bacak boyu neredeyse iki katina cikiyor ve son bacak rotayi asiyor.
-        val short = route(focusMin = 25)
-        val flown = 8 * short.kmPerLeg
-        val long = route(focusMin = 50)
-        assertTrue("bacak boyu kalan mesafeden buyuk olmali", long.kmPerLeg > long.km - flown)
+    fun `50 dakikalik oturum iki bacak ilerletir`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key, focusMin = 50)
+        val out = FlightCore.finishPhase(state(r, data), data, now)
 
-        val data = Persisted(
-            routeKey = long.key,
-            focusMin = 50,
-            progress = mapOf(long.key to flown),
-            totalKm = flown,
-        )
-        val out = FlightCore.finishPhase(state(long, data), data, now)
-
-        val actual = long.km - flown
-        assertEquals("yalnizca gercekten uculdugu kadar", actual, out.gainedKm, 1e-9)
-        assertEquals(long.km, out.data.totalKm, 1e-9)
-        assertEquals(actual, out.record!!.km, 1e-9)
-        assertTrue(out.arrived)
+        assertEquals(2 * r.kmPerLeg, out.gainedKm, 1e-9)
+        assertEquals(2 * r.kmPerLeg, out.data.progress[r.key]!!, 1e-9)
+        assertEquals(50 * 60_000L, out.data.totalMs)
+        assertEquals(r.legs - 2, out.legsLeft)
     }
 
     @Test
-    fun `odak suresi ikiye katlaninca bacak basina mesafe de katlanir`() {
-        val short = route(focusMin = 25)
-        val long = route(focusMin = 50)
-        val data = Persisted(routeKey = short.key)
+    fun `37 dakikalik oturum bir bacaktan fazla ilerletir, kalan yukari yuvarlanir`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key, focusMin = 37)
+        val out = FlightCore.finishPhase(state(r, data), data, now)
 
-        val a = FlightCore.finishPhase(state(short, data), data, now)
-        val b = FlightCore.finishPhase(
-            state(long, data.copy(focusMin = 50)),
-            data.copy(focusMin = 50),
-            now,
+        assertEquals(1.48 * r.kmPerLeg, out.gainedKm, 1e-9)
+        // 21,52 bacak kaldi: bildirimde 22 pomodoro yazmali
+        assertEquals(r.legs - 1, out.legsLeft)
+    }
+
+    @Test
+    fun `uzun oturum rotanin ucundan tasan mesafeyi kazandirmaz`() {
+        // Son bacak kalmisken 50 dakikalik oturum iki bacak tasir; yalniz
+        // gercekten kalan kadar yazilir.
+        val r = route()
+        val flown = (r.legs - 1) * r.kmPerLeg
+        val data = Persisted(
+            routeKey = r.key,
+            focusMin = 50,
+            progress = mapOf(r.key to flown),
+            totalKm = flown,
         )
-        assertTrue(b.gainedKm > a.gainedKm)
-        assertEquals(50 * 60_000L, b.data.totalMs)
+        val out = FlightCore.finishPhase(state(r, data), data, now)
+
+        val actual = r.km - flown
+        assertEquals("yalnizca gercekten uculdugu kadar", actual, out.gainedKm, 1e-9)
+        assertEquals(r.km, out.data.totalKm, 1e-9)
+        assertEquals(actual, out.record!!.km, 1e-9)
+        assertTrue(out.arrived)
     }
 
     // ---------------- ayarlar ----------------

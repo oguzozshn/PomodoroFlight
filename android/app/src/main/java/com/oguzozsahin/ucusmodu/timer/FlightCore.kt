@@ -97,13 +97,11 @@ object FlightCore {
         val focusMs = before.durationMsOf(Phase.FOCUS)
         val focusedMs = (focusMs - before.remainingMs).coerceIn(0L, focusMs)
 
-        // Kazanilan mesafe nominal bacak boyu degil, rotada gercekten
-        // ilerlenen kadar. Ikisi normalde ayni (km = bacak x bacak boyu),
-        // ama odak suresi rota yarim kalmisken degistirilirse bacak boyu
-        // buyur ve son bacak rotanin ucundan tasar. Nominali yazmak o an
-        // hic ucumadan mil kazandiriyordu.
+        // Oturumun kazandirdigi mesafe: 25 dakika bir bacak, 50 dakika iki.
+        // Kazanilan, rotada gercekten ilerlenen kadar: son oturum rotanin
+        // ucundan tasarsa artakalan pay mil olarak yazilmaz.
         val flownBefore = before.flownOnRoute
-        val flown = (flownBefore + route.kmPerLeg).coerceAtMost(route.km)
+        val flown = (flownBefore + route.kmForFocus(before.focusMin)).coerceAtMost(route.km)
         val gained = (flown - flownBefore).coerceAtLeast(0.0)
 
         val progress = data.progress.toMutableMap()
@@ -142,7 +140,8 @@ object FlightCore {
             alert = if (arrivedNow) PhaseAlert.LAND else PhaseAlert.LEVEL,
             arrived = arrivedNow,
             gainedKm = gained,
-            legsLeft = if (arrivedNow) 0 else Route.legsFor(route.km - flown, data.focusMin),
+            // Kalan pomodoro yukari yuvarlanir: yarim bacak da bir pomodoro daha demek.
+            legsLeft = if (arrivedNow) 0 else kotlin.math.ceil((route.km - flown) / route.kmPerLeg - 1e-9).toInt().coerceAtLeast(1),
         )
     }
 }

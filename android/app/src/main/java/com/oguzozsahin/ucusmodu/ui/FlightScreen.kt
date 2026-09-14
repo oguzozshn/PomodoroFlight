@@ -54,6 +54,8 @@ import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.data.Airports
 import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.KM_PER_MINUTE
+import com.oguzozsahin.ucusmodu.data.POMODORO_MIN
+import com.oguzozsahin.ucusmodu.data.formatPomodoros
 import com.oguzozsahin.ucusmodu.data.Phase
 import com.oguzozsahin.ucusmodu.data.ThemeChoice
 import com.oguzozsahin.ucusmodu.data.formatClock
@@ -380,8 +382,17 @@ private fun TimerPanel(state: FlightUiState, colors: FlightColors, actions: Flig
     val subline = when {
         state.arrived && state.phase == Phase.FOCUS ->
             "${state.route.dest.city}'a indin. Günlüğe damga düştü — yeni bir rota seç."
-        state.phase == Phase.FOCUS ->
-            "Bu pomodoro ${formatNumber(state.route.kmPerLeg)} km taşıyor."
+        state.phase == Phase.FOCUS -> {
+            // Oturum 25 dakikanin kati degilse kac pomodoro ettigini soylemek
+            // gerekiyor; "1,48 pomodoro" yarim kalan kutuyu acikliyor.
+            val km = formatNumber(state.route.kmForFocus(state.focusMin))
+            if (state.focusMin == POMODORO_MIN) {
+                "Bu pomodoro $km km taşıyor."
+            } else {
+                val poms = formatPomodoros(state.focusMin.toDouble() / POMODORO_MIN, digits = 2)
+                "Bu oturum $poms pomodoro, $km km taşıyor."
+            }
+        }
         else -> "Uçak rotada bekliyor; mola bitince seyre devam."
     }
     val primaryLabel = when {
@@ -510,10 +521,12 @@ private fun LegTicks(state: FlightUiState, colors: FlightColors) {
                 for (i in rowStart until minOf(rowStart + perRow, state.route.legs)) {
                     val tick = when {
                         i < state.done -> TickState.DONE
+                        // Kesirli oturum: bacak yarim dolar, kutu soldan boyanir.
+                        i == state.done && state.legFill > 0.001f -> TickState.PART
                         i == state.done && state.running && state.phase == Phase.FOCUS -> TickState.NOW
                         else -> TickState.TODO
                     }
-                    Tick(tick, colors)
+                    Tick(tick, colors, fill = if (tick == TickState.PART) state.legFill else 0f)
                 }
             }
         }

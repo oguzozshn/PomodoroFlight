@@ -19,6 +19,10 @@ fun formatClock(ms: Long): String {
 /** Binlik ayraci Turkce olan tam sayi gosterimi. */
 fun formatNumber(value: Double): String = integerFormat.format(value.roundToLong())
 
+/** Pomodoro sayisi: tam sayida ondaliksiz, degilse "1,5". Oturumlar 25 dakikanin kati olmayabilir. */
+fun formatPomodoros(value: Double, digits: Int = 1): String =
+    NumberFormat.getNumberInstance(TR).apply { maximumFractionDigits = digits }.format(value)
+
 /** Toplam odak suresi: "12,5 sa" */
 fun formatHours(ms: Long): String =
     String.format(TR, "%.1f sa", ms / 3_600_000.0)

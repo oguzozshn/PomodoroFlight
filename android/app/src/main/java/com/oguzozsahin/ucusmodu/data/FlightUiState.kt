@@ -6,13 +6,7 @@ data class FlightUiState(
     val phase: Phase,
     val running: Boolean,
     val remainingMs: Long,
-    /**
-     * Rota anahtari -> o rotada kat edilen km.
-     *
-     * Bacak sayisi degil km saklaniyor: pomodoro uzunlugu degistiginde
-     * rotanin bacak sayisi da degisir, "8 bacaktan 5'i" gibi bir kayit o an
-     * anlamsizlasirdi. Kat edilen mesafe ise ayardan bagimsiz.
-     */
+    /** Rota anahtari -> o rotada kat edilen km. */
     val progress: Map<String, Double>,
     val log: List<LogEntry>,
     val focusMin: Int,
@@ -38,17 +32,20 @@ data class FlightUiState(
 
     val arrived: Boolean get() = flownOnRoute >= route.km - ARRIVAL_EPSILON_KM
 
-    /**
-     * Bu rotada yol alinmis mi?
-     *
-     * "done > 0" ile sorulamaz: bacak sayisi odak suresine bagli oldugu icin
-     * 25 dakikada bir bacak ucup 50 dakikaya gecince done sifira duser ve
-     * yarim kalmis ucus hic baslamamis gibi gorunurdu. Mesafe ise ayardan
-     * bagimsiz.
-     */
+    /** Bu rotada yol alinmis mi? Yarim bacak da sayilir, "done > 0" yetmez. */
     val started: Boolean get() = flownOnRoute > 0.0
 
     val legsLeft: Int get() = (route.legs - done).coerceAtLeast(0)
+
+    /**
+     * Suren bacagin dolulugu (0..1). Oturum 25 dakikanin kati degilse bacak
+     * siniri oturum sonuna denk gelmiyor; ucus planindaki kutu yarim kaliyor.
+     */
+    val legFill: Float
+        get() {
+            if (route.kmPerLeg <= 0.0 || arrived) return 0f
+            return (route.km * fraction / route.kmPerLeg - done).toFloat().coerceIn(0f, 1f)
+        }
 
     fun durationMsOf(phase: Phase): Long = when (phase) {
         Phase.FOCUS -> focusMin * 60_000L
@@ -64,7 +61,7 @@ data class FlightUiState(
             var f = if (route.km <= 0.0) 0.0 else flownOnRoute / route.km
             if (phase == Phase.FOCUS && !arrived) {
                 val elapsed = 1.0 - remainingMs.toDouble() / durationMsOf(Phase.FOCUS)
-                f += elapsed.coerceIn(0.0, 1.0) * (route.kmPerLeg / route.km)
+                f += elapsed.coerceIn(0.0, 1.0) * (route.kmForFocus(focusMin) / route.km)
             }
             return f.coerceIn(0.0, 1.0).toFloat()
         }

@@ -27,7 +27,7 @@ class Store(context: Context) {
                 while (it.hasNext()) {
                     val k = it.next()
                     progress[k] = if (legacy) {
-                        Route.kmForLegs(k, p.optInt(k, 0), focus)
+                        Route.kmForLegs(k, p.optInt(k, 0))
                     } else {
                         p.optDouble(k, 0.0)
                     }

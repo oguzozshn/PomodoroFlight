@@ -52,7 +52,7 @@ import com.oguzozsahin.ucusmodu.data.formatDuration
 import com.oguzozsahin.ucusmodu.data.formatNumber
 import com.oguzozsahin.ucusmodu.data.formatTimeOfDay
 import com.oguzozsahin.ucusmodu.data.gateOf
-import com.oguzozsahin.ucusmodu.data.realFlightMinutes
+import com.oguzozsahin.ucusmodu.data.cruiseMinutes
 import com.oguzozsahin.ucusmodu.data.remainingScheduleMinutes
 import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.LocalFlightColors
@@ -437,8 +437,8 @@ private fun SearchCard(
 @Composable
 private fun RouteSummary(state: FlightUiState, colors: FlightColors, onDeparture: () -> Unit) {
     val route = state.route
-    val focusMinutes = focusMinutesFor(route.legs - state.done, state.focusMin)
-    val realMinutes = realFlightMinutes(route.km)
+    val focusMinutes = focusMinutesFor(route.legs - state.done)
+    val cruise = cruiseMinutes(route.km)
     val scheduleMinutes = remainingScheduleMinutes(
         legsLeft = state.legsLeft,
         focusMin = state.focusMin,
@@ -500,7 +500,7 @@ private fun RouteSummary(state: FlightUiState, colors: FlightColors, onDeparture
 
             SummaryRow("Mesafe", "${formatNumber(route.km)} km", colors)
             SummaryRow("Odakta geçecek", formatDuration(focusMinutes), colors)
-            SummaryRow("Gerçek uçuş süresi", "≈ ${formatDuration(realMinutes)}", colors)
+            SummaryRow("Gerçek seyir süresi", "≈ ${formatDuration(cruise)}", colors)
 
             Spacer(Modifier.height(18.dp))
             FlightButton(
@@ -555,10 +555,7 @@ private fun PresetList(
             Spacer(Modifier.height(10.dp))
 
             for (preset in Presets.list) {
-                // Bacak sayisi odak uzunluguna bagli, rota ona gore kurulur.
-                val presetRoute = remember(preset.key, state.focusMin) {
-                    Route.of(preset.key, state.focusMin)
-                } ?: continue
+                val presetRoute = remember(preset.key) { Route.of(preset.key) } ?: continue
                 // Ilerleme km olarak saklandigi icin bacaga burada cevriliyor.
                 val flown = (state.progress[preset.key] ?: 0.0).coerceIn(0.0, presetRoute.km)
                 val progress = if (presetRoute.km <= 0.0) {

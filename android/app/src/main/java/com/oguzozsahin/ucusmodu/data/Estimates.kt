@@ -1,18 +1,17 @@
 package com.oguzozsahin.ucusmodu.data
 
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
-/** Yolcu ucaginin seyir hizi; ucus suresi tahmininde kullanilir. */
-private const val CRUISE_KMH = 850.0
+/**
+ * Rotanin gercek seyir hiziyla suresi (dakika). Kalkis, taksi ve inis dahil
+ * degil; pomodoro olcegiyle ayni tanim, bu yuzden odak suresinden yalniz 25
+ * dakikaya yuvarlama kadar ayrilir.
+ */
+fun cruiseMinutes(km: Double): Int = (km / CRUISE_KMH * 60.0).roundToInt()
 
-/** Manevra, taksi ve tirmanis icin sabit pay (dakika). */
-private const val GROUND_MINUTES = 30
-
-/** Rotanin gercek hayattaki kaba ucus suresi (dakika). */
-fun realFlightMinutes(km: Double): Int = (km / CRUISE_KMH * 60.0).roundToInt() + GROUND_MINUTES
-
-/** Rotayi bitirmek icin gereken toplam odak suresi (dakika). */
-fun focusMinutesFor(legs: Int, focusMin: Int): Int = legs * focusMin
+/** Rotayi bitirmek icin gereken toplam odak suresi (dakika); oturum uzunlugundan bagimsiz. */
+fun focusMinutesFor(legs: Int): Int = legs * POMODORO_MIN
 
 /** 585 -> "9 sa 45 dk", 45 -> "45 dk" */
 fun formatDuration(minutes: Int): String {
@@ -27,18 +26,23 @@ fun formatDuration(minutes: Int): String {
 
 /**
  * Rotanin kalanini bitirmek icin gereken takvim suresi: odaklar + aralarindaki molalar.
- * Dorduncu pomodorodan sonraki uzun mola da hesaba katilir.
+ *
+ * Mola sayisi pomodoro sayisina degil oturum sayisina bagli: 50 dakikalik
+ * oturumda iki pomodoro arasina mola girmez. Dorduncu oturumdan sonraki uzun
+ * mola da hesaba katilir.
  */
 fun remainingScheduleMinutes(
     legsLeft: Int,
     focusMin: Int,
     breakMin: Int,
     cycle: Int,
+    longBreakMin: Int = FlightUiState.LONG_BREAK_MIN,
 ): Int {
     if (legsLeft <= 0) return 0
-    var total = legsLeft * focusMin
-    for (i in 1 until legsLeft) {
-        total += if ((cycle + i) % 4 == 0) FlightUiState.LONG_BREAK_MIN else breakMin
+    val sessions = maxOf(1, ceil(legsLeft * POMODORO_MIN / focusMin.coerceAtLeast(1).toDouble()).toInt())
+    var total = legsLeft * POMODORO_MIN
+    for (i in 1 until sessions) {
+        total += if ((cycle + i) % 4 == 0) longBreakMin else breakMin
     }
     return total
 }

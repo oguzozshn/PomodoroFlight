@@ -67,7 +67,7 @@ fun issueTicket(state: FlightUiState, now: Long = System.currentTimeMillis()): T
         arrivalAt = now + (BOARDING_MINUTES + scheduleMinutes) * 60_000L,
         distanceKm = state.route.km,
         legs = state.legsLeft,
-        focusMinutes = focusMinutesFor(state.legsLeft, state.focusMin),
+        focusMinutes = focusMinutesFor(state.legsLeft),
     )
 }
 

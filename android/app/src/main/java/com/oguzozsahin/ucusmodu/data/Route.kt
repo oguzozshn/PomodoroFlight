@@ -5,6 +5,10 @@ import kotlin.math.roundToInt
 
 /**
  * Iki havalimani arasindaki buyuk daire rotasi ve bunun pomodoro cinsinden karsiligi.
+ *
+ * Olcek ayardan bagimsiz: bir pomodoro 25 dakika ve gercek seyir hiziyla ~354 km,
+ * dolayisiyla bir rotanin kac pomodoro ettigi odak suresi ayariyla oynamaz. Ayar
+ * yalniz bir oturumun kac pomodoro tasidigini belirler: 50 dakika iki, 37 dakika 1,48.
  */
 data class Route(
     val key: String,
@@ -17,21 +21,31 @@ data class Route(
     val center: LatLon,
     val flightNo: String,
 ) {
-    /** Tek bir pomodoronun tasidigi mesafe. */
+    /** Bir pomodoronun (bir bacagin) tasidigi mesafe. */
     val kmPerLeg: Double get() = km / legs
+
+    /**
+     * Bir odak oturumunun bu rotada kazandirdigi mesafe.
+     *
+     * Bacak boyu nominal [KM_PER_POMODORO] degil rotanin kendi [kmPerLeg] degeri:
+     * bacak sayisi yuvarlanarak bulunuyor (IST-JFK 8026 km, 23 bacak, 349 km/bacak).
+     * Oturum bunun focusMin / 25 katini tasir; boylece bacak sayisi kadar tam
+     * pomodoro rotayi tastamam bitirir.
+     */
+    fun kmForFocus(focusMin: Int): Double = kmPerLeg * focusMin / POMODORO_MIN
 
     /** Rota uzerinde t oranindaki nokta. */
     fun pointAt(t: Double): LatLon = latLonOf(slerp(a, b, t))
 
     companion object {
 
-        fun of(key: String, focusMin: Int = DEFAULT_FOCUS_MIN): Route? {
+        fun of(key: String): Route? {
             val parts = key.split("-")
             if (parts.size != 2) return null
-            return of(parts[0], parts[1], focusMin)
+            return of(parts[0], parts[1])
         }
 
-        fun of(from: String, to: String, focusMin: Int = DEFAULT_FOCUS_MIN): Route? {
+        fun of(from: String, to: String): Route? {
             val o = PlaceRegistry.find(from) ?: return null
             val d = PlaceRegistry.find(to) ?: return null
             if (o.code == d.code) return null
@@ -43,7 +57,7 @@ data class Route(
                 origin = o,
                 dest = d,
                 km = km,
-                legs = legsFor(km, focusMin),
+                legs = legsFor(km),
                 a = a,
                 b = b,
                 center = latLonOf(slerp(a, b, 0.5)),
@@ -58,25 +72,20 @@ data class Route(
             return "TK${1000 + n}"
         }
 
-        /**
-         * Rotayi bitirmek icin kac pomodoro gerektigi. Pomodoro ne kadar
-         * uzunsa o kadar az bacak eder; toplam odak suresi ayni kalir.
-         */
-        fun legsFor(km: Double, focusMin: Int = DEFAULT_FOCUS_MIN): Int =
-            max(1, (km / (KM_PER_MINUTE * focusMin)).roundToInt())
+        /** Rotayi bitirmek icin kac pomodoro gerektigi; odak suresi ayarina bakmaz. */
+        fun legsFor(km: Double): Int = max(1, (km / KM_PER_POMODORO).roundToInt())
 
         /**
          * Bacak sayisini kat edilen mesafeye cevirir; eski kayitlarin
          * gocurulmesi icin.
          *
-         * Bacak basina mesafe 850 km degil, rotanin kendi [kmPerLeg] degeri:
-         * bacak sayisi yuvarlanarak bulundugu icin ikisi ayni degil. IST-JFK
-         * 8026 km ve 9 bacak, yani bacak basina 892 km. 850 ile cevirmek
-         * kullanicinin ilerlemesini sessizce geri alirdi.
+         * Bacak basina mesafe nominal [KM_PER_POMODORO] degil, rotanin kendi
+         * [kmPerLeg] degeri: bacak sayisi yuvarlanarak bulundugu icin ikisi ayni
+         * degil. Nominal degerle cevirmek ilerlemeyi sessizce kaydirirdi.
          */
-        fun kmForLegs(routeKey: String, legs: Int, focusMin: Int = DEFAULT_FOCUS_MIN): Double {
+        fun kmForLegs(routeKey: String, legs: Int): Double {
             if (legs <= 0) return 0.0
-            val route = of(routeKey, focusMin) ?: return legs * KM_PER_POMODORO
+            val route = of(routeKey) ?: return legs * KM_PER_POMODORO
             return (legs * route.kmPerLeg).coerceAtMost(route.km)
         }
     }

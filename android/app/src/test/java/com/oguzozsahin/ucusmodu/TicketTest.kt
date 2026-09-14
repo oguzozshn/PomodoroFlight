@@ -59,9 +59,9 @@ class TicketTest {
         assertEquals(noon, ticket.boardingAt)
         assertEquals(noon + BOARDING_MINUTES * 60_000L, ticket.departureAt)
         assertTrue(ticket.arrivalAt > ticket.departureAt)
-        // 9 pomodoro + molalar, binis payi dahil
+        // 23 pomodoro + molalar, binis payi dahil
         val minutes = (ticket.arrivalAt - ticket.boardingAt) / 60_000L
-        assertEquals((BOARDING_MINUTES + 285).toLong(), minutes)
+        assertEquals((BOARDING_MINUTES + 735).toLong(), minutes)
     }
 
     @Test
@@ -69,8 +69,8 @@ class TicketTest {
         val ticket = issueTicket(state(done = 3, passenger = "oğuz"), noon)
         assertEquals("TK9964", ticket.flightNo)
         assertEquals("OĞUZ", ticket.passenger)
-        assertEquals(6, ticket.legs)
-        assertEquals(150, ticket.focusMinutes)
+        assertEquals(20, ticket.legs)
+        assertEquals(500, ticket.focusMinutes)
         assertEquals(8026.398462, ticket.distanceKm, 1e-6)
     }
 
