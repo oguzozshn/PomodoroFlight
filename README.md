@@ -16,7 +16,7 @@ detailed implementation notes live in [`android/README.md`](android/README.md)
 | `ucus-modu.html` | The original — a single self-contained HTML file, no build step, no dependencies. Open it in a browser. |
 | `android/` | A native Android app: Kotlin + Jetpack Compose, fully offline. |
 | `desktop/` | A Windows desktop app: Electron, same features, fully offline. |
-| `tools/` | Python scripts that build the offline map assets, plus a compiler-free Kotlin scanner. |
+| `tools/` | Python scripts that build the offline map assets, run the test suite without an Android SDK, and scan the Kotlin sources without a compiler. |
 
 The Android app is not a WebView wrapper. Everything was reimplemented
 natively, and the numeric behaviour is verified line-by-line against the
@@ -93,32 +93,57 @@ JDK 17, AGP 8.7.3, Kotlin 2.0.21, Compose BOM 2024.12.
 cd android
 ./gradlew assembleDebug     # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew installDebug      # install onto a connected device
-./gradlew test              # 79 unit tests, JVM only, no device needed
+./gradlew test              # 125 unit tests, JVM only, no device needed
 ```
+
+Without an Android SDK, Gradle stops at the first step. The tests still run:
+
+```bash
+python3 tools/run_tests.py   # same 125 tests, real Kotlin compiler, no SDK
+```
+
+It pulls the Kotlin 2.0.21 compiler and JUnit from Maven Central, verifies
+them by SHA-1, caches them in `.kotlin-toolchain/`, and compiles the pure
+layer for real. `--offline` forbids any network access after the first run.
 
 ## How this was verified
 
-The app was written in an environment with no Android SDK, so the Compose
-layer could not be compiled here. Three things stood in for a compiler:
+The Compose and service layers need androidx artifacts, which Google
+publishes only from its own Maven repository; where that is unreachable they
+cannot be compiled. Everything else is compiled and executed:
 
-1. **A JVM mirror of the pure layer.** Geometry, routing, state derivation,
-   formatting, the binary asset parsers and the window camera have no Android
-   dependencies, so they compile and run on a plain JVM. 79 unit tests cover
-   them, several against closed-form formulas rather than recorded values.
+1. **The pure layer, compiled and run.** Geometry, routing, the timer's
+   phase transitions, state derivation, formatting, the binary asset parsers,
+   the ticket, the journal format, both cameras — the globe's and the
+   window's — and the horizon clamping that puts coastlines on screen have no
+   Android dependencies. 125 unit tests cover them, many against closed-form
+   formulas rather than recorded values.
 2. **An oracle extracted from the original HTML.** Route distances, leg
    counts, flight numbers, interpolated positions, progress fractions and
    formatted output are compared against the original JavaScript. Parity has
    held through every refactor, including the switch to a minute-based
    distance scale.
-3. **`tools/lint_kotlin.py`.** A compiler-free scanner for four error classes
-   that are otherwise invisible without building: unbalanced brackets; files
-   that balance but whose nesting has shifted (a closing brace placed at the
-   end of the wrong function, which swallows every function in between);
-   undefined type and function names; and JVM signature clashes.
+3. **`tools/lint_kotlin.py`.** A compiler-free scanner for the error classes
+   that are otherwise invisible without building the Compose layer:
+   unbalanced brackets; files that balance but whose nesting has shifted (a
+   closing brace placed at the end of the wrong function, which swallows
+   every function in between); undefined type and function names, including
+   extension receivers; and JVM signature clashes.
 
 Map geometry was also checked against ground truth — the drawn land fill is
 queried point-by-point against the source polygons, so the sea reads as sea
 and the coastlines land where they belong.
+
+Pulling logic out of the Android layer so that it could be tested is what
+found the five bugs fixed most recently: a leg that overshot the end of a
+route credited its full nominal length rather than the distance actually
+flown; a phase that ended while the screen was off was recorded on the day it
+was noticed rather than the day it ended; the anchored-zoom solver picked the
+wrong root of a sine equation near the limb and flipped the pinched point to
+the far side of the globe; anchoring exactly on a pole was rejected by a
+one-ulp rounding margin and silently fell back to zooming on the centre; and
+the arc that carries a coastline along the horizon divided itself one segment
+short, so its step never actually met the resolution it asked for.
 
 ## Data and assets
 
@@ -145,11 +170,20 @@ OurAirports) is public domain.
 
 ## Known limitations
 
-- The Compose and service layers have never been compiled in this repository's
-  development environment; the first build happens on your machine.
+- The pure layer is compiled and tested here (`tools/run_tests.py`), but the
+  Compose and service layers are not: they need androidx artifacts, which
+  Google publishes only from its own Maven repository. The first build of
+  those layers happens on your machine.
 - The service uses the `specialUse` foreground service type, which requires a
   justification if the app is ever submitted to Google Play.
 - The window view assumes a 9:16 frame. It scales on a tablet in landscape but
   the composition was tuned for portrait.
 - Many tablets in this class have no vibration motor. The code guards for it,
   but the haptics of the ticket-tear gesture are lost on those devices.
+- The app declares `USE_EXACT_ALARM`, which Google Play grants only to alarm
+  clocks and calendars. Sideloaded it is fine, and the code already falls
+  back to `SCHEDULE_EXACT_ALARM` — and then to an inexact alarm — when the
+  permission is absent; a Play submission would have to drop it.
+- A restored backup brings back the timer's own fields. If it was running
+  when the backup was taken, the phase is credited on first launch, dated to
+  the moment it actually ended.

@@ -4,29 +4,6 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-/**
- * Uygulamanin kalici durumu. Web surumundeki localStorage kaydinin birebir karsiligi,
- * ustune sureci hayatta kalan sayac alanlari (running/endAt) eklendi.
- */
-data class Persisted(
-    val routeKey: String = "IST-JFK",
-    /** Rota anahtari -> kat edilen km. */
-    val progress: Map<String, Double> = emptyMap(),
-    val log: List<LogEntry> = emptyList(),
-    val focusMin: Int = 25,
-    val breakMin: Int = 5,
-    val autoBreak: Boolean = true,
-    val sound: Boolean = true,
-    val passenger: String = "",
-    val cycle: Int = 0,
-    val totalMs: Long = 0L,
-    val totalKm: Double = 0.0,
-    val phase: Phase = Phase.FOCUS,
-    val running: Boolean = false,
-    val endAt: Long = 0L,
-    val remainingMs: Long = 25 * 60_000L,
-)
-
 /** SharedPreferences uzerinde JSON olarak saklanan basit kalici depo. */
 class Store(context: Context) {
 

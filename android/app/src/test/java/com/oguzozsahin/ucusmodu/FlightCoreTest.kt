@@ -1,0 +1,293 @@
+package com.oguzozsahin.ucusmodu
+
+import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.Persisted
+import com.oguzozsahin.ucusmodu.data.Phase
+import com.oguzozsahin.ucusmodu.data.Route
+import com.oguzozsahin.ucusmodu.timer.FlightCore
+import com.oguzozsahin.ucusmodu.timer.PhaseAlert
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * Sayacin faz gecisi. Uygulamanin en can alici mantigi burasiydi ve Android'e
+ * bagli oldugu icin hic sinanmiyordu; [FlightCore] ayrildiktan sonra cihazsiz
+ * kosuyor.
+ */
+class FlightCoreTest {
+
+    private val now = 1_757_030_400_000L
+
+    private fun route(key: String = "IST-JFK", focusMin: Int = 25): Route =
+        Route.of(key, focusMin)!!
+
+    private fun state(
+        route: Route,
+        data: Persisted,
+        phase: Phase = Phase.FOCUS,
+        remainingMs: Long = 0L,
+    ) = FlightUiState(
+        route = route,
+        phase = phase,
+        running = false,
+        remainingMs = remainingMs,
+        progress = data.progress,
+        log = data.log,
+        focusMin = data.focusMin,
+        breakMin = data.breakMin,
+        autoBreak = data.autoBreak,
+        sound = data.sound,
+        passenger = data.passenger,
+        cycle = data.cycle,
+        totalMs = data.totalMs,
+        totalKm = data.totalKm,
+    )
+
+    // ---------------- normal donus ----------------
+
+    @Test
+    fun `tamamlanan pomodoro bir bacak ilerletir ve molaya gecer`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key)
+        val out = FlightCore.finishPhase(state(r, data), data, now, skipped = false)
+
+        assertEquals(r.kmPerLeg, out.data.progress[r.key]!!, 1e-9)
+        assertEquals(r.kmPerLeg, out.gainedKm, 1e-9)
+        assertEquals(r.kmPerLeg, out.data.totalKm, 1e-9)
+        assertEquals(25 * 60_000L, out.data.totalMs)
+        assertEquals(Phase.BREAK, out.phase)
+        assertEquals(5 * 60_000L, out.remainingMs)
+        assertEquals(PhaseAlert.LEVEL, out.alert)
+        assertFalse(out.arrived)
+        assertTrue(out.autoStart)
+    }
+
+    @Test
+    fun `dorduncu pomodorodan sonra uzun mola gelir`() {
+        val r = route()
+        var data = Persisted(routeKey = r.key)
+        val phases = mutableListOf<Phase>()
+        repeat(4) {
+            val out = FlightCore.finishPhase(state(r, data), data, now)
+            phases += out.phase
+            data = out.data
+        }
+        assertEquals(listOf(Phase.BREAK, Phase.BREAK, Phase.BREAK, Phase.LONG), phases)
+        assertEquals(0, data.cycle)
+    }
+
+    @Test
+    fun `uzun molanin suresi on bes dakika`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key, cycle = 3)
+        val out = FlightCore.finishPhase(state(r, data), data, now)
+        assertEquals(Phase.LONG, out.phase)
+        assertEquals(FlightUiState.LONG_BREAK_MIN * 60_000L, out.remainingMs)
+    }
+
+    @Test
+    fun `mola bitince odaga donulur ve gunluge yazilmaz`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key, cycle = 1)
+        val out = FlightCore.finishPhase(state(r, data, phase = Phase.BREAK), data, now)
+
+        assertEquals(Phase.FOCUS, out.phase)
+        assertEquals(25 * 60_000L, out.remainingMs)
+        assertNull(out.record)
+        assertEquals(PhaseAlert.BOARDING, out.alert)
+        assertFalse(out.autoStart)
+        assertSame(data, out.data)
+    }
+
+    // ---------------- varis ----------------
+
+    @Test
+    fun `son bacak varisi damgalar ve molayi kendiliginden baslatmaz`() {
+        val r = route()
+        var data = Persisted(routeKey = r.key)
+        repeat(r.legs) { data = FlightCore.finishPhase(state(r, data), data, now).data }
+
+        val last = FlightCore.finishPhase(
+            state(r, Persisted(routeKey = r.key, progress = mapOf(r.key to r.km - r.kmPerLeg))),
+            Persisted(routeKey = r.key, progress = mapOf(r.key to r.km - r.kmPerLeg)),
+            now,
+        )
+        assertTrue(last.arrived)
+        assertEquals(PhaseAlert.LAND, last.alert)
+        assertFalse("varista mola kendiliginden baslamaz", last.autoStart)
+        assertEquals(1, last.data.log.size)
+        assertEquals(r.key, last.data.log[0].routeKey)
+        assertEquals(0, last.legsLeft)
+        assertEquals(r.km, data.progress[r.key]!!, 1e-6)
+    }
+
+    @Test
+    fun `varilmis rotada atlamak bedava mesafe vermez`() {
+        val r = route()
+        val data = Persisted(
+            routeKey = r.key,
+            progress = mapOf(r.key to r.km),
+            totalKm = r.km,
+            totalMs = 9 * 25 * 60_000L,
+        )
+        val out = FlightCore.finishPhase(state(r, data), data, now, skipped = true)
+
+        assertSame("hicbir sey eklenmemeli", data, out.data)
+        assertEquals(0.0, out.gainedKm, 0.0)
+        assertNull(out.record)
+        assertNull(out.alert)
+        assertEquals(Phase.FOCUS, out.phase)
+    }
+
+    // ---------------- atlama ----------------
+
+    @Test
+    fun `atlanan pomodoro toplam odaga sayilmaz ama mesafeyi verir`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key)
+        // 25 dakikaliktan 3 saniye sonra atlandi.
+        val before = state(r, data, remainingMs = 25 * 60_000L - 3_000L)
+        val out = FlightCore.finishPhase(before, data, now, skipped = true)
+
+        assertEquals("toplam odak artmamali", 0L, out.data.totalMs)
+        assertEquals(r.kmPerLeg, out.gainedKm, 1e-9)
+        assertNotNull(out.record)
+        assertTrue(out.record!!.skipped)
+        assertEquals("uc saniye sifir dakika eder", 0, out.record!!.minutes)
+    }
+
+    @Test
+    fun `gunluk kaydi gercekte odakta gecen dakikayi yazar`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key)
+        val before = state(r, data, remainingMs = 25 * 60_000L - 12 * 60_000L - 30_000L)
+        val out = FlightCore.finishPhase(before, data, now, skipped = true)
+
+        assertEquals(12, out.record!!.minutes)
+        assertEquals(now, out.record!!.time)
+        assertEquals(r.key, out.record!!.routeKey)
+    }
+
+    // ---------------- odak suresi degisince ----------------
+
+    @Test
+    fun `uzayan pomodoro rotanin ucundan tasan mesafeyi kazandirmaz`() {
+        // IST-JFK 25 dakikada 9 bacak; 8 bacak ucup 50 dakikaya gecilince
+        // bacak boyu neredeyse iki katina cikiyor ve son bacak rotayi asiyor.
+        val short = route(focusMin = 25)
+        val flown = 8 * short.kmPerLeg
+        val long = route(focusMin = 50)
+        assertTrue("bacak boyu kalan mesafeden buyuk olmali", long.kmPerLeg > long.km - flown)
+
+        val data = Persisted(
+            routeKey = long.key,
+            focusMin = 50,
+            progress = mapOf(long.key to flown),
+            totalKm = flown,
+        )
+        val out = FlightCore.finishPhase(state(long, data), data, now)
+
+        val actual = long.km - flown
+        assertEquals("yalnizca gercekten uculdugu kadar", actual, out.gainedKm, 1e-9)
+        assertEquals(long.km, out.data.totalKm, 1e-9)
+        assertEquals(actual, out.record!!.km, 1e-9)
+        assertTrue(out.arrived)
+    }
+
+    @Test
+    fun `odak suresi ikiye katlaninca bacak basina mesafe de katlanir`() {
+        val short = route(focusMin = 25)
+        val long = route(focusMin = 50)
+        val data = Persisted(routeKey = short.key)
+
+        val a = FlightCore.finishPhase(state(short, data), data, now)
+        val b = FlightCore.finishPhase(
+            state(long, data.copy(focusMin = 50)),
+            data.copy(focusMin = 50),
+            now,
+        )
+        assertTrue(b.gainedKm > a.gainedKm)
+        assertEquals(50 * 60_000L, b.data.totalMs)
+    }
+
+    // ---------------- ayarlar ----------------
+
+    @Test
+    fun `otomatik mola kapaliyken sayac kendiliginden baslamaz`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key, autoBreak = false)
+        val out = FlightCore.finishPhase(state(r, data), data, now)
+        assertFalse(out.autoStart)
+        assertEquals(Phase.BREAK, out.phase)
+    }
+
+    @Test
+    fun `mola suresi ayardan gelir`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key, breakMin = 9)
+        val out = FlightCore.finishPhase(state(r, data), data, now)
+        assertEquals(9 * 60_000L, out.remainingMs)
+    }
+
+    @Test
+    fun `kalan pomodoro sayisi bildirim icin dogru hesaplanir`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key)
+        val out = FlightCore.finishPhase(state(r, data), data, now)
+        assertEquals(r.legs - 1, out.legsLeft)
+    }
+
+    // ---------------- zaman damgasi ----------------
+
+    @Test
+    fun `kayit fazin bittigi ana tarihlenir, fark edildigi ana degil`() {
+        // Ekran kapaliyken biten faz saatler sonra fark edilebiliyor; o
+        // pomodoroyu bugune yazmak gun dagilimini yanlis yerden doldururdu.
+        val r = route()
+        val data = Persisted(routeKey = r.key)
+        val endedAt = now - 9 * 60 * 60_000L
+        val out = FlightCore.finishPhase(state(r, data), data, endedAt)
+        assertEquals(endedAt, out.record!!.time)
+    }
+
+    @Test
+    fun `varis damgasi da fazin bittigi ani tasir`() {
+        val r = route()
+        val data = Persisted(routeKey = r.key, progress = mapOf(r.key to r.km - r.kmPerLeg))
+        val endedAt = now - 3 * 60 * 60_000L
+        val out = FlightCore.finishPhase(state(r, data), data, endedAt)
+        assertTrue(out.arrived)
+        assertEquals(endedAt, out.data.log[0].time)
+    }
+
+    @Test
+    fun `baska rotanin ilerlemesi bozulmaz`() {
+        val r = route()
+        val data = Persisted(
+            routeKey = r.key,
+            progress = mapOf("ESB-AMS" to 1234.0),
+        )
+        val out = FlightCore.finishPhase(state(r, data), data, now)
+        assertEquals(1234.0, out.data.progress["ESB-AMS"]!!, 0.0)
+        assertEquals(2, out.data.progress.size)
+    }
+
+    @Test
+    fun `rota tamamlanana kadar gunluge damga dusmez`() {
+        val r = route()
+        var data = Persisted(routeKey = r.key)
+        repeat(r.legs - 1) {
+            val out = FlightCore.finishPhase(state(r, data), data, now)
+            assertTrue(out.data.log.isEmpty())
+            data = out.data
+        }
+        val last = FlightCore.finishPhase(state(r, data), data, now)
+        assertEquals(1, last.data.log.size)
+        assertEquals(r.km.toInt(), last.data.log[0].km)
+    }
+}
