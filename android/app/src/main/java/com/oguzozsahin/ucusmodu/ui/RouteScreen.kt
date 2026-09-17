@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.oguzozsahin.ucusmodu.data.Airport
 import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.Flights
 import com.oguzozsahin.ucusmodu.data.PlaceRegistry
 import com.oguzozsahin.ucusmodu.data.Preset
 import com.oguzozsahin.ucusmodu.data.Presets
@@ -52,7 +53,7 @@ import com.oguzozsahin.ucusmodu.data.formatDuration
 import com.oguzozsahin.ucusmodu.data.formatNumber
 import com.oguzozsahin.ucusmodu.data.formatTimeOfDay
 import com.oguzozsahin.ucusmodu.data.gateOf
-import com.oguzozsahin.ucusmodu.data.realFlightMinutes
+import com.oguzozsahin.ucusmodu.data.cruiseMinutes
 import com.oguzozsahin.ucusmodu.data.remainingScheduleMinutes
 import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.LocalFlightColors
@@ -75,6 +76,8 @@ fun RouteScreen(
     places: List<Airport>,
     onBack: () -> Unit,
     onDeparture: () -> Unit,
+    /** Ucus surerken rota ekranina gelinmisse suren ucusa donus. */
+    onResume: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalFlightColors.current
@@ -87,6 +90,37 @@ fun RouteScreen(
     var query by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
 
+    // Yol alinmis ucus surerken secilen rota; onay bekliyor.
+    var pendingKey by remember { mutableStateOf<String?>(null) }
+    var pendingAfter by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    pendingKey?.let { key ->
+        val next = Route.of(key)
+        ConfirmDialog(
+            title = "${state.route.origin.code} → ${state.route.dest.code} uçuşu bitirilsin mi?",
+            body = Flights.summary(state.route, state.flownOnRoute) + " uçuldu. " +
+                (next?.let { "${it.origin.code} → ${it.dest.code}" } ?: "Yeni rota") +
+                " sıfırdan başlayacak.",
+            confirmText = "Bitir ve geç",
+            colors = colors,
+            onConfirm = {
+                val after = pendingAfter
+                pendingKey = null
+                pendingAfter = null
+                actions.onRoute(key)
+                after?.invoke()
+            },
+            onDismiss = {
+                pendingKey = null
+                pendingAfter = null
+                // Vazgecildi: yuvalar suren ucusun rotasina geri doner.
+                from = state.route.origin.code
+                to = state.route.dest.code
+                active = Slot.FROM
+            },
+        )
+    }
+
     val results = remember(query, places) {
         if (query.isBlank()) emptyList() else PlaceRegistry.search(query, 8)
     }
@@ -94,6 +128,20 @@ fun RouteScreen(
     fun flyToPlace(place: Airport) {
         scope.launch {
             globe.flyTo(place.lat, place.lon, targetZoom = maxOf(globe.zoom, 2.6f))
+        }
+    }
+
+    /**
+     * Rota degisiminin tek kapisi. Yol alinmis bir ucus suruyorsa once sorar:
+     * onaylanirsa ucus gunluge yarim duser, yeni rota sifirdan acilir.
+     */
+    fun requestRoute(key: String, after: () -> Unit) {
+        if (state.switchEndsFlight(key)) {
+            pendingKey = key
+            pendingAfter = after
+        } else {
+            actions.onRoute(key)
+            after()
         }
     }
 
@@ -121,14 +169,16 @@ fun RouteScreen(
             message = "Bu rota kurulamadı."
             return
         }
-        actions.onRoute(route.key)
-        if (active == Slot.FROM) {
-            // Rota tamamlandi: tumunu gorecek sekilde geri cekil.
-            scope.launch {
-                globe.flyTo(route.center.lat, route.center.lon, targetZoom = 1f, resetTouch = true)
+        val completed = active == Slot.FROM
+        requestRoute(route.key) {
+            if (completed) {
+                // Rota tamamlandi: tumunu gorecek sekilde geri cekil.
+                scope.launch {
+                    globe.flyTo(route.center.lat, route.center.lon, targetZoom = 1f, resetTouch = true)
+                }
+            } else {
+                flyToPlace(place)
             }
-        } else {
-            flyToPlace(place)
         }
     }
 
@@ -185,7 +235,7 @@ fun RouteScreen(
                 state = globe,
                 places = places,
                 highlighted = setOf(from, to),
-                trails = state.log.map { it.routeKey },
+                trails = Flights.trails(state.log),
                 onPlaceTap = { choose(it) },
             )
 
@@ -279,17 +329,18 @@ fun RouteScreen(
                 Text(message, style = monoStyle(colors.amber, 11))
             }
 
-            RouteSummary(state, colors, onDeparture)
+            RouteSummary(state, colors, actions, onDeparture, onResume)
 
             PresetList(state, colors) { preset ->
                 from = preset.from
                 to = preset.to
                 active = Slot.FROM
                 message = ""
-                actions.onRoute(preset.key)
-                Route.of(preset.key)?.let { route ->
-                    scope.launch {
-                        globe.flyTo(route.center.lat, route.center.lon, targetZoom = 1f, resetTouch = true)
+                requestRoute(preset.key) {
+                    Route.of(preset.key)?.let { route ->
+                        scope.launch {
+                            globe.flyTo(route.center.lat, route.center.lon, targetZoom = 1f, resetTouch = true)
+                        }
                     }
                 }
             }
@@ -435,15 +486,22 @@ private fun SearchCard(
 
 /** Secilen rotanin binis karti: ucus no, kapi, saatler ve mesafe. */
 @Composable
-private fun RouteSummary(state: FlightUiState, colors: FlightColors, onDeparture: () -> Unit) {
+private fun RouteSummary(
+    state: FlightUiState,
+    colors: FlightColors,
+    actions: FlightActions,
+    onDeparture: () -> Unit,
+    onResume: () -> Unit,
+) {
     val route = state.route
-    val focusMinutes = focusMinutesFor(route.legs - state.done, state.focusMin)
-    val realMinutes = realFlightMinutes(route.km)
+    val focusMinutes = focusMinutesFor(route.legs - state.done)
+    val cruise = cruiseMinutes(route.km)
     val scheduleMinutes = remainingScheduleMinutes(
         legsLeft = state.legsLeft,
         focusMin = state.focusMin,
         breakMin = state.breakMin,
         cycle = state.cycle,
+        longBreakMin = state.longBreakMin,
     )
     // Saatler her yeniden cizimde degil, rota degistikce tazelenir.
     val now = remember(route.key, scheduleMinutes) { System.currentTimeMillis() }
@@ -500,18 +558,76 @@ private fun RouteSummary(state: FlightUiState, colors: FlightColors, onDeparture
 
             SummaryRow("Mesafe", "${formatNumber(route.km)} km", colors)
             SummaryRow("Odakta geçecek", formatDuration(focusMinutes), colors)
-            SummaryRow("Gerçek uçuş süresi", "≈ ${formatDuration(realMinutes)}", colors)
+            SummaryRow("Gerçek seyir süresi", "≈ ${formatDuration(cruise)}", colors)
+
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider(color = colors.lineSoft)
+            Spacer(Modifier.height(12.dp))
+
+            // Rota -> sureler -> bilet. Ucus surerken sureler kilitli.
+            val locked = state.flightActive
+            DurationRow("Odak", listOf(15, 25, 50), state.focusMin, locked, colors, actions.onFocusMin)
+            Spacer(Modifier.height(8.dp))
+            DurationRow("Mola", listOf(5, 10), state.breakMin, locked, colors, actions.onBreakMin)
+            Spacer(Modifier.height(8.dp))
+            DurationRow("Uzun mola", listOf(15, 20, 30), state.longBreakMin, locked, colors, actions.onLongBreakMin)
+            if (locked) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Uçuş sürerken süreler değiştirilemez; uçuş bitince yeniden açılır.",
+                    style = monoStyle(colors.muted, 10),
+                )
+            }
 
             Spacer(Modifier.height(18.dp))
+            // Tek dugme: bilet keser, suren ucusa doner, inisten sonra yeniden ucurur.
             FlightButton(
-                text = if (state.arrived) "Bu rota tamamlandı" else "Bilet kes",
+                text = when {
+                    state.arrived -> "Tekrar uç"
+                    state.flightActive -> "Uçuşa dön"
+                    else -> "Bilet kes"
+                },
                 colors = colors,
                 primary = true,
-                enabled = !state.arrived,
                 modifier = Modifier.fillMaxWidth(),
-                onClick = onDeparture,
+                onClick = {
+                    when {
+                        // Inmis ucus birakilir, yolculuk sifirdan: bilet yeniden kesilir.
+                        state.arrived -> {
+                            actions.onRoute(state.route.key)
+                            onDeparture()
+                        }
+                        state.flightActive -> onResume()
+                        else -> onDeparture()
+                    }
+                },
             )
         }
+    }
+}
+
+/** Binis kartindaki sure satiri: etiket ve hazir secenekler; ucus surerken kilitli. */
+@Composable
+private fun DurationRow(
+    label: String,
+    options: List<Int>,
+    selected: Int,
+    locked: Boolean,
+    colors: FlightColors,
+    onSelect: (Int) -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label.upperTr(), style = labelStyle(colors.ink2).copy(fontSize = 12.sp))
+        Spacer(Modifier.weight(1f))
+        SegmentedOptions(
+            options = options,
+            selected = selected,
+            colors = colors,
+            enabled = !locked,
+            onSelect = onSelect,
+        )
+        Spacer(Modifier.width(6.dp))
+        Text("dk", style = monoStyle(colors.muted, 11))
     }
 }
 
@@ -555,12 +671,11 @@ private fun PresetList(
             Spacer(Modifier.height(10.dp))
 
             for (preset in Presets.list) {
-                // Bacak sayisi odak uzunluguna bagli, rota ona gore kurulur.
-                val presetRoute = remember(preset.key, state.focusMin) {
-                    Route.of(preset.key, state.focusMin)
-                } ?: continue
-                // Ilerleme km olarak saklandigi icin bacaga burada cevriliyor.
-                val flown = (state.progress[preset.key] ?: 0.0).coerceIn(0.0, presetRoute.km)
+                val presetRoute = remember(preset.key) { Route.of(preset.key) } ?: continue
+                // Yalniz suren ucusun rotasinda "devam ediyor" isareti; digerleri sifirdan baslar.
+                val flown = state.flight
+                    ?.takeIf { it.routeKey == preset.key && !it.landed }
+                    ?.flown?.coerceIn(0.0, presetRoute.km) ?: 0.0
                 val progress = if (presetRoute.km <= 0.0) {
                     0
                 } else {

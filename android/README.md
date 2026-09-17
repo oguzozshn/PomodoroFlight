@@ -21,15 +21,17 @@ cd android
 
 - `minSdk 26`, `targetSdk 35`, JDK 17, AGP 8.7.3, Kotlin 2.0.21, Compose BOM 2024.12.
 
+SDK olmadan da saf katman derlenip sınanabiliyor; bkz. [Testler](#testler).
+
 ## Web sürümünden ne taşındı
 
 | Web | Android |
 |---|---|
-| Canvas'ta ortografik küre, paralel/meridyen ağı, büyük daire rotası | `ui/Globe.kt` — Compose `Canvas`, aynı izdüşüm ve aynı geometri |
-| `localStorage` | `data/Store.kt` — SharedPreferences üzerinde JSON |
-| `requestAnimationFrame` sayacı | `timer/FlightEngine.kt` — tek otorite, `StateFlow` |
+| Canvas'ta ortografik küre, paralel/meridyen ağı, büyük daire rotası | `ui/Globe.kt` — Compose `Canvas`, aynı izdüşüm ve aynı geometri; kamera `ui/GlobeCamera.kt` |
+| `localStorage` | `data/Store.kt` — SharedPreferences üzerinde JSON; kaydın kendisi `data/Persisted.kt` |
+| `requestAnimationFrame` sayacı | `timer/FlightEngine.kt` — tek otorite, `StateFlow`; faz geçişi `timer/FlightCore.kt` |
 | WebAudio kabin sesi | `audio/Chime.kt` — aynı notalar `AudioTrack` ile sentezleniyor |
-| Sekme başlığındaki geri sayım | Foreground service bildirimi (Beklet / Atla eylemleriyle) |
+| Sekme başlığındaki geri sayım | Foreground service bildirimi (Beklet; molada Molayı atla) |
 | Barlow · Barlow Condensed · IBM Plex Mono (CDN) | Aynı fontlar `res/font` içinde gömülü |
 | — | `ui/window/` — uçuş sırasında tam ekran pencere görünümü (web sürümünde yok) |
 
@@ -37,26 +39,31 @@ Havalimanı tablosu, ön tanımlı rotalar, `TKxxxx` uçuş numarası üretimi v
 4 pomodoroda bir uzun mola döngüsü web sürümüyle birebir aynıdır; sayısal
 çıktılar orijinal JavaScript'e karşı doğrulanmıştır.
 
-**Ölçek pomodoro sayısına değil süreye bağlı.** Web sürümünde her pomodoro
-sabit 850 km taşıyordu, yani odak süresini uzatmak mesafeyi değiştirmiyordu.
-Burada ölçek dakikaya bağlı: odakta geçen her dakika 34 km. Varsayılan
-25 dakikada rakamlar birebir aynı (25 × 34 = 850), ama 50 dakikalık bir
-pomodoro artık iki kat yol alıyor ve bir rotayı bitirmek için gereken toplam
-odak süresi pomodoro uzunluğundan bağımsız hale geliyor. İlerleme de bacak
-sayısı olarak değil kat edilen km olarak saklanıyor; böylece odak süresini
-değiştirmek yarım kalmış bir rotayı bozmuyor. Eski kayıtlar (`state-v1`) ilk
-açılışta rotanın kendi bacak uzunluğuyla km'ye çevriliyor.
+**Bir pomodoro 25 dakika ve uçağın gerçekten aldığı yol kadar.** Web
+sürümünde her pomodoro sabit 850 km taşıyordu; bu, uçağın bir saatte aldığı
+yol. Artık ölçek gerçek seyir hızına bağlı (`data/Geo.kt`): 850 km/sa ×
+25 dk ≈ **354 km / pomodoro**, odakta geçen her dakika ≈ 14 km.
+
+- Rotanın pomodoro (bacak) sayısı `km / 354` yuvarlanarak bulunur ve odak
+  süresinden bağımsızdır: IST–JFK 23 pomodoro, bacak başına 349 km.
+- 50 dakikalık bir oturum iki bacak, 15 dakikalık bir oturum 0,6 bacak yol
+  alır; uçuş planındaki kutu kesirli dolar.
+- Rota ekranındaki süre yer payı eklenmemiş **gerçek seyir süresi**; odak
+  süresiyle arasındaki fark yalnızca molalardan gelir.
+- İstatistiklerdeki pomodoro sayıları `dakika / 25`, yani kesirli.
 
 ## Uygulama akışı
 
-Gerçek bir uçuş günü gibi üç adım:
+Gerçek bir uçuş günü gibi dört adım:
 
 1. **Terminal** (`ui/WelcomeScreen.kt`) — saat, küre, toplam istatistikler ve
-   **Yolculuğa başla**. Yarım kalmış bir rota varsa doğrudan devam edilebilir.
+   **Yolculuğa başla**. Süren bir uçuş varsa doğrudan devam edilebilir.
 2. **Rota seç** (`ui/RouteScreen.kt`) — küreyi çevirip şehre dokunarak ya da
    arama kutusundan kalkış ve varış seçilir; hazır rotalar da duruyor. Biniş
    kartında uçuş no, kapı, kalkış ve tahmini varış saati, odakta geçecek süre
-   ve gerçek uçuş süresi yazar. **Uçuşa başlat**.
+   ve gerçek seyir süresi yazar. **Odak, mola ve uzun mola** süreleri de
+   burada, düğmenin hemen üstünde seçilir; uçuş sürerken kilitlidir.
+   Düğme duruma göre **Bilet kes**, **Uçuşa dön** ya da **Tekrar uç** olur.
 3. **Bilet** (`ui/TicketScreen.kt`) — "Bilet kes" denince biniş kartı yazıcı
    yuvasından duraklayarak beslenir, sonra **parmakla koparılır**: perforasyon
    üzerinde sağa kaydırdıkça yırtık ilerler, koparılan parça açıyla sarkar ve
@@ -65,12 +72,38 @@ Gerçek bir uçuş günü gibi üç adım:
    Koçanda havayolu ve rota, koparılan parçada yolcu adı, uçuş numarası, kapı,
    koltuk, biniş/kalkış/varış saatleri, mesafe ve dekoratif barkod var. Koltuk
    rotaya ve güne sabitlenmiştir: aynı gün aynı rota aynı koltuğu verir.
-4. **Uçuş** (`ui/FlightScreen.kt`) — küre, sayaç, uçuş planı, ayarlar ve günlük.
-   Üstteki **Rota** düğmesi ikinci adıma döner. Yolcu adı buradaki ayarlardan
-   giriliyor; boş bırakılırsa bilette "YOLCU" yazar.
+4. **Uçuş** (`ui/FlightScreen.kt`) — küre, sayaç, uçuş planı ve ayarlar.
+   Kalkış bilette olduğu için ayrı bir Kalkış düğmesi yok: sayaç yalnızca
+   Beklet / Devam / Molayı başlat. **Odak oturumu atlanamaz**, mola
+   atlanabilir. **Uçuşu bitir** kalan kısmı bırakır; inişte **Tekrar uç** aynı
+   rotayı yeni biletle sıfırdan başlatır. Üstteki **Rota** düğmesi ikinci
+   adıma döner. Yolcu adı buradaki ayarlardan giriliyor; boş bırakılırsa
+   bilette "YOLCU" yazar.
 
 Geri tuşu bu zinciri tersten yürür; sayaç hangi ekranda olursanız olun işlemeye
 devam eder.
+
+## Uçuş kaydı
+
+Aynı anda **tek bir etkin uçuş** var (`data/Flights.kt`, `ActiveFlight`).
+Eskiden ilerleme rota başına bir km sayacıydı: bir rotadan çıkıp dönünce uçak
+kaldığı yerden devam ediyor, yarıda bırakılan uçuş hiçbir listede görünmüyordu.
+
+- Uçuş **bilet koparılınca sıfırdan** başlar; aynı rotada önceki ilerleme
+  devralınmaz.
+- **Varışta** günlüğe tamamlanmış satır düşer (`✓ 23 pom · 8.026 km`), ekran
+  yeni bilet kesilene kadar "İniş yapıldı" durumunda kalır.
+- **Uçuşu bitir** ile yarıda bırakılan uçuş, yol alındıysa yarım satır olarak
+  yazılır (`%30 · 7 / 23 pom · 2.444 km`); süren oturum sayılmaz. Hiç yol
+  alınmadıysa iz bırakmaz.
+- Uçuş sürerken başka rota seçilince onay sorulur (Vazgeç / Bitir ve geç).
+- Kürede yarım uçuşun yalnızca uçulan kısmı çizilir.
+
+Eski kayıttaki rota başına ilerleme ilk açılışta bir kez dönüştürülür: açık
+rotanınki etkin uçuş, diğerleri yarım satır olur. Günlükte tamamlanmış satırı
+olan rotanın ilerlemesi atlanır — çok eski bir sürümün dönüşümü o değeri
+850 yazmıştı ve rotadan hem uzun hem kısa olabiliyordu; bu gerçek bir emülatör
+kaydında görüldü ve teste bağlandı.
 
 ## Küre
 
@@ -112,8 +145,23 @@ aksi halde sürükleme jestini sayfa kaydırma kapar ve küre dönmez.
 Çimdikleme ve tekerlek, parmağın altındaki coğrafi noktayı yerinde tutar.
 Bunun için yaklaşım yapmak yerine kamera doğrudan çözülüyor: nokta kamera
 tabanında (doğu, kuzey, yukarı) bileşenlerine ayrılıp enlem tek bir sinüs
-denkleminden, boylam da yatay bileşenin dönme açısından bulunuyor. Denemede
-her ölçekte kayma tam olarak sıfır piksel çıktı.
+denkleminden, boylam da yatay bileşenin dönme açısından bulunuyor.
+
+Bu matematik `ui/GlobeCamera.kt` içinde, Compose'a hiç dokunmayan bir dosyada
+duruyor; `Globe.kt` yalnızca çiziyor. Ayrıldıktan sonra iddia teste bağlandı —
+ekrandaki 289 nokta × 6 ölçek — ve iki eksik çıktı:
+
+- **Sinüs denkleminin iki kökü var.** Yalnızca birincisi alınıyordu. Ufka
+  yakın örneklerde (denenen 1.300 örnekte 1-2 tanesi) yanlış kök seçilip
+  kamera, parmağın altındaki noktayı kürenin **arka yüzüne** atıyordu. Kayma
+  sıfırdı, nokta kaymıyordu — tamamen öteki tarafa geçiyordu. Artık iki kök de
+  deneniyor ve seçilen kamera geri izdüşürülerek doğrulanıyor.
+- **Tam kutupta** `|pz| ≤ rr` eşitliğinin sağlanması gerekirken `rr`
+  yuvarlama yüzünden 1'in bir ulp altında kalıyor, çözüm yok sanılıp merkeze
+  göre yakınlaştırılıyordu. Sınıra pay eklendi.
+
+Bu ikisinden sonra kayma her ölçekte ve her noktada 0,01 pikselin altında —
+artık her koşuda ölçülüyor.
 
 - **Atalet:** parmak kalkınca küre sönümlenerek dönmeye devam eder
 - **Gündüz/gece:** dünyanın karanlık yarısı gölgelenir. Alt-güneş noktası
@@ -163,6 +211,36 @@ python3 tools/build_coastline.py ne_110m_coastline.geojson \
 - **Açık/koyu tema:** sistem temasını izler, renkler web sürümündeki CSS
   değişkenlerinin birebir karşılığıdır.
 
+## Sayacın çekirdeği
+
+Faz geçişi bir süre `FlightEngine` içinde, servis / bildirim / ses / titreşim /
+dosya çağrılarıyla iç içe duruyordu. Uygulamanın en can alıcı mantığı bu ve
+tam da bu yüzden hiç sınanamıyordu: hepsini çalıştırmak için cihaz gerekiyordu.
+
+`timer/FlightCore.kt` artık geçişin **sonucunu** saf bir tarif olarak
+döndürüyor — yeni kalıcı veri, sonraki faz ve süresi, günlüğe yazılacak kayıt,
+anons türü, molanın kendiliğinden başlayıp başlamayacağı. `FlightEngine`
+yalnızca bu tarifi uyguluyor. `Persisted` de `Store.kt`'den kendi dosyasına
+alındı; artık cihazsız derleniyor.
+
+Ayrıldıktan hemen sonra iki hata çıktı:
+
+**Taşan bacak bedava mil veriyordu.** Kazanılan mesafe, rotada gerçekten
+ilerlenen kadar değil, nominal bacak boyu kadar yazılıyordu. İkisi normalde
+aynı (bacak boyu = km / bacak). Ama odak süresi rota yarım kalmışken
+uzatılınca bacak boyu büyüyor ve son bacak rotanın ucundan taşıyor: IST-JFK'de
+8 bacak uçup 25'ten 50 dakikaya geçen biri son pomodoroda 891 km ilerliyor ama
+toplamına 1.605 km yazılıyordu — hiç uçmadığı 713 km. Günlük kaydına da aynı
+şişirilmiş rakam düşüyordu. Artık ikisi de gerçekten kat edilen mesafeyi
+yazıyor; süresini değiştirmeyen kullanıcıda davranış birebir aynı.
+
+**Kayıt yanlış güne düşüyordu.** Günlük kaydı ile varış damgası "şu an" ile
+tarihleniyordu. Oysa faz ekran kapalıyken ya da süreç ölmüşken bitmiş olabilir
+ve saatler sonra fark edilir. Dokuz saat önce biten bir pomodoro bugüne
+yazılıyor, gün dağılımını ve saat histogramını yanlış yerden dolduruyordu.
+Artık fazın gerçekten bittiği an (`endAt`) taşınıyor; molayı atlamada bu an
+zaten şimdiki zaman, yani orada bir değişiklik yok.
+
 ## Pencereden bakış
 
 Uçuş ekranındaki **Pencereden bak** düğmesi tam ekran bir pencere görünümü
@@ -194,14 +272,24 @@ bıraktığı için sorun kökten kalkıyor. Aynı geçişte arkada kalan kıyı
 seyreltiliyor — bir kıtanın on bin noktası birkaç yüze iniyor — sonra halka
 görüş piramidinin beş düzlemine kırpılıyor.
 
+Bastırma ve kırpma `ui/window/SkyRings.kt` içinde, Compose'a dokunmayan bir
+dosyada duruyor; `SkyGeometry.kt` yalnızca çiziyor. Ege hatası artık bir test:
+ağzı ufka açılan bir körfez bastırılıyor ve çemberdeki ardışık noktalar
+arasında yay adımından büyük bir sıçrama kalmadığı ölçülüyor — kiriş kalsaydı
+o sıçrama radyanlar mertebesinde olurdu.
+
+Test yazılırken yay adımının aslında tutturulmadığı da görüldü: bölme sayısı
+aşağı yuvarlanıyordu, 2,7 radyanlık bir yay 54 yerine 53 parçaya bölünüp adım
+istenen 0,05'in üstüne, 0,051'e çıkıyordu. Yukarı yuvarlanıyor artık.
+
 ### Video kipi ve telif
 
 Video uygulamanın içine kopyalanmaz, APK'ya da girmez: SAF ile seçtiğiniz
 dosyaya kalıcı okuma izni alınıp dosyanın kendisi okunur. Böylece depoda
 hiçbir telifli görüntü durmuyor ve istediğiniz çekimi kullanabiliyorsunuz.
 
-Göstergeler açıkken sayacı bekletip atlayabilirsiniz; pencereden çıkmak
-gerekmiyor.
+Göstergeler açıkken sayacı bekletebilir, molada molayı atlayabilirsiniz;
+pencereden çıkmak gerekmiyor.
 
 İyi bir pencere döngüsü için:
 
@@ -211,15 +299,16 @@ gerekmiyor.
 - Sesi olmasın (uygulama zaten susturur), 720×1280 fazlasıyla yeter
 - Günün farklı saatleri için ayrı dosyalar: gündüz, gün batımı, gece
 
-## Mil bildirimi
+## Uçuş günlüğü sekmesi
 
-Terminal ekranındaki istatistik paneline (ya da uçuş günlüğündeki **Tümü**
-düğmesine) dokununca açılır. Kasıtlı olarak diğer pomodoro uygulamalarının
+Alt gezinme çubuğundaki **Uçuş günlüğü** sekmesi (`ui/LogbookScreen.kt`);
+terminal ekranındaki istatistik paneline dokununca da açılır. Kasıtlı olarak diğer pomodoro uygulamalarının
 çubuk grafiğine benzemiyor: bu uygulamada dakikalar zaten mesafeye ve rotaya
 çevrildiği için havayolu bildirimi daha doğru bir çerçeve.
 
 - **Uçuş kartı** — toplam mil ve kart seviyesi (Classic / Silver / Elite /
   Elite Plus, eşikler dünya turuna bağlı), bir sonrakine kalan mesafe
+- **Uçuşlar** — tamamlanan ve yarıda bitirilen bütün uçuşlar, en yenisi üstte
 - **Dünya turu** — kaçıncı turda, turun neresinde
 - **Uçuş haritası** — uçtuğunuz bütün rotaların izi küre üzerinde
 - **Rakamlar** — seri, aktif gün, kayıtlı odak, tamamlanan uçuş, uğranan yer,
@@ -228,7 +317,7 @@ düğmesine) dokununca açılır. Kasıtlı olarak diğer pomodoro uygulamaları
   o günün sayısı altta yazar
 - **Saat dağılımı** — günün hangi saatlerinde çalıştığınız, en verimli aralık
   vurgulu
-- **En çok uçulan hat** ve **uçuş günlüğü**
+- **En çok uçulan hat**
 
 ### Günlük kayıt
 
@@ -239,7 +328,7 @@ tamamlanan her odak pomodorosu için bir satır.
 
 ```
 # ucus-gunlugu v1: zaman	rota	dakika	km	atlandi
-1757030400000	IST-JFK	25	850.0	0
+1757030400000	IST-JFK	25	349.0	0
 ```
 
 `Store` içindeki JSON blob'una konmadı: o blob 12 ayrı yerden `persist()` ile
@@ -250,9 +339,9 @@ geçmişi yeniden yazmak olurdu. Room da alınmadı — günde 20 pomodoro yıld
 okunur varlıklar; bu ise kullanıcının kendi verisi, `adb shell cat` ile
 okunabilmesi daha değerli. Dosya 4 MB'ı geçerse son 50.000 kayıt tutulur.
 
-**ATLA ile geçilen pomodoro** kayda düşer ama işaretlenir: seriye, günlük
-toplama ve saat dağılımına girmez. Mesafe ve rota ilerlemesi eskisi gibi
-işler — orada bir davranış değişikliği yok.
+**Odak oturumu artık atlanamaz.** Eski sürümlerde ATLA ile geçilen
+pomodorolar kayıtta işaretli durur (`atlandi` = 1); seriye, günlük toplama ve
+saat dağılımına girmez.
 
 **Geriye dönük veri gelmez.** Toplam mil ve uçuş günlüğü baştan beri gerçek,
 duruyorlar; gün bazlı görünümler kayıt başladığı andan itibaren dolar. Mevcut
@@ -265,6 +354,11 @@ Ekranlar arası geçiş gerçek bir yığın tutuyor (`ui/FlightRoot.kt`): geri 
 nereden gelindiğini biliyor. Önce sabit bir "ebeveyn" tablosu vardı ve
 terminalden uçuşa devam edip geri basınca rota seçimine düşülüyordu.
 Bilet koparılınca yığından düşürülür — geri tuşu yırtık bilete dönmez.
+
+Kökte iki sekme var: **Uçuş** (bu yığın) ve **Uçuş günlüğü**. Telefonda alt
+gezinme çubuğu, 720dp üstünde yan ray (`ui/FlightTabs.kt`). Bilet ve
+pencereden bakış tam ekran kalsın diye orada çubuk gizlenir. Sekme değişince
+uçuş yığını olduğu gibi kalır; geri tuşu önce günlükten uçuşa döner.
 
 Çıkış her ekranda aynı yerde: **sol üstte "← Geri"**. Geri alınamayan tek
 eylem (her şeyi sil) gezinme düğmelerinden ayrı, kendi satırında ve tehlike
@@ -292,7 +386,7 @@ ulaşmak için kaydırmak gerekiyordu. `ui/Adaptive.kt` iki eşik tanımlar:
 
 Rota ekranında küre bir haritadır, metinden geniş olabilir: `GlobeMaxWidth`
 (900dp) kadar büyür ve geniş ekranda yüksekliği 300dp yerine 440dp olur.
-Bilet ve mil bildirimi ortalanmış tek sütun olarak kalır.
+Bilet ve uçuş günlüğü ortalanmış tek sütun olarak kalır.
 
 Yön kilidi yok; düzen genişliğe göre kendini ayarlar.
 
@@ -304,8 +398,20 @@ o cihazlarda olmaz.
 
 ```bash
 cd android
-./gradlew test          # 79 birim test, JVM'de çalışır, cihaz gerekmez
+./gradlew test          # 141 birim test, JVM'de çalışır, cihaz gerekmez
 ```
+
+Android SDK yoksa Gradle daha ilk adımda durur. Testler yine de koşar:
+
+```bash
+python3 tools/run_tests.py            # aynı 141 test, gerçek derleyiciyle
+python3 tools/run_tests.py --offline  # ağa hiç çıkma
+```
+
+Betik Kotlin 2.0.21 derleyicisini ve JUnit'i Maven Central'dan indirir,
+SHA-1 ile doğrular, `.kotlin-toolchain/` altında saklar ve saf katmanı
+gerçekten derler. Bu depoda uzun süre yalnızca derleyicisiz tarama vardı;
+artık testlerin geçtiği iddiası burada da doğrulanabiliyor.
 
 `app/src/test/` altında saf mantık katmanının tamamı sınanıyor: küre
 geometrisi (web sürümünün ürettiği sayılara karşı), rota kurulumu ve uçuş
@@ -320,30 +426,60 @@ gidiş-dönüşü, bozuk satırların elenmesi, ondalık ayracın makineden bağ
 olması, seri hesabı (boşluk, gün sınırı, yerel saat dilimi), günlük kutular,
 saat histogramı ve kart seviyesi eşikleri.
 
+Sayacın faz geçişi (`timer/FlightCore.kt`) ve kürenin kamerası
+(`ui/GlobeCamera.kt`) sonradan Android katmanından ayrıldı; ikisi de artık
+buradan sınanıyor; kıyıları ufka oturtan geometri de öyle
+(`ui/window/SkyRings.kt`). Ayırmanın kendisi beş hata ortaya çıkardı: ikisi
+[Küre](#küre), ikisi [Sayacın çekirdeği](#sayacın-çekirdeği), biri
+[Pencereden bakış](#pencereden-bakış) bölümünde anlatılıyor.
+
 ## Derlemeden önce
 
-Depoda Android SDK olmadığı için Compose katmanı burada derlenemiyor.
-`tools/lint_kotlin.py` derleyici olmadan yakalanabilen dört hata sınıfını tarar:
-dengesiz ayraçlar, **dengesi tutan ama yuvalanması kaymış dosyalar** (kapanış
-parantezi yanlış fonksiyonun sonuna konunca aradaki bütün fonksiyonlar bir
-üstekinin içine gömülür; toplam sayı tuttuğu için ayraç sayımı yakalamaz),
-tanımsız tür/fonksiyon adları ve JVM imza çakışmaları (`var zoom` ile
-`fun setZoom` aynı imzayı üretir).
+Compose katmanı burada derlenemiyor: androidx yapıtlarının tek dağıtım adresi
+Google'ın kendi Maven deposu. `tools/lint_kotlin.py` derleyici olmadan
+yakalanabilen hata sınıflarını tarar: dengesiz ayraçlar, **dengesi tutan ama
+yuvalanması kaymış dosyalar** (kapanış parantezi yanlış fonksiyonun sonuna
+konunca aradaki bütün fonksiyonlar bir üstekinin içine gömülür; toplam sayı
+tuttuğu için ayraç sayımı yakalamaz), tanımsız tür/fonksiyon adları ve JVM
+imza çakışmaları (`var zoom` ile `fun setZoom` aynı imzayı üretir).
 
 ```bash
 python3 tools/lint_kotlin.py android/app/src/main/java
 ```
 
-Saf mantık katmanı (geometri, rota, biçimlendirme, yer ve kıyı şeridi
-ayrıştırıcıları) Android'e bağlı olmadığı için JVM'de derlenip
-çalıştırılabiliyor; sayısal çıktılar orijinal JavaScript sürümüne karşı
-karşılaştırılıyor.
+Taramanın kendi körlüğü de bu turda çıktı: uzantı fonksiyonunun alıcısı
+(`fun Projection.pathOf`) hiç bakılmayan bir yerdi. `Projection` adı
+`GlobeCamera` olunca üç yerde eski ad kaldı ve tarama "temiz" dedi. Alıcı
+türleri ile `is Foo` / `as Foo` artık taranıyor.
+
+Saf mantık katmanı Android'e bağlı olmadığı için gerçek Kotlin derleyicisiyle
+derlenip çalıştırılabiliyor (`tools/run_tests.py`); sayısal çıktılar orijinal
+JavaScript sürümüne karşı karşılaştırılıyor.
+
+## Yedekleme
+
+`allowBackup="true"` idi ama hiçbir kural yoktu; neyin yedekleneceğine Android
+kendi karar veriyordu. Artık açıkça yazıyor (`res/xml/backup_rules.xml` ve
+Android 12+ için `res/xml/data_extraction_rules.xml`; ikisi birden gerekiyor,
+eski sürümler yalnızca öbürünü okuyor).
+
+Yedeklenen şey kullanıcının kazandığı şey: sayacın kalıcı kaydı
+(`ucus-modu.xml`) ve gün bazlı pomodoro dosyası (`ucus-gunlugu.tsv`).
+
+Pencere tercihleri (`ucus-modu-pencere.xml`) bilerek dışarıda: içindeki video
+adresi SAF ile alınmış bir izne dayanıyor ve o izin başka cihaza taşınmıyor,
+yani geri yüklenen adres kesinlikle ölü olurdu. Kalanları (tema, kanat,
+çerçeve) tek dokunuşla yeniden seçmek daha ucuz.
 
 ## Bilinen sınırlar
 
-- Bu depo Android SDK'sız bir ortamda hazırlandı; APK derlemesi ilk kez
-  sizin makinenizde çalışacak. Saf mantık katmanı (geometri, rota, durum,
-  biçimlendirme) JVM'de derlenip orijinal JavaScript çıktısıyla karşılaştırıldı,
-  Compose/servis katmanı ise derlenmedi.
+- Saf mantık katmanı burada gerçek derleyiciyle derlenip sınanıyor
+  (`tools/run_tests.py`), Compose ve servis katmanı ise derlenmiyor: androidx
+  yapıtları yalnızca Google'ın kendi Maven deposundan dağıtılıyor. O katmanların
+  ilk derlemesi sizin makinenizde çalışacak.
 - Servis `specialUse` foreground service tipi kullanır; Play Store'a yüklenecekse
   bu tip için gerekçe girmek gerekir.
+- `USE_EXACT_ALARM` iznini bildiriyor; Play bunu yalnızca çalar saat ve takvim
+  uygulamalarına veriyor. Yandan yüklemede sorun yok ve izin olmadığında kod
+  zaten `SCHEDULE_EXACT_ALARM`'a, o da yoksa uyku dostu alarma düşüyor —
+  Play'e çıkılacaksa bu iznin kaldırılması gerekir.

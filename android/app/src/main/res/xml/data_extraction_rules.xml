@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ icin yedekleme ve cihaz aktarimi kapsami. Gerekcesi
+  backup_rules.xml ile ayni; iki dosya da gerekiyor cunku eski surumler
+  yalnizca oburunu okuyor.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="sharedpref" path="ucus-modu.xml" />
+        <include domain="file" path="ucus-gunlugu.tsv" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="ucus-modu.xml" />
+        <include domain="file" path="ucus-gunlugu.tsv" />
+    </device-transfer>
+</data-extraction-rules>

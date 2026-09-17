@@ -110,6 +110,12 @@ def main(root: str) -> int:
         used |= set(re.findall(r':\s*([A-Z]\w+)[\s<>?,)=]', body))
         # Nitelenmis erisimde (Foo.Bar()) ic ad ayrica import edilmez.
         used |= set(re.findall(r'(?<![\w.])([A-Z]\w+)\s*\(', body))
+        # Uzanti fonksiyonunun alicisi: "fun Projection.pathOf(...)". Bir tur
+        # adi degistirilirken en kolay gozden kacan yer burasi ve tarama uzun
+        # sure bunu hic gormuyordu.
+        used |= set(re.findall(r'\bfun\s+(?:<[^>]+>\s*)?([A-Z]\w+)\.\w+\s*[(<]', body))
+        # "is Foo" ve "x as Foo" da tur adidir.
+        used |= set(re.findall(r'\b(?:is|as)\s+([A-Z]\w+)', body))
         for name in sorted(used - imported - declared - STDLIB):
             issues.append(f"{path}: '{name}' tanimli degil ve import edilmemis")
 

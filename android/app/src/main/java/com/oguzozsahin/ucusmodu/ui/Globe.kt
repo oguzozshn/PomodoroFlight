@@ -74,48 +74,6 @@ private const val MAX_MARKERS = 140
 private const val MAX_LABELS = 22
 
 /**
- * Kameranin bakis yonunden turetilen taban: dogu, kuzey ve yukari birim vektorleri.
- * Noktalari izdusurmek icin trigonometri degil, yalnizca ic carpim gerekir.
- */
-private class Projection(
-    centerLat: Double,
-    centerLon: Double,
-    val cx: Float,
-    val cy: Float,
-    val r: Float,
-) {
-    private val phi = Math.toRadians(centerLat)
-    private val lambda = Math.toRadians(centerLon)
-
-    val eastX = (-sin(lambda)).toFloat()
-    val eastY = cos(lambda).toFloat()
-    val eastZ = 0f
-
-    val northX = (-sin(phi) * cos(lambda)).toFloat()
-    val northY = (-sin(phi) * sin(lambda)).toFloat()
-    val northZ = cos(phi).toFloat()
-
-    val upX = (cos(phi) * cos(lambda)).toFloat()
-    val upY = (cos(phi) * sin(lambda)).toFloat()
-    val upZ = sin(phi).toFloat()
-
-    fun screenX(x: Float, y: Float, z: Float) = cx + r * (x * eastX + y * eastY + z * eastZ)
-    fun screenY(x: Float, y: Float, z: Float) = cy - r * (x * northX + y * northY + z * northZ)
-    fun visible(x: Float, y: Float, z: Float) = x * upX + y * upY + z * upZ >= 0f
-
-    fun at(point: LatLon): ProjectedPoint {
-        val p = Math.toRadians(point.lat)
-        val l = Math.toRadians(point.lon)
-        val x = (cos(p) * cos(l)).toFloat()
-        val y = (cos(p) * sin(l)).toFloat()
-        val z = sin(p).toFloat()
-        return ProjectedPoint(screenX(x, y, z), screenY(x, y, z), visible(x, y, z))
-    }
-}
-
-private class ProjectedPoint(val x: Float, val y: Float, val visible: Boolean)
-
-/**
  * Ortografik kure: kiyi seritleri, paralel/meridyen agi, buyuk daire rotasi ve ucak.
  *
  * [interactive] acikken kure surukleyerek dondurulur, cimdikleyerek yakinlastirilir;
@@ -131,8 +89,11 @@ fun GlobeMap(
     state: GlobeState? = null,
     places: List<Airport> = emptyList(),
     highlighted: Set<String> = emptySet(),
-    /** Tamamlanmis ucuslarin rota anahtarlari; kurede soluk iz birakirlar. */
-    trails: List<String> = emptyList(),
+    /**
+     * Ucuslarin izleri: rota anahtari ve cizilecek pay (0..1). Tamamlanan ucus
+     * tam yay, yarida birakilan yalniz uculan kisim.
+     */
+    trails: List<Pair<String, Float>> = emptyList(),
     onPlaceTap: ((Airport) -> Unit)? = null,
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -149,13 +110,12 @@ fun GlobeMap(
     }
     val graticule = remember { buildGraticule() }
 
-    // Tamamlanan ucuslarin izleri
+    // Ucuslarin izleri; yarim birakilanin yalniz uculan kismi
     val trailPoints = remember(trails) {
         trails.asSequence()
-            .distinct()
             .take(24)
-            .mapNotNull { Route.of(it) }
-            .map { route -> List(64) { i -> route.pointAt(i / 63.0) } }
+            .mapNotNull { (key, extent) -> Route.of(key)?.let { it to extent } }
+            .map { (route, extent) -> List(64) { i -> route.pointAt(i / 63.0 * extent) } }
             .toList()
     }
 
@@ -292,7 +252,7 @@ fun GlobeMap(
         val baseRadius = min(size.width, size.height) * 0.40f
         val r = baseRadius * zoom
         val camera = state?.center ?: routeCamera
-        val proj = Projection(
+        val proj = GlobeCamera(
             centerLat = camera.lat.coerceIn(-89.0, 89.0),
             centerLon = camera.lon,
             cx = size.width / 2f,
@@ -434,78 +394,23 @@ fun GlobeMap(
 private class MarkerHits {
     var items: List<Marker> = emptyList()
 
-    private var cx = 0f
-    private var cy = 0f
-    private var radius = 0f
-    private var centerLat = 0.0
-    private var centerLon = 0.0
+    /** Son karenin kamerasi; ekran-koordinat cevrimi onun uzerinden. */
+    private var camera: GlobeCamera? = null
 
     fun setCamera(cx: Float, cy: Float, radius: Float, lat: Double, lon: Double) {
-        this.cx = cx
-        this.cy = cy
-        this.radius = radius
-        this.centerLat = lat
-        this.centerLon = lon
+        camera = GlobeCamera(lat, lon, cx, cy, radius)
     }
+
+    /** Ekrandaki noktanin kure uzerindeki karsiligi; kurenin disiysa null. */
+    fun locate(x: Float, y: Float, radiusScale: Float = 1f): LatLon? =
+        camera?.locate(x, y, radiusScale)
 
     /**
-     * Ekrandaki noktanin kure uzerindeki karsiligi; kurenin disiysa null.
-     * [radiusScale] yakinlastirmayi cizimden once denemek icin kullanilir.
+     * Olcek [radiusScale] katina ciktiginda [anchor] koordinatini hala (x, y)
+     * pikselinde tutan kamera merkezi; boyle bir kamera yoksa null.
      */
-    fun locate(x: Float, y: Float, radiusScale: Float = 1f): LatLon? {
-        val radius = radius * radiusScale
-        if (radius <= 0f) return null
-        val dx = (x - cx) / radius
-        val dy = (cy - y) / radius
-        val rho = kotlin.math.sqrt(dx * dx + dy * dy)
-        if (rho > 1f) return null
-        if (rho < 1e-4f) return LatLon(centerLat, centerLon)
-
-        val c = kotlin.math.asin(rho.toDouble().coerceIn(-1.0, 1.0))
-        val phi0 = Math.toRadians(centerLat)
-        val lat = kotlin.math.asin(
-            (kotlin.math.cos(c) * sin(phi0) + dy * kotlin.math.sin(c) * cos(phi0) / rho)
-                .coerceIn(-1.0, 1.0),
-        )
-        val lon = Math.toRadians(centerLon) + atan2(
-            dx * kotlin.math.sin(c),
-            rho * kotlin.math.cos(c) * cos(phi0) - dy * kotlin.math.sin(c) * sin(phi0),
-        )
-        return LatLon(Math.toDegrees(lat), Math.toDegrees(lon))
-    }
-
-    /**
-     * [anchor] koordinatini, olcek [radiusScale] katina ciktiginda hala (x, y)
-     * pikselinde tutan kamera merkezini cozer. Boyle bir kamera yoksa null.
-     *
-     * Kamera tabaninda nokta (dogu, kuzey, yukari) = (a, d, s) bilesenlerine
-     * sahiptir; buradan enlem tek bir sinus denklemiyle, boylam da yatay
-     * bilesenin donme aciyla cozulur.
-     */
-    fun solveCamera(anchor: LatLon, x: Float, y: Float, radiusScale: Float): LatLon? {
-        val r = radius * radiusScale
-        if (r <= 0f) return null
-        val a = ((x - cx) / r).toDouble()
-        val d = ((cy - y) / r).toDouble()
-        val rho2 = a * a + d * d
-        if (rho2 > 1.0) return null
-        val s = kotlin.math.sqrt(1.0 - rho2)
-
-        val p = Math.toRadians(anchor.lat)
-        val l = Math.toRadians(anchor.lon)
-        val px = cos(p) * cos(l)
-        val py = cos(p) * sin(l)
-        val pz = sin(p)
-
-        val rr = kotlin.math.sqrt(s * s + d * d)
-        if (rr < 1e-9 || kotlin.math.abs(pz) > rr) return null
-
-        val phi0 = kotlin.math.asin((pz / rr).coerceIn(-1.0, 1.0)) - atan2(d, s)
-        val b = s * cos(phi0) - d * sin(phi0)
-        if (kotlin.math.abs(a) < 1e-12 && kotlin.math.abs(b) < 1e-12) return null
-        val lambda0 = atan2(py, px) - atan2(a, b)
-        return LatLon(Math.toDegrees(phi0), Math.toDegrees(lambda0))
-    }
+    fun solveCamera(anchor: LatLon, x: Float, y: Float, radiusScale: Float): LatLon? =
+        camera?.solveCamera(anchor, x, y, radiusScale)
 
     fun nearest(x: Float, y: Float, reach: Float): Airport? {
         var best: Marker? = null
@@ -574,7 +479,7 @@ private const val LIMB_STEPS = 96
  * disina biraz tasirilir; kirpma zaten daireye yapildigi icin kenarda ince
  * bir serit kalmaz.
  */
-private fun DrawScope.drawNight(proj: Projection, sun: LatLon, colors: FlightColors) {
+private fun DrawScope.drawNight(proj: GlobeCamera, sun: LatLon, colors: FlightColors) {
     val p = Math.toRadians(sun.lat)
     val l = Math.toRadians(sun.lon)
     val sx = (cos(p) * cos(l)).toFloat()
@@ -691,7 +596,7 @@ private fun DrawScope.drawNight(proj: Projection, sun: LatLon, colors: FlightCol
 }
 
 private fun DrawScope.drawPlaces(
-    proj: Projection,
+    proj: GlobeCamera,
     places: List<Airport>,
     highlighted: Set<String>,
     zoom: Float,
@@ -768,7 +673,7 @@ private fun DrawScope.drawPlaces(
 }
 
 private fun DrawScope.drawEndpoint(
-    proj: Projection,
+    proj: GlobeCamera,
     point: LatLon,
     code: String,
     colors: FlightColors,
@@ -810,7 +715,7 @@ private fun planePath(unit: Float): Path = Path().apply {
 }
 
 /** Kurenin arkasina dusen parcalari kopararak yol olusturur. */
-private fun Projection.pathOf(points: List<LatLon>): Path {
+private fun GlobeCamera.pathOf(points: List<LatLon>): Path {
     val path = Path()
     var drawing = false
     for (p in points) {
@@ -835,7 +740,7 @@ private fun Projection.pathOf(points: List<LatLon>): Path {
  * boylece kenardan tasan kitalarin silueti ufku takip eder. Delikler even-odd
  * kuraliyla kendiliginden acilir.
  */
-private fun Projection.areaPath(shapes: ShapeSet): Path {
+private fun GlobeCamera.areaPath(shapes: ShapeSet): Path {
     val path = Path()
     path.fillType = PathFillType.EvenOdd
     val twoPi = (2.0 * Math.PI).toFloat()
@@ -888,7 +793,7 @@ private fun Projection.areaPath(shapes: ShapeSet): Path {
 }
 
 /** Kiyi cizgisi: yalnizca gorunen parcalar, ufuk boyunca cizgi cizilmez. */
-private fun Projection.outlinePath(shapes: ShapeSet): Path {
+private fun GlobeCamera.outlinePath(shapes: ShapeSet): Path {
     val path = Path()
     for (shape in shapes.shapes) {
         if (shape.isHidden(upX, upY, upZ)) continue

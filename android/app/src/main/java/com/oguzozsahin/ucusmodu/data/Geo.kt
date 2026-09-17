@@ -7,20 +7,29 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/** Olcegin tanimlandigi pomodoro uzunlugu (dakika). */
-const val DEFAULT_FOCUS_MIN = 25
+/**
+ * Bir pomodoronun uzunlugu (dakika). Olcu birimi: odak suresi ayari ne olursa
+ * olsun 25 dakika bir pomodoro eder, 50 dakikalik bir oturum iki.
+ */
+const val POMODORO_MIN = 25
 
-/** Varsayilan uzunlukta bir pomodoronun tasidigi mesafe. */
-const val KM_PER_POMODORO = 850.0
+/** Odak suresi ayarinin varsayilani; bir pomodoro kadar. */
+const val DEFAULT_FOCUS_MIN = POMODORO_MIN
+
+/** Yolcu ucaginin seyir hizi (km/sa). Olcegin ve seyir suresi tahmininin kaynagi. */
+const val CRUISE_KMH = 850.0
 
 /**
- * Odakta gecen her dakikanin tasidigi mesafe.
+ * Bir pomodoronun tasidigi nominal mesafe; rota bacaklarinin olcegi.
  *
- * Olcek pomodoro sayisina degil sureye bagli: 50 dakikalik bir pomodoro
- * 25 dakikaliginin iki kati yol alir. Boylece kat edilen yol gercekten
- * harcanan odagin olcusu oluyor. Varsayilan uzunlukta rakamlar degismiyor.
+ * Ucak gercek seyir hiziyla gidiyor: 25 dakikada 850 km/sa ~ 354 km. Eskiden
+ * pomodoro basina 850 km'ydi, yani ucak gercegin 2,4 kati hizliydi ve odakta
+ * gececek sure gercek ucus suresinin yarisindan azina dusuyordu.
  */
-const val KM_PER_MINUTE = KM_PER_POMODORO / DEFAULT_FOCUS_MIN
+const val KM_PER_POMODORO = CRUISE_KMH * POMODORO_MIN / 60.0
+
+/** Odakta gecen her dakikanin tasidigi mesafe (~14,2 km). */
+const val KM_PER_MINUTE = KM_PER_POMODORO / POMODORO_MIN
 
 private const val EARTH_R = 6371.0
 

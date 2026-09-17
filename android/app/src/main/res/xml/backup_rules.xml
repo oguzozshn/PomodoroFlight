@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 ve oncesi icin yedekleme kapsami.
+
+  Yalnizca kullanicinin kendi kazandigi sey yedeklenir: sayacin kalici kaydi
+  (rota ilerlemeleri, toplamlar, ucus gunlugu damgalari) ve gun bazli pomodoro
+  kaydi.
+
+  Pencere tercihleri (ucus-modu-pencere) bilerek disarida: icindeki video
+  adresi SAF ile alinmis bir izne dayaniyor ve o izin baska cihaza tasinmiyor,
+  yani geri yuklenen adres kesinlikle olu olurdu. Kalanlar (tema, kanat,
+  cerceve) tek dokunusla yeniden secilir.
+-->
+<full-backup-content>
+    <include domain="sharedpref" path="ucus-modu.xml" />
+    <include domain="file" path="ucus-gunlugu.tsv" />
+</full-backup-content>

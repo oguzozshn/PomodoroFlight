@@ -40,6 +40,7 @@ import com.oguzozsahin.ucusmodu.data.CardTier
 import com.oguzozsahin.ucusmodu.data.DayCount
 import com.oguzozsahin.ucusmodu.data.EARTH_CIRCUMFERENCE_KM
 import com.oguzozsahin.ucusmodu.data.FlightUiState
+import com.oguzozsahin.ucusmodu.data.Flights
 import com.oguzozsahin.ucusmodu.data.FocusRecord
 import com.oguzozsahin.ucusmodu.data.Journal
 import com.oguzozsahin.ucusmodu.data.JournalStats
@@ -47,6 +48,7 @@ import com.oguzozsahin.ucusmodu.data.currentLapFraction
 import com.oguzozsahin.ucusmodu.data.formatDate
 import com.oguzozsahin.ucusmodu.data.formatDuration
 import com.oguzozsahin.ucusmodu.data.formatNumber
+import com.oguzozsahin.ucusmodu.data.formatPomodoros
 import com.oguzozsahin.ucusmodu.data.kmToNextTier
 import com.oguzozsahin.ucusmodu.data.nextTierOf
 import com.oguzozsahin.ucusmodu.data.tierOf
@@ -80,7 +82,8 @@ private val TR = Locale("tr", "TR")
 @Composable
 fun LogbookScreen(
     state: FlightUiState,
-    onBack: () -> Unit,
+    /** Sekme olarak acildiginda geri dugmesi yok; geri tusu ucus sekmesine doner. */
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalFlightColors.current
@@ -107,13 +110,15 @@ fun LogbookScreen(
                 .padding(top = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Cikis her ekranda ayni yerde: sol ust.
-            GhostButton("← Geri", colors, onClick = onBack)
-            Spacer(Modifier.width(10.dp))
-            Text("MİL BİLDİRİMİ", style = labelStyle(colors.ink2).copy(fontSize = 13.sp))
+            if (onBack != null) {
+                GhostButton("← Geri", colors, onClick = onBack)
+                Spacer(Modifier.width(10.dp))
+            }
+            Text("UÇUŞ GÜNLÜĞÜ", style = labelStyle(colors.ink2).copy(fontSize = 13.sp))
         }
 
         MembershipCard(state, colors)
+        StampsPanel(state, colors)
         WorldTourPanel(state.totalKm, colors)
         FlightMapPanel(state, colors)
 
@@ -131,8 +136,6 @@ fun LogbookScreen(
             HoursPanel(loaded, zone, colors)
             TopRoutesPanel(loaded, colors)
         }
-
-        StampsPanel(state, colors)
 
         Text(
             text = "Toplam mil ve uçuş günlüğü baştan beri tutuluyor; " +
@@ -238,7 +241,7 @@ private fun FlightMapPanel(state: FlightUiState, colors: FlightColors) {
             route = state.route,
             fraction = state.fraction,
             colors = colors,
-            trails = state.log.map { it.routeKey },
+            trails = Flights.trails(state.log),
             modifier = Modifier.fillMaxSize(),
         )
         Text(
@@ -277,11 +280,19 @@ private fun NumbersPanel(
             }
             Spacer(Modifier.height(14.dp))
             Row {
-                Figure("Tamamlanan uçuş", "${state.log.size}", colors, Modifier.weight(1f))
+                // Yarida birakilanlar ayri kutu yerine burada; rakam izgarasi alti hucrelik.
+                val completed = Flights.completedCount(state.log)
+                val partial = Flights.partialCount(state.log)
+                Figure(
+                    "Tamamlanan uçuş",
+                    if (partial > 0) "$completed · $partial yarım" else "$completed",
+                    colors,
+                    Modifier.weight(1f),
+                )
                 Figure("Uğranan yer", if (airports > 0) "$airports" else "—", colors, Modifier.weight(1f))
                 Figure(
                     "En yoğun gün",
-                    busiest?.let { "${it.count} pom." } ?: "—",
+                    busiest?.let { "${formatPomodoros(it.count)} pom." } ?: "—",
                     colors,
                     Modifier.weight(1f),
                 )
@@ -310,7 +321,7 @@ private fun CalendarPanel(
     val days = HEATMAP_WEEKS * 7
     val gridEnd = today.plusDays(trailing.toLong())
     val counts = JournalStats.dailyCounts(records, days, gridEnd, zone)
-    val peak = counts.maxOfOrNull { it.count } ?: 0
+    val peak = counts.maxOfOrNull { it.count } ?: 0.0
 
     var selected by remember { mutableStateOf<DayCount?>(null) }
 
@@ -352,7 +363,7 @@ private fun CalendarPanel(
                 }
             }
 
-            if (peak == 0) {
+            if (peak <= 0.0) {
                 // Bos izgaranin aciklamasi sayfanin dibinde duruyordu; orada
                 // kimse okumuyor ve ekran bozuk gorunuyordu.
                 Spacer(Modifier.height(10.dp))
@@ -367,7 +378,7 @@ private fun CalendarPanel(
                         "Bir güne dokun"
                     } else {
                         val millis = chosen.date.atStartOfDay(zone).toInstant().toEpochMilli()
-                        "${formatDate(millis)} · ${chosen.count} pomodoro"
+                        "${formatDate(millis)} · ${formatPomodoros(chosen.count)} pomodoro"
                     },
                     style = monoStyle(if (chosen == null) colors.muted else colors.ink2, 11),
                     modifier = Modifier.weight(1f),
@@ -397,7 +408,7 @@ private fun CalendarPanel(
 private fun HoursPanel(records: List<FocusRecord>, zone: ZoneId, colors: FlightColors) {
     val hours = remember(records) { JournalStats.hourHistogram(records, zone) }
     val peakHour = remember(records) { JournalStats.peakWindow(hours) }
-    val peak = hours.maxOrNull() ?: 0
+    val peak = hours.maxOrNull() ?: 0.0
 
     Panel(colors) {
         Column(Modifier.padding(14.dp)) {
@@ -434,7 +445,7 @@ private fun HoursPanel(records: List<FocusRecord>, zone: ZoneId, colors: FlightC
                 for (hour in 0 until 24) {
                     val value = hours[hour]
                     val highlighted = peakHour != null && (hour == peakHour || hour == (peakHour + 1) % 24)
-                    val height = if (peak == 0) 0f else baseline * (value.toFloat() / peak) * 0.94f
+                    val height = if (peak <= 0.0) 0f else baseline * (value / peak).toFloat() * 0.94f
                     val x = hour * slot + gap / 2f
                     if (height < 0.5f) {
                         // bos saat: sifir oldugunu gosteren silik bir kok
@@ -499,50 +510,34 @@ private fun TopRoutesPanel(records: List<FocusRecord>, colors: FlightColors) {
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(if (most == 0) 0f else count.toFloat() / most)
+                                .fillMaxWidth(if (most <= 0.0) 0f else (count / most).toFloat())
                                 .height(6.dp)
                                 .background(colors.amber.copy(alpha = 0.55f), CellShape),
                         )
                     }
                     Spacer(Modifier.width(8.dp))
-                    Text("$count", style = monoStyle(colors.ink2, 11))
+                    Text(formatPomodoros(count), style = monoStyle(colors.ink2, 11))
                 }
             }
         }
     }
 }
 
-/** Pasaport damgalari: tamamlanan ucuslar. */
+/** Ucus gunlugu: tamamlanan ve yarida birakilan butun ucuslar. */
 @Composable
 private fun StampsPanel(state: FlightUiState, colors: FlightColors) {
     Panel(colors) {
         Column(Modifier.padding(14.dp)) {
-            Text("UÇUŞ GÜNLÜĞÜ", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
+            Text("UÇUŞLAR", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
             Spacer(Modifier.height(10.dp))
             if (state.log.isEmpty()) {
                 Text(
-                    "Henüz tamamlanmış uçuş yok. İlk rotanı bitirdiğinde buraya damga düşecek.",
+                    "Henüz uçuş yok. Bir yolculuğu tamamladığında ya da yarıda bitirdiğinde burada görünecek.",
                     style = monoStyle(colors.muted, 11),
                 )
             } else {
-                for (entry in state.log.take(20)) {
-                    val parts = entry.routeKey.split("-")
-                    val destCity = Airports[parts.getOrNull(1) ?: ""]?.city ?: parts.getOrNull(1).orEmpty()
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(entry.routeKey.replace("-", "→"), style = monoStyle(colors.amber, 12))
-                        Spacer(Modifier.width(10.dp))
-                        Text(destCity, style = monoStyle(colors.ink2, 12), modifier = Modifier.weight(1f))
-                        Text("${formatNumber(entry.km.toDouble())} km", style = monoStyle(colors.muted, 11))
-                        Spacer(Modifier.width(10.dp))
-                        Text(formatDate(entry.time), style = monoStyle(colors.muted, 11))
-                    }
-                    HorizontalDivider(color = colors.lineSoft)
-                }
+                // Butun ucuslar; eskiden ilk 20 tamamlanan gorunuyordu.
+                for (entry in state.log) FlightLogRow(entry, colors)
             }
         }
     }
@@ -576,11 +571,11 @@ private fun Rail(fraction: Float, colors: FlightColors) {
 }
 
 /** Bos hucre en alt basamak; geri kalanlar yogunluga gore tirmanir. */
-private fun heatColor(count: Int, peak: Int, colors: FlightColors): Color {
-    if (count <= 0) return colors.heat[0]
-    if (peak <= 0) return colors.heat[0]
+/** Sayim kesirli olabilir (37 dakikalik oturum 1,48 pomodoro); tepeye oranla basamaklanir. */
+private fun heatColor(count: Double, peak: Double, colors: FlightColors): Color {
+    if (count <= 0.0 || peak <= 0.0) return colors.heat[0]
     val steps = colors.heat.size - 1
-    val level = ((count - 1) * (steps - 1) / maxOf(1, peak - 1)) + 1
+    val level = kotlin.math.ceil(count / peak * steps).toInt()
     return colors.heat[level.coerceIn(1, steps)]
 }
 

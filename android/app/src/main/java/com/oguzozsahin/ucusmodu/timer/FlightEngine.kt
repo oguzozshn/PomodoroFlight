@@ -11,11 +11,10 @@ import android.os.VibratorManager
 import com.oguzozsahin.ucusmodu.audio.Chime
 import com.oguzozsahin.ucusmodu.audio.ChimeKind
 import com.oguzozsahin.ucusmodu.data.FlightUiState
-import com.oguzozsahin.ucusmodu.data.FocusRecord
 import com.oguzozsahin.ucusmodu.data.Journal
-import com.oguzozsahin.ucusmodu.data.LogEntry
 import com.oguzozsahin.ucusmodu.data.Persisted
 import com.oguzozsahin.ucusmodu.data.Phase
+import com.oguzozsahin.ucusmodu.data.Flights
 import com.oguzozsahin.ucusmodu.data.Route
 import com.oguzozsahin.ucusmodu.data.Store
 import com.oguzozsahin.ucusmodu.data.formatNumber
@@ -29,7 +28,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 /**
  * Sayacin tek otoritesi. Aktivite olse de servis ayakta kaldigi surece burasi yasar;
@@ -42,7 +40,7 @@ class FlightEngine private constructor(context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private var data: Persisted = store.load()
-    private var route: Route = routeFor(data.routeKey, data.focusMin)
+    private var route: Route = routeFor(data.routeKey)
     private var remaining: Long = data.remainingMs
     private var phase: Phase = data.phase
     private var running: Boolean = false
@@ -80,7 +78,7 @@ class FlightEngine private constructor(context: Context) {
             while (running && now() >= endAt && guard-- > 0) {
                 // Az once bitmisse anons hala anlamli; cok eskiyse sessizce kapat.
                 val recent = now() - endAt < 5 * 60_000L
-                finishPhase(notify = recent)
+                finishPhase(notify = recent, endedAt = endAt)
             }
             if (running) {
                 // Yeniden baslatma sonrasi alarm kaybolmus olabilir; tazeliyoruz.
@@ -97,7 +95,10 @@ class FlightEngine private constructor(context: Context) {
     fun toggle() = if (running) pause() else start()
 
     fun start() {
-        if (phase == Phase.FOCUS && currentState().arrived) return
+        // Sayac yalniz suren bir ucusta isler: bilet koparilmadan odak baslamaz.
+        val current = currentState()
+        if (!current.flightActive) return
+        if (phase == Phase.FOCUS && current.arrived) return
         if (remaining <= 0L) remaining = currentState().phaseDurationMs
         running = true
         endAt = now() + remaining
@@ -127,15 +128,52 @@ class FlightEngine private constructor(context: Context) {
         publish()
     }
 
-    /** Fazi erken bitirir; odak fazinda bacak tamamlanmis sayilir. */
+    /** Molayi erken bitirir. Odak oturumu atlanamaz; odakta hicbir sey yapmaz. */
     fun skip() {
+        if (phase == Phase.FOCUS || !currentState().flightActive) return
+        val at = now()
         pause()
-        finishPhase(notify = false, skipped = true)
+        finishPhase(notify = false, endedAt = at)
         publish()
     }
 
+    /** Bilet koparildi: bu rotada sifirdan bir ucus baslar ve sayac calisir. */
+    fun departure() {
+        pause()
+        data = Flights.start(data, route.key, now())
+        phase = Phase.FOCUS
+        remaining = data.focusMin * 60_000L
+        start()
+    }
+
+    /**
+     * Ucusu yarida bitirir. Suren oturum sayilmaz: ucus son tamamlanan
+     * oturumun bittigi yerde kapanir ve gunluge yarim olarak duser.
+     */
+    fun endFlight() {
+        pause()
+        data = Flights.end(data, route, done = false, now = now())
+        phase = Phase.FOCUS
+        remaining = data.focusMin * 60_000L
+        persist()
+        publish()
+    }
+
+    /**
+     * Rotayi degistirir. Baska rotaya geciliyorsa etkin ucus kapanir: yol
+     * alinmissa gunluge yarim duser (arayuz once sorar), alinmamissa iz
+     * birakmaz. Inmis ucus da birakilir; ayni rota secilince yolculuk sifirdan.
+     */
     fun setRoute(key: String) {
-        val next = Route.of(key, data.focusMin) ?: return
+        val next = Route.of(key) ?: return
+        val flight = data.flight
+        if (flight != null && (flight.landed || flight.routeKey != next.key)) {
+            data = if (flight.landed) {
+                data.copy(flight = null)
+            } else {
+                Flights.end(data, routeFor(flight.routeKey), done = false, now = now()).copy(flight = null)
+            }
+        }
         pause()
         route = next
         data = data.copy(routeKey = next.key)
@@ -146,18 +184,28 @@ class FlightEngine private constructor(context: Context) {
     }
 
     fun setFocusMin(minutes: Int) {
+        // Sureler ucustan once ayarlanir; ucus surerken kilitli.
+        if (currentState().flightActive) return
         data = data.copy(focusMin = minutes)
-        // Bacak sayisi pomodoro uzunluguna bagli; rota yeniden kurulmali.
-        // Ilerleme km olarak saklandigi icin bu degisiklikte hicbir sey kaybolmuyor.
-        route = routeFor(data.routeKey, minutes)
+        // Bacak sayisi odak suresinden bagimsiz; rota yeniden kurulmaz, yalniz
+        // bir oturumun kac bacak tasidigi degisir.
         if (!running && phase == Phase.FOCUS) remaining = minutes * 60_000L
         persist()
         publish()
     }
 
     fun setBreakMin(minutes: Int) {
+        if (currentState().flightActive) return
         data = data.copy(breakMin = minutes)
         if (!running && phase == Phase.BREAK) remaining = minutes * 60_000L
+        persist()
+        publish()
+    }
+
+    fun setLongBreakMin(minutes: Int) {
+        if (currentState().flightActive) return
+        data = data.copy(longBreakMin = minutes)
+        if (!running && phase == Phase.LONG) remaining = minutes * 60_000L
         persist()
         publish()
     }
@@ -216,7 +264,7 @@ class FlightEngine private constructor(context: Context) {
     fun resetEverything() {
         pause()
         journal.clear()
-        data = data.copy(log = emptyList(), progress = emptyMap(), totalMs = 0L, totalKm = 0.0, cycle = 0)
+        data = data.copy(log = emptyList(), flight = null, totalMs = 0L, totalKm = 0.0, cycle = 0)
         phase = Phase.FOCUS
         remaining = data.focusMin * 60_000L
         persist()
@@ -231,101 +279,68 @@ class FlightEngine private constructor(context: Context) {
         remaining = (endAt - now()).coerceAtLeast(0L)
         var guard = 8
         while (running && now() >= endAt && guard-- > 0) {
-            finishPhase(notify = true)
+            finishPhase(notify = true, endedAt = endAt)
         }
         publish()
     }
 
     // ---------------- ic isleyis ----------------
 
-    private fun finishPhase(notify: Boolean, skipped: Boolean = false) {
+    /**
+     * Faz gecisinin kendisi [FlightCore] icinde, Android'e dokunmadan
+     * hesaplaniyor; burada kalan yalnizca sonucun uygulanmasi: ses, titresim,
+     * bildirim, gunluk dosyasi ve servis.
+     */
+    private fun finishPhase(notify: Boolean, endedAt: Long) {
         val before = currentState()
-        if (phase == Phase.FOCUS) {
-            // Varilmis rotada kazanilacak bacak kalmadi. Buraya yine de
-            // girilebiliyor (molada Atla, sonra tekrar Atla) ve eskiden her
-            // seferinde toplam km ile toplam odaga bir bacak ekliyordu:
-            // iki dokunusla bedava mesafe. Artik hicbir sey eklemeden doner.
-            if (before.arrived) {
-                setPhase(Phase.FOCUS)
-                TimerService.ensureStopped(app)
-                persist()
-                publish()
-                return
-            }
+        val outcome = FlightCore.finishPhase(before, data, endedAt)
 
-            // Gercekte odakta gecen sure. Normal biten pomodoroda ayarlanan
-            // surenin tamami, atlanmisda kalanin dusuldugu kisim.
-            val focusedMs = (before.durationMsOf(Phase.FOCUS) - before.remainingMs)
-                .coerceIn(0L, before.durationMsOf(Phase.FOCUS))
+        data = outcome.data
+        // Gunluge zaman damgali kayit: gun dagilimi, seri ve saat
+        // histogrami ancak buradan cikiyor.
+        outcome.record?.let { journal.append(it) }
 
-            val flown = (before.flownOnRoute + route.kmPerLeg).coerceAtMost(route.km)
-            val progress = data.progress.toMutableMap()
-            progress[route.key] = flown
-            val arrivedNow = flown >= route.km - FlightUiState.ARRIVAL_EPSILON_KM
-            val log = if (arrivedNow) {
-                listOf(LogEntry(route.key, route.km.roundToInt(), System.currentTimeMillis())) + data.log
-            } else {
-                data.log
-            }
-            data = data.copy(
-                progress = progress,
-                log = log,
-                // Atlanan pomodoro odak sayilmaz: 25 dakikaligi ucuncu
-                // saniyede atlayinca "toplam odak" 25 dakika artmamali.
-                totalMs = data.totalMs + if (skipped) 0L else before.durationMsOf(Phase.FOCUS),
-                totalKm = data.totalKm + route.kmPerLeg,
-                cycle = (data.cycle + 1) % 4,
-            )
+        if (notify) outcome.alert?.let { announce(it, before, outcome) }
 
-            // Gunluge zaman damgali kayit: gun dagilimi, seri ve saat
-            // histogrami ancak buradan cikiyor.
-            journal.append(
-                FocusRecord(
-                    time = System.currentTimeMillis(),
-                    routeKey = route.key,
-                    minutes = (focusedMs / 60_000L).toInt(),
-                    km = route.kmPerLeg,
-                    skipped = skipped,
-                ),
-            )
-            if (notify) {
-                val kind = if (arrivedNow) ChimeKind.LAND else ChimeKind.LEVEL
-                chime(kind)
-                buzz(kind)
-                if (arrivedNow) {
-                    Notifications.alert(
-                        app,
-                        "İniş yapıldı · ${route.dest.city}",
-                        "${route.origin.code} → ${route.dest.code} tamamlandı · " +
-                            "${formatNumber(route.km)} km. Günlüğe damga düştü.",
-                    )
-                } else {
-                    val left = Route.legsFor(route.km - flown, data.focusMin)
-                    Notifications.alert(
-                        app,
-                        "Pomodoro tamam · mola",
-                        "${formatNumber(route.kmPerLeg)} km yol aldın · " +
-                            "${route.dest.city} için $left pomodoro kaldı.",
-                    )
-                }
-            }
-            setPhase(if (data.cycle == 0) Phase.LONG else Phase.BREAK)
-            if (data.autoBreak && !arrivedNow) {
-                start()
-            } else {
-                TimerService.ensureStopped(app)
-            }
+        setPhase(outcome.phase)
+        if (outcome.autoStart) {
+            start()
         } else {
-            if (notify) {
-                chime(ChimeKind.BOARDING)
-                buzz(ChimeKind.BOARDING)
-                Notifications.alert(app, "Mola bitti", "Kabin hazır — seyre devam edebilirsin.")
-            }
-            setPhase(Phase.FOCUS)
             TimerService.ensureStopped(app)
         }
         persist()
         publish()
+    }
+
+    /** Faz bitisinin sesi, titresimi ve bildirimi. */
+    private fun announce(alert: PhaseAlert, before: FlightUiState, outcome: PhaseOutcome) {
+        val kind = when (alert) {
+            PhaseAlert.LAND -> ChimeKind.LAND
+            PhaseAlert.LEVEL -> ChimeKind.LEVEL
+            PhaseAlert.BOARDING -> ChimeKind.BOARDING
+        }
+        chime(kind)
+        buzz(kind)
+        val route = before.route
+        when (alert) {
+            PhaseAlert.LAND -> Notifications.alert(
+                app,
+                "İniş yapıldı · ${route.dest.city}",
+                "${route.origin.code} → ${route.dest.code} tamamlandı · " +
+                    "${formatNumber(route.km)} km. Günlüğe damga düştü.",
+            )
+            PhaseAlert.LEVEL -> Notifications.alert(
+                app,
+                "Pomodoro tamam · mola",
+                "${formatNumber(outcome.gainedKm)} km yol aldın · " +
+                    "${route.dest.city} için ${outcome.legsLeft} pomodoro kaldı.",
+            )
+            PhaseAlert.BOARDING -> Notifications.alert(
+                app,
+                "Mola bitti",
+                "Kabin hazır — seyre devam edebilirsin.",
+            )
+        }
     }
 
     private fun setPhase(next: Phase) {
@@ -372,7 +387,7 @@ class FlightEngine private constructor(context: Context) {
                 val left = endAt - now()
                 if (left <= 0L) {
                     remaining = 0L
-                    finishPhase(notify = true)
+                    finishPhase(notify = true, endedAt = endAt)
                 } else {
                     remaining = left
                     val second = (left + 999L) / 1000L
@@ -393,9 +408,9 @@ class FlightEngine private constructor(context: Context) {
 
     private fun now() = System.currentTimeMillis()
 
-    /** Kayitli rota okunamazsa varsayilana duser; ikisi de ayni odak uzunlugunda kurulur. */
-    private fun routeFor(key: String, focusMin: Int): Route =
-        Route.of(key, focusMin) ?: Route.of("IST-JFK", focusMin)!!
+    /** Kayitli rota okunamazsa varsayilana duser. */
+    private fun routeFor(key: String): Route =
+        Route.of(key) ?: Route.of("IST-JFK")!!
 
     private fun currentState() = snapshot()
 
@@ -404,10 +419,11 @@ class FlightEngine private constructor(context: Context) {
         phase = phase,
         running = running,
         remainingMs = remaining,
-        progress = data.progress,
+        flight = data.flight,
         log = data.log,
         focusMin = data.focusMin,
         breakMin = data.breakMin,
+        longBreakMin = data.longBreakMin,
         autoBreak = data.autoBreak,
         sound = data.sound,
         passenger = data.passenger,

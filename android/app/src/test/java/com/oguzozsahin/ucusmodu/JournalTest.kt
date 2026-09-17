@@ -84,7 +84,7 @@ class JournalTest {
         )
         assertEquals(1, JournalStats.counted(records).size)
         assertEquals(25, JournalStats.focusMinutes(records))
-        assertEquals(1, JournalStats.dailyCounts(records, 1, LocalDate.of(2026, 9, 10), zone)[0].count)
+        assertEquals(1.0, JournalStats.dailyCounts(records, 1, LocalDate.of(2026, 9, 10), zone)[0].count, 1e-9)
     }
 
     @Test
@@ -98,9 +98,9 @@ class JournalTest {
         val counts = JournalStats.dailyCounts(records, 3, LocalDate.of(2026, 9, 10), zone)
         assertEquals(3, counts.size)
         assertEquals(LocalDate.of(2026, 9, 8), counts[0].date)
-        assertEquals(1, counts[0].count)
-        assertEquals(0, counts[1].count)
-        assertEquals(3, counts[2].count)
+        assertEquals(1.0, counts[0].count, 1e-9)
+        assertEquals(0.0, counts[1].count, 1e-9)
+        assertEquals(3.0, counts[2].count, 1e-9)
     }
 
     @Test
@@ -141,16 +141,16 @@ class JournalTest {
         val records = listOf(record(10, 9), record(10, 9), record(11, 22))
         val hours = JournalStats.hourHistogram(records, zone)
         assertEquals(24, hours.size)
-        assertEquals(2, hours[9])
-        assertEquals(1, hours[22])
-        assertEquals(3, hours.sum())
+        assertEquals(2.0, hours[9], 1e-9)
+        assertEquals(1.0, hours[22], 1e-9)
+        assertEquals(3.0, hours.sum(), 1e-9)
     }
 
     @Test
     fun `en yogun aralik ardisik iki saatten secilir`() {
         val records = listOf(record(10, 10), record(10, 11), record(10, 11), record(11, 15))
         assertEquals(10, JournalStats.peakWindow(JournalStats.hourHistogram(records, zone)))
-        assertNull(JournalStats.peakWindow(IntArray(24)))
+        assertNull(JournalStats.peakWindow(DoubleArray(24)))
     }
 
     @Test
@@ -161,8 +161,10 @@ class JournalTest {
             record(10, 11, route = "SAW-CDG"),
         )
         val top = JournalStats.topRoutes(records, 5)
-        assertEquals("IST-JFK" to 2, top[0])
-        assertEquals("SAW-CDG" to 1, top[1])
+        assertEquals("IST-JFK", top[0].first)
+        assertEquals(2.0, top[0].second, 1e-9)
+        assertEquals("SAW-CDG", top[1].first)
+        assertEquals(1.0, top[1].second, 1e-9)
     }
 
     @Test
@@ -171,7 +173,7 @@ class JournalTest {
         assertEquals(2, JournalStats.activeDays(records, zone))
         val busiest = JournalStats.busiestDay(records, zone)!!
         assertEquals(LocalDate.of(2026, 9, 10), busiest.date)
-        assertEquals(2, busiest.count)
+        assertEquals(2.0, busiest.count, 1e-9)
         assertNull(JournalStats.busiestDay(emptyList(), zone))
     }
 
@@ -203,5 +205,24 @@ class JournalTest {
         assertNull(nextTierOf(top))
         assertEquals(1f, tierProgress(top), 1e-6f)
         assertEquals(0.0, kmToNextTier(top), 1e-9)
+    }
+
+    @Test
+    fun `sayimlar satir degil pomodoro cinsinden`() {
+        // 25 + 50 + 37 dakika = 4,48 pomodoro; satir sayisi 3
+        val nine = at(10, 9)
+        val records = listOf(
+            FocusRecord(nine, "IST-JFK", 25, 349.0, false),
+            FocusRecord(nine + 60_000L, "IST-JFK", 50, 698.0, false),
+            FocusRecord(nine + 120_000L, "IST-LHR", 37, 516.0, false),
+        )
+        assertEquals(4.48, JournalStats.dailyCounts(records, 1, LocalDate.of(2026, 9, 10), zone)[0].count, 1e-9)
+        assertEquals(4.48, JournalStats.hourHistogram(records, zone)[9], 1e-9)
+        assertEquals(4.48, JournalStats.busiestDay(records, zone)!!.count, 1e-9)
+
+        val top = JournalStats.topRoutes(records, 5)
+        assertEquals("IST-JFK", top[0].first)
+        assertEquals(3.0, top[0].second, 1e-9)
+        assertEquals(1.48, top[1].second, 1e-9)
     }
 }

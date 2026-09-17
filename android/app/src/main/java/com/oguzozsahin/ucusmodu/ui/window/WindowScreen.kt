@@ -324,11 +324,14 @@ private fun Hud(
                 val landed = state.phase == Phase.FOCUS && state.arrived
                 HudButton(
                     text = if (state.running) "BEKLET" else "DEVAM",
-                    enabled = !landed,
+                    enabled = !landed && state.flightActive,
                     onClick = onToggle,
                 )
-                Spacer(Modifier.width(6.dp))
-                HudButton("ATLA", enabled = !landed, onClick = onSkip)
+                // Odak oturumu atlanamaz; yalniz molada gorunur.
+                if (state.phase != Phase.FOCUS) {
+                    Spacer(Modifier.width(6.dp))
+                    HudButton("MOLAYI ATLA", enabled = state.flightActive, onClick = onSkip)
+                }
             }
         }
 

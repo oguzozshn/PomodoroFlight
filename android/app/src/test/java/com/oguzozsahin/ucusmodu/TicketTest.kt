@@ -1,5 +1,6 @@
 package com.oguzozsahin.ucusmodu
 
+import com.oguzozsahin.ucusmodu.data.ActiveFlight
 import com.oguzozsahin.ucusmodu.data.BOARDING_MINUTES
 import com.oguzozsahin.ucusmodu.data.FlightUiState
 import com.oguzozsahin.ucusmodu.data.Phase
@@ -23,7 +24,7 @@ class TicketTest {
         running = false,
         remainingMs = 25 * 60_000L,
         // Ilerleme km olarak saklaniyor; test bacak sayisiyla konusuyor.
-        progress = mapOf("IST-JFK" to done * Route.of("IST-JFK")!!.kmPerLeg),
+        flight = ActiveFlight("IST-JFK", done * Route.of("IST-JFK")!!.kmPerLeg),
         log = emptyList(),
         focusMin = 25,
         breakMin = 5,
@@ -59,9 +60,9 @@ class TicketTest {
         assertEquals(noon, ticket.boardingAt)
         assertEquals(noon + BOARDING_MINUTES * 60_000L, ticket.departureAt)
         assertTrue(ticket.arrivalAt > ticket.departureAt)
-        // 9 pomodoro + molalar, binis payi dahil
+        // 23 pomodoro + molalar, binis payi dahil
         val minutes = (ticket.arrivalAt - ticket.boardingAt) / 60_000L
-        assertEquals((BOARDING_MINUTES + 285).toLong(), minutes)
+        assertEquals((BOARDING_MINUTES + 735).toLong(), minutes)
     }
 
     @Test
@@ -69,8 +70,8 @@ class TicketTest {
         val ticket = issueTicket(state(done = 3, passenger = "oğuz"), noon)
         assertEquals("TK9964", ticket.flightNo)
         assertEquals("OĞUZ", ticket.passenger)
-        assertEquals(6, ticket.legs)
-        assertEquals(150, ticket.focusMinutes)
+        assertEquals(20, ticket.legs)
+        assertEquals(500, ticket.focusMinutes)
         assertEquals(8026.398462, ticket.distanceKm, 1e-6)
     }
 
