@@ -18,7 +18,7 @@ import { createJournal, focusRecord } from "../core/journal.js";
 import { startFlight, endFlight, flightTrails } from "../core/flights.js";
 import { journalStorage } from "../platform/journal-storage.js";
 import { subsolarPoint } from "../core/sun.js";
-import { platform, syncPlatform } from "../platform/index.js";
+import { platform, syncPlatform, hasNative } from "../platform/index.js";
 import { loadBinary } from "../platform/assets.js";
 import { chime } from "../platform/chime.js";
 import { createGlobe } from "./globe.js";
@@ -634,6 +634,7 @@ function wireControls() {
     if (e.target === $("#confirm")) confirmBox.cancel();
   });
 
+  $("#settingsBtn").addEventListener("click", () => settings.open());
   $("#settingsClose").addEventListener("click", () => settings.close());
   $("#settings").addEventListener("click", e => {
     if (e.target === $("#settings")) settings.close();
@@ -897,13 +898,29 @@ function wirePlatform() {
   });
 }
 
+/**
+ * Temayı sayfaya uygular. Masaüstünde açık/koyu işletim sisteminin temasından
+ * (nativeTheme) gelir, öznitelik yalnız pembe için konur; köprü yoksa (düz
+ * tarayıcı) üçü de öznitelikle.
+ */
+function applyTheme(mode) {
+  const root = document.documentElement;
+  if (mode === "pink" || (!hasNative && (mode === "light" || mode === "dark"))) root.dataset.theme = mode;
+  else delete root.dataset.theme;
+  for (const b of document.querySelectorAll("#segTheme button")) {
+    b.setAttribute("aria-pressed", String(b.dataset.v === mode));
+  }
+}
+
 function wireTheme() {
-  // Açık/koyu işletim sisteminin temasından (nativeTheme) gelir; pembenin
-  // sistemde karşılığı yok, sayfaya öznitelik olarak konur.
-  platform.onTheme(mode => {
-    const root = document.documentElement;
-    if (mode === "pink") root.dataset.theme = "pink";
-    else delete root.dataset.theme;
+  // Menüden ya da ayarlar penceresinden seçilsin, tercih ana süreçte tutulur
+  // ve buraya geri bildirilir; menüdeki işaret de böylece hep doğru kalır.
+  platform.onTheme(applyTheme);
+  $("#segTheme").addEventListener("click", e => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (hasNative) platform.setTheme(b.dataset.v);
+    else applyTheme(b.dataset.v);
   });
   window.matchMedia("(prefers-color-scheme: dark)")
     .addEventListener("change", () => globe.readTokens());

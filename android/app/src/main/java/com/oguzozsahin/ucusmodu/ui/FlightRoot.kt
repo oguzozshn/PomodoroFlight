@@ -94,24 +94,28 @@ fun FlightRoot(
         places = PlaceRegistry.all()
     }
 
-    // Geri tusu once gunluk sekmesinden ucusa, sonra ucus yigininda geri sarar.
-    BackHandler(enabled = tab == FlightTab.LOGBOOK || stack.size > 1) {
-        if (tab == FlightTab.LOGBOOK) tab = FlightTab.FLIGHT else back()
+    // Geri tusu once gunluk ya da ayarlar sekmesinden ucusa, sonra ucus yigininda geri sarar.
+    BackHandler(enabled = tab != FlightTab.FLIGHT || stack.size > 1) {
+        if (tab != FlightTab.FLIGHT) tab = FlightTab.FLIGHT else back()
     }
 
-    val showBar = tab == FlightTab.LOGBOOK || stage !in FullScreenStages
+    val showBar = tab != FlightTab.FLIGHT || stage !in FullScreenStages
 
     val body: @Composable () -> Unit = {
         Crossfade(targetState = tab, animationSpec = tween(220), label = "sekme") { current ->
             when (current) {
                 FlightTab.LOGBOOK -> LogbookScreen(state = state)
+                FlightTab.SETTINGS -> SettingsScreen(
+                    state = state,
+                    actions = actions,
+                    theme = theme,
+                    onTheme = onTheme,
+                )
                 FlightTab.FLIGHT -> FlightStages(
                     stage = stage,
                     state = state,
                     actions = actions,
                     places = places,
-                    theme = theme,
-                    onTheme = onTheme,
                     goTo = ::goTo,
                     back = ::back,
                     departure = ::departure,
@@ -152,8 +156,6 @@ private fun FlightStages(
     state: FlightUiState,
     actions: FlightActions,
     places: List<Airport>,
-    theme: ThemeChoice,
-    onTheme: (ThemeChoice) -> Unit,
     goTo: (Stage) -> Unit,
     back: () -> Unit,
     departure: () -> Unit,
@@ -218,8 +220,6 @@ private fun FlightStages(
                     goTo(Stage.TICKET)
                 },
                 onBack = back,
-                theme = theme,
-                onTheme = onTheme,
             )
 
             Stage.WINDOW -> WindowScreen(

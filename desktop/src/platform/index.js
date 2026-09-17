@@ -33,6 +33,10 @@ export const platform = {
   onTheme(fn) {
     bridge?.onTheme?.(fn);
   },
+  /** Tema tercihini kaydeder; sonuç onTheme ile geri gelir. */
+  setTheme(mode) {
+    bridge?.setTheme?.(mode);
+  },
   /** Pencere görüntüsü için video seçtirir; köprü yoksa null. */
   pickVideo() {
     return bridge?.pickVideo?.() ?? Promise.resolve(null);

@@ -23,6 +23,7 @@
       <span id="flightNo">TK—</span>
       <button class="ghost" id="windowBtn">Pencereden bak</button>
       <button class="ghost" id="soundBtn" aria-pressed="true">Kabin sesi</button>
+      <button class="ghost" id="settingsBtn" title="Ayarlar (Ctrl+,)">Ayarlar</button>
     </div>
   </header>
 
@@ -219,6 +220,19 @@
         <button class="ghost" id="settingsClose">Kapat</button>
       </header>
       <div class="sheet-body">
+        <section class="card">
+          <span class="eyebrow small">Görünüm</span>
+          <div class="opt gap-top">
+          <span class="label">Tema</span>
+          <div class="seg" id="segTheme" role="group" aria-label="Tema">
+          <button data-v="system" aria-pressed="true">Sistem</button>
+          <button data-v="light" aria-pressed="false">Açık</button>
+          <button data-v="dark" aria-pressed="false">Koyu</button>
+          <button data-v="pink" aria-pressed="false">Pembe</button>
+          </div>
+          </div>
+        </section>
+
         <section class="card">
           <span class="eyebrow small">Sayaç</span>
           <div class="opts">
