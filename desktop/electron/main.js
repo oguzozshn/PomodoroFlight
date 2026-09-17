@@ -55,7 +55,7 @@ function createWindow() {
     minWidth: 880,
     minHeight: 640,
     show: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#080E18" : "#EDF0F4",
+    backgroundColor: backgroundFor(state.theme),
     icon: fs.existsSync(ICON) ? ICON : undefined,
     title: "Uçuş Modu",
     autoHideMenuBar: false,
@@ -101,9 +101,23 @@ function createWindow() {
 /* ---------------- menü ---------------- */
 const send = (cmd) => { if (win && !win.isDestroyed()) win.webContents.send("cmd", cmd); };
 
+/* Tema: system | light | dark | pink. Pembenin işletim sisteminde karşılığı
+   yok: sistem açık temaya alınır (kaydırma çubukları, diyaloglar), pembe palet
+   sayfaya data-theme özniteliğiyle konur. */
+const nativeSource = (mode) => (mode === "pink" ? "light" : mode);
+
+function backgroundFor(mode) {
+  if (mode === "pink") return "#FBEFF4";
+  return nativeTheme.shouldUseDarkColors ? "#080E18" : "#EDF0F4";
+}
+
 function setTheme(mode) {
   state.theme = mode;
-  nativeTheme.themeSource = mode;
+  nativeTheme.themeSource = nativeSource(mode);
+  if (win && !win.isDestroyed()) {
+    win.setBackgroundColor(backgroundFor(mode));
+    win.webContents.send("theme", mode);
+  }
   saveState();
 }
 
@@ -150,6 +164,7 @@ function buildMenu() {
         themeItem("Sistem teması", "system"),
         themeItem("Açık", "light"),
         themeItem("Koyu", "dark"),
+        themeItem("Pembe", "pink"),
         { type: "separator" },
         { role: "resetZoom", label: "Yakınlaştırmayı sıfırla" },
         { role: "zoomIn", label: "Yakınlaştır" },
@@ -205,6 +220,8 @@ ipcMain.on("progress", (_e, value) => {
 
 ipcMain.on("keep-awake", (_e, on) => keepAwake(Boolean(on)));
 
+ipcMain.handle("theme-get", () => state.theme);
+
 
 /* ---------------- yaşam döngüsü ---------------- */
 if (!app.requestSingleInstanceLock()) {
@@ -219,7 +236,7 @@ if (!app.requestSingleInstanceLock()) {
     serve(SRC);
     registerJournalIpc();
     registerMediaIpc(() => win);
-    nativeTheme.themeSource = state.theme;
+    nativeTheme.themeSource = nativeSource(state.theme);
     buildMenu();
     createWindow();
     app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

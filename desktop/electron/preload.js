@@ -24,6 +24,16 @@ contextBridge.exposeInMainWorld("desktop", {
    * senkron IPC, karşılığında dinleyici yoksa sayfayı sonsuza kadar bloke eder.
    * Dosya yönetimi (başlık, sıkıştırma) ana süreçte.
    */
+  /**
+   * Tema: system | light | dark | pink. Açılışta kayıtlı tercih bir kez,
+   * menüden değiştikçe yeniden bildirilir.
+   */
+  onTheme: (fn) => {
+    if (typeof fn !== "function") return;
+    ipcRenderer.on("theme", (_e, mode) => fn(String(mode)));
+    ipcRenderer.invoke("theme-get").then((mode) => fn(String(mode)));
+  },
+
   /** Pencere görüntüsü olarak bir video dosyası seçtirir; iptal edilirse null. */
   pickVideo: () => ipcRenderer.invoke("pick-video"),
 

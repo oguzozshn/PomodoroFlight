@@ -73,6 +73,32 @@
   --land:#1F3442;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
 }
+/* Pembe: açık temanın pembe tonlu hali. Ana süreç sistemi açık temaya alır ve
+   bu özniteliği koyar; Android'deki PinkFlightColors ile aynı değerler. */
+:root[data-theme="pink"]{
+  --space:#F6DDE8;
+  --ground:#FBEFF4;
+  --panel:#FFFFFF;
+  --panel-2:#FDF5F9;
+  --line:#EFD3DF;
+  --line-soft:#F6E4EC;
+  --ink:#2B1420;
+  --ink-2:#5B3547;
+  --muted:#8C6676;
+  --amber:#C2185B;
+  --amber-2:#E0528D;
+  --amber-glow:rgba(194,24,91,.16);
+  --teal:#8E3B7E;
+  --globe-a:#F7D9E6;
+  --globe-b:#EBB4CC;
+  --grat:#EFC6D8;
+  --limb:#D9A3BC;
+  --night:rgba(74,20,52,.20);
+  --lake:#F0C6D9;
+  --land-line:#D08AAB;
+  --land:#FFF6F9;
+  --shadow:0 1px 2px rgba(60,20,40,.06),0 8px 24px rgba(120,30,70,.08);
+}
 
 *{box-sizing:border-box}
 
