@@ -10,7 +10,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,26 +26,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,7 +50,6 @@ import com.oguzozsahin.ucusmodu.data.KM_PER_MINUTE
 import com.oguzozsahin.ucusmodu.data.POMODORO_MIN
 import com.oguzozsahin.ucusmodu.data.formatPomodoros
 import com.oguzozsahin.ucusmodu.data.Phase
-import com.oguzozsahin.ucusmodu.data.ThemeChoice
 import com.oguzozsahin.ucusmodu.data.formatClock
 import com.oguzozsahin.ucusmodu.data.formatDate
 import com.oguzozsahin.ucusmodu.data.formatNumber
@@ -67,7 +58,6 @@ import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.LocalFlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.labelStyle
 import com.oguzozsahin.ucusmodu.ui.theme.monoStyle
-import kotlinx.coroutines.delay
 
 /** Ekranin disariya actigi eylemler. */
 data class FlightActions(
@@ -100,12 +90,10 @@ fun FlightScreen(
     onChangeRoute: () -> Unit,
     onWindow: () -> Unit,
     onBack: () -> Unit,
-    theme: ThemeChoice,
     /** Ucus yarida bitirilince cagrilir; rota secimine donulur. */
     onFlightEnded: () -> Unit = {},
     /** Iniş yapilmis rotayi sifirdan yeniden ucmak: bilet yeniden kesilir. */
     onFlyAgain: () -> Unit = {},
-    onTheme: (ThemeChoice) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalFlightColors.current
@@ -144,8 +132,6 @@ fun FlightScreen(
                     TopBar(state, colors, actions, onChangeRoute, onBack)
                     TimerPanel(state, colors, actions, onFlightEnded, onFlyAgain)
                     FlightPlanPanel(state, colors)
-                    SettingsPanel(state, colors, actions, theme, onTheme)
-                    DangerPanel(colors, actions)
                     Footer(colors)
                 }
             }
@@ -164,8 +150,6 @@ fun FlightScreen(
                 )
                 TimerPanel(state, colors, actions, onFlightEnded, onFlyAgain)
                 FlightPlanPanel(state, colors)
-                SettingsPanel(state, colors, actions, theme, onTheme)
-                DangerPanel(colors, actions)
                 Footer(colors)
             }
         }
@@ -582,139 +566,6 @@ private fun LegTicks(state: FlightUiState, colors: FlightColors) {
                     }
                     Tick(tick, colors, fill = if (tick == TickState.PART) state.legFill else 0f)
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SettingsPanel(
-    state: FlightUiState,
-    colors: FlightColors,
-    actions: FlightActions,
-    theme: ThemeChoice,
-    onTheme: (ThemeChoice) -> Unit,
-) {
-    Panel(colors) {
-        Column(Modifier.padding(14.dp)) {
-            PanelHead("Ayarlar", colors)
-            Spacer(Modifier.height(12.dp))
-
-            // Sureler buradan kalkti: ucustan once, bilet kesilmeden ayarlaniyor.
-            Text(
-                "Odak, mola ve uzun mola süreleri bilet kesmeden önce rota ekranında ayarlanır.",
-                style = monoStyle(colors.muted, 10),
-            )
-            Spacer(Modifier.height(14.dp))
-            Text("GÖRÜNÜM", style = labelStyle(colors.ink2).copy(fontSize = 12.sp))
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (option in ThemeChoice.entries) {
-                    val active = option == theme
-                    Text(
-                        text = option.title.upperTr(),
-                        style = labelStyle(if (active) colors.amber else colors.muted).copy(
-                            fontSize = 11.sp,
-                            textAlign = TextAlign.Center,
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(
-                                if (active) colors.amber.copy(alpha = 0.12f) else colors.panel2,
-                                PanelShape,
-                            )
-                            .border(1.dp, if (active) colors.amber else colors.line, PanelShape)
-                            .clickable { onTheme(option) }
-                            .padding(vertical = 8.dp),
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-            Text("YOLCU ADI", style = labelStyle(colors.muted).copy(fontSize = 10.sp))
-            Spacer(Modifier.height(6.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(colors.panel2, PanelShape)
-                    .border(1.dp, colors.line, PanelShape)
-                    .padding(horizontal = 10.dp, vertical = 9.dp),
-            ) {
-                if (state.passenger.isEmpty()) {
-                    Text("biletinizde görünecek ad", style = monoStyle(colors.muted, 12))
-                }
-                BasicTextField(
-                    value = state.passenger,
-                    onValueChange = actions.onPassenger,
-                    singleLine = true,
-                    textStyle = monoStyle(colors.ink, 12),
-                    cursorBrush = SolidColor(colors.amber),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            Spacer(Modifier.height(14.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Molalar kendiliğinden başlasın",
-                    style = monoStyle(colors.ink2, 12),
-                    modifier = Modifier.weight(1f),
-                )
-                Switch(
-                    checked = state.autoBreak,
-                    onCheckedChange = actions.onAutoBreak,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = colors.panel,
-                        checkedTrackColor = colors.amber,
-                        uncheckedThumbColor = colors.muted,
-                        uncheckedTrackColor = colors.panel2,
-                        uncheckedBorderColor = colors.line,
-                    ),
-                )
-            }
-        }
-    }
-}
-
-/**
- * Geri alinamayan eylem, gezinme dugmelerinden uzakta, kendi satirinda.
- * Eskiden gunluk basliginda "Tumu" dugmesinin bitisiginde ve ayni gorunumdeydi.
- */
-@Composable
-private fun DangerPanel(colors: FlightColors, actions: FlightActions) {
-    // Iki dokunus: ilkinde soru sorar, dort saniye icinde onaylanmazsa geri alir.
-    var confirming by remember { mutableStateOf(false) }
-    LaunchedEffect(confirming) {
-        if (confirming) {
-            delay(4000)
-            confirming = false
-        }
-    }
-
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = if (confirming) {
-                "Günlük, ilerleme ve toplamlar silinecek. Emin misin?"
-            } else {
-                "Bütün ilerlemeyi ve günlüğü siler."
-            },
-            style = monoStyle(colors.muted, 10),
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(Modifier.width(10.dp))
-        DangerButton(
-            text = if (confirming) "Evet, sil" else "Her şeyi sil",
-            colors = colors,
-        ) {
-            if (confirming) {
-                actions.onResetEverything()
-                confirming = false
-            } else {
-                confirming = true
             }
         }
     }

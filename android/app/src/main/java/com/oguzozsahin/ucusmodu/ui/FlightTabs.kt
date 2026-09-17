@@ -29,10 +29,11 @@ import com.oguzozsahin.ucusmodu.data.upperTr
 import com.oguzozsahin.ucusmodu.ui.theme.FlightColors
 import com.oguzozsahin.ucusmodu.ui.theme.labelStyle
 
-/** Uygulamanin iki sekmesi: ucus akisi ve ucus gunlugu. */
+/** Uygulamanin sekmeleri: ucus akisi, ucus gunlugu ve ayarlar. */
 enum class FlightTab(val label: String, @DrawableRes val icon: Int) {
     FLIGHT("Uçuş", R.drawable.ic_plane),
     LOGBOOK("Uçuş günlüğü", R.drawable.ic_logbook),
+    SETTINGS("Ayarlar", R.drawable.ic_settings),
 }
 
 /** Telefonda alt gezinme cubugu. Sistem boşluklari kokte uygulandigi icin burada eklenmez. */

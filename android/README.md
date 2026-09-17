@@ -72,12 +72,12 @@ Gerçek bir uçuş günü gibi dört adım:
    Koçanda havayolu ve rota, koparılan parçada yolcu adı, uçuş numarası, kapı,
    koltuk, biniş/kalkış/varış saatleri, mesafe ve dekoratif barkod var. Koltuk
    rotaya ve güne sabitlenmiştir: aynı gün aynı rota aynı koltuğu verir.
-4. **Uçuş** (`ui/FlightScreen.kt`) — küre, sayaç, uçuş planı ve ayarlar.
+4. **Uçuş** (`ui/FlightScreen.kt`) — küre, sayaç ve uçuş planı.
    Kalkış bilette olduğu için ayrı bir Kalkış düğmesi yok: sayaç yalnızca
    Beklet / Devam / Molayı başlat. **Odak oturumu atlanamaz**, mola
    atlanabilir. **Uçuşu bitir** kalan kısmı bırakır; inişte **Tekrar uç** aynı
    rotayı yeni biletle sıfırdan başlatır. Üstteki **Rota** düğmesi ikinci
-   adıma döner. Yolcu adı buradaki ayarlardan giriliyor; boş bırakılırsa
+   adıma döner. Yolcu adı Ayarlar sekmesinden giriliyor; boş bırakılırsa
    bilette "YOLCU" yazar.
 
 Geri tuşu bu zinciri tersten yürür; sayaç hangi ekranda olursanız olun işlemeye
@@ -355,7 +355,11 @@ nereden gelindiğini biliyor. Önce sabit bir "ebeveyn" tablosu vardı ve
 terminalden uçuşa devam edip geri basınca rota seçimine düşülüyordu.
 Bilet koparılınca yığından düşürülür — geri tuşu yırtık bilete dönmez.
 
-Kökte iki sekme var: **Uçuş** (bu yığın) ve **Uçuş günlüğü**. Telefonda alt
+Kökte üç sekme var: **Uçuş** (bu yığın), **Uçuş günlüğü** ve **Ayarlar**.
+Ayarlar (`ui/SettingsScreen.kt`) eskiden uçuş ekranının dibindeydi; oraya ancak
+bir uçuş başlatınca ulaşılıyordu, uygulamayı yeni kuran biri temayı bile
+değiştiremiyordu. Görünüm, kabin sesi, molaların kendiliğinden başlaması, yolcu
+adı ve "Her şeyi sil" oraya taşındı; süreler rota ekranında kaldı. Telefonda alt
 gezinme çubuğu, 720dp üstünde yan ray (`ui/FlightTabs.kt`). Bilet ve
 pencereden bakış tam ekran kalsın diye orada çubuk gizlenir. Sekme değişince
 uçuş yığını olduğu gibi kalır; geri tuşu önce günlükten uçuşa döner.
@@ -364,7 +368,7 @@ uçuş yığını olduğu gibi kalır; geri tuşu önce günlükten uçuşa dön
 eylem (her şeyi sil) gezinme düğmelerinden ayrı, kendi satırında ve tehlike
 renginde; iki dokunuşla onaylanır.
 
-Görünüm **Sistem / Açık / Koyu / Pembe** olarak ayarlardan seçilir ve cihazda
+Görünüm **Sistem / Açık / Koyu / Pembe** olarak Ayarlar sekmesinden seçilir ve cihazda
 saklanır. Pembe, açık temanın pembe tonlu hali (vurgu rengi amber yerine gül);
 masaüstündeki pembe temayla aynı değerler. Durum ve gezinme çubukları da
 seçilen temanın zemin rengini alır.

@@ -61,8 +61,8 @@ wall clock if the process is killed. The cabin chime is synthesised with
 
 **Phone and tablet.** Below 720dp the layout is a single centred column; above
 it, the terminal and flight screens split into two panes — globe on the left,
-controls on the right. The Flight and Logbook tabs sit in a bottom navigation
-bar on phones and in a side rail on wider screens.
+controls on the right. The Flight, Logbook and Settings tabs sit in a bottom
+navigation bar on phones and in a side rail on wider screens.
 
 ## The Windows desktop app
 

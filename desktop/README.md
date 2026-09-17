@@ -143,7 +143,9 @@ sabitlenmiştir — aynı gün aynı rota aynı koltuğu verir.
 ## Menüler
 
 **Ayarlar** ve **İstatistikler** menü çubuğunda kendi girişleri; `Ctrl+,` ve
-`Ctrl+I` ile de açılırlar. Ayarlar üç grupta toplanır: sayaç (odak/mola süresi,
+`Ctrl+I` ile de açılırlar, ayarlara üst çubuktaki **Ayarlar** düğmesinden de
+ulaşılır. Ayarlar dört grupta toplanır: görünüm (sistem/açık/koyu/pembe tema;
+menüdeki Görünüm ile aynı tercih), sayaç (odak/mola süresi,
 molaların kendiliğinden başlaması), pencereden bakış (koltuk tarafı, görüntü
 kalitesi, kanat modeli) ve biniş kartı (yolcu adı).
 
@@ -187,7 +189,7 @@ Video uygulamanın içine kopyalanmaz: seçtiğin dosyanın yolu tutulur ve
 | Görev çubuğunda ilerleme çubuğu | `setProgress` → `win.setProgressBar` |
 | Odak sürerken ekran uykuya dalmaz | `setKeepAwake` → `powerSaveBlocker` |
 | Pencere konumu/boyutu hatırlanır | `window-state.json` |
-| Sistem / açık / koyu / pembe tema menüden | `nativeTheme.themeSource`; pembe sistemde açık, sayfada `data-theme="pink"` (`onTheme`) |
+| Sistem / açık / koyu / pembe tema menüden ve ayarlar penceresinden | `nativeTheme.themeSource`; pembe sistemde açık, sayfada `data-theme="pink"` (`onTheme`) |
 | Menü kısayolları | `Ctrl+Space` başlat-beklet · `Ctrl+R` sıfırla · `Ctrl+→` atla · `Ctrl+M` ses |
 
 Sayfa `window.desktop` köprüsü yokken de çalışır; bu çağrılar sessizce yok

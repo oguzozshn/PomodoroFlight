@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld("desktop", {
     ipcRenderer.on("theme", (_e, mode) => fn(String(mode)));
     ipcRenderer.invoke("theme-get").then((mode) => fn(String(mode)));
   },
+  /** Ayarlar penceresinden tema seçimi; ana süreç kaydeder, menüyü günceller. */
+  setTheme: (mode) => ipcRenderer.send("set-theme", String(mode ?? "")),
 
   /** Pencere görüntüsü olarak bir video dosyası seçtirir; iptal edilirse null. */
   pickVideo: () => ipcRenderer.invoke("pick-video"),

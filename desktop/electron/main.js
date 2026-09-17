@@ -222,6 +222,13 @@ ipcMain.on("keep-awake", (_e, on) => keepAwake(Boolean(on)));
 
 ipcMain.handle("theme-get", () => state.theme);
 
+const THEMES = ["system", "light", "dark", "pink"];
+ipcMain.on("set-theme", (_e, mode) => {
+  if (!THEMES.includes(mode)) return;
+  setTheme(mode);
+  buildMenu();                                  // menüdeki radyo işareti de değişsin
+});
+
 
 /* ---------------- yaşam döngüsü ---------------- */
 if (!app.requestSingleInstanceLock()) {
