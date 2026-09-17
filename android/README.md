@@ -364,7 +364,10 @@ uçuş yığını olduğu gibi kalır; geri tuşu önce günlükten uçuşa dön
 eylem (her şeyi sil) gezinme düğmelerinden ayrı, kendi satırında ve tehlike
 renginde; iki dokunuşla onaylanır.
 
-Görünüm **Sistem / Açık / Koyu** olarak ayarlardan seçilir ve cihazda saklanır.
+Görünüm **Sistem / Açık / Koyu / Pembe** olarak ayarlardan seçilir ve cihazda
+saklanır. Pembe, açık temanın pembe tonlu hali (vurgu rengi amber yerine gül);
+masaüstündeki pembe temayla aynı değerler. Durum ve gezinme çubukları da
+seçilen temanın zemin rengini alır.
 Karanlık palet baştan beri vardı ama yalnızca sistem ayarını izliyordu.
 
 Türkçe büyük harf için `String.upperTr()` kullanılır: Kotlin'in `uppercase()`

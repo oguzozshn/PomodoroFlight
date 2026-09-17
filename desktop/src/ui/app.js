@@ -898,6 +898,13 @@ function wirePlatform() {
 }
 
 function wireTheme() {
+  // Açık/koyu işletim sisteminin temasından (nativeTheme) gelir; pembenin
+  // sistemde karşılığı yok, sayfaya öznitelik olarak konur.
+  platform.onTheme(mode => {
+    const root = document.documentElement;
+    if (mode === "pink") root.dataset.theme = "pink";
+    else delete root.dataset.theme;
+  });
   window.matchMedia("(prefers-color-scheme: dark)")
     .addEventListener("change", () => globe.readTokens());
   new MutationObserver(() => globe.readTokens())

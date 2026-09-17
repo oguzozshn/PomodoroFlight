@@ -29,6 +29,10 @@ export const platform = {
   onCommand(fn) {
     bridge?.onCommand?.(fn);
   },
+  /** Tema tercihi: system | light | dark | pink. Köprü yoksa hiç çağrılmaz. */
+  onTheme(fn) {
+    bridge?.onTheme?.(fn);
+  },
   /** Pencere görüntüsü için video seçtirir; köprü yoksa null. */
   pickVideo() {
     return bridge?.pickVideo?.() ?? Promise.resolve(null);

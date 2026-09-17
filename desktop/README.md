@@ -187,7 +187,7 @@ Video uygulamanın içine kopyalanmaz: seçtiğin dosyanın yolu tutulur ve
 | Görev çubuğunda ilerleme çubuğu | `setProgress` → `win.setProgressBar` |
 | Odak sürerken ekran uykuya dalmaz | `setKeepAwake` → `powerSaveBlocker` |
 | Pencere konumu/boyutu hatırlanır | `window-state.json` |
-| Açık / koyu / sistem teması menüden | `nativeTheme.themeSource` |
+| Sistem / açık / koyu / pembe tema menüden | `nativeTheme.themeSource`; pembe sistemde açık, sayfada `data-theme="pink"` (`onTheme`) |
 | Menü kısayolları | `Ctrl+Space` başlat-beklet · `Ctrl+R` sıfırla · `Ctrl+→` atla · `Ctrl+M` ses |
 
 Sayfa `window.desktop` köprüsü yokken de çalışır; bu çağrılar sessizce yok

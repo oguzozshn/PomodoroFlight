@@ -1,6 +1,11 @@
 package com.oguzozsahin.ucusmodu.ui.theme
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -108,6 +113,38 @@ val DarkFlightColors = FlightColors(
     ),
 )
 
+/** Acik temanin pembe hali. Masaustundeki `:root[data-theme="pink"]` ile ayni degerler. */
+val PinkFlightColors = FlightColors(
+    space = Color(0xFFF6DDE8),
+    ground = Color(0xFFFBEFF4),
+    panel = Color(0xFFFFFFFF),
+    panel2 = Color(0xFFFDF5F9),
+    line = Color(0xFFEFD3DF),
+    lineSoft = Color(0xFFF6E4EC),
+    ink = Color(0xFF2B1420),
+    ink2 = Color(0xFF5B3547),
+    muted = Color(0xFF8C6676),
+    amber = Color(0xFFC2185B),
+    amber2 = Color(0xFFE0528D),
+    teal = Color(0xFF8E3B7E),
+    globeA = Color(0xFFF7D9E6),
+    globeB = Color(0xFFEBB4CC),
+    grat = Color(0xFFEFC6D8),
+    limb = Color(0xFFD9A3BC),
+    land = Color(0xFFFFF6F9),
+    coast = Color(0xFFD08AAB),
+    lake = Color(0xFFF0C6D9),
+    night = Color(0x334A1434),
+    danger = Color(0xFFB3261E),
+    heat = listOf(
+        Color(0xFFF8E7EF),
+        Color(0xFFF6C8DB),
+        Color(0xFFEE9CBF),
+        Color(0xFFDA5E93),
+        Color(0xFFAD1857),
+    ),
+)
+
 val LocalFlightColors = staticCompositionLocalOf { LightFlightColors }
 
 /** Kisayol: MaterialTheme.flight */
@@ -122,10 +159,31 @@ fun UcusModuTheme(
 ) {
     val darkTheme = when (choice) {
         ThemeChoice.SYSTEM -> isSystemInDarkTheme()
-        ThemeChoice.LIGHT -> false
+        ThemeChoice.LIGHT, ThemeChoice.PINK -> false
         ThemeChoice.DARK -> true
     }
-    val colors = if (darkTheme) DarkFlightColors else LightFlightColors
+    val colors = when {
+        choice == ThemeChoice.PINK -> PinkFlightColors
+        darkTheme -> DarkFlightColors
+        else -> LightFlightColors
+    }
+
+    // Sistem cubuklari XML temasindan geliyordu: pembe temada gri-mavi, sistem
+    // acikken Koyu secilince de acik kaliyordu. Artik secilen temayi izliyor.
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            @Suppress("DEPRECATION")
+            window.statusBarColor = colors.ground.toArgb()
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = colors.ground.toArgb()
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
+    }
 
     val scheme = if (darkTheme) {
         darkColorScheme(

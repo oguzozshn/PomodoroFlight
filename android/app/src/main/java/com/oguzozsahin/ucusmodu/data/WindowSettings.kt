@@ -6,7 +6,10 @@ import android.content.Context
 enum class ThemeChoice(val key: String, val title: String) {
     SYSTEM("system", "Sistem"),
     LIGHT("light", "Açık"),
-    DARK("dark", "Koyu");
+    DARK("dark", "Koyu"),
+
+    /** Acik temanin pembe tonlu hali; vurgu rengi amber yerine gul. */
+    PINK("pink", "Pembe");
 
     companion object {
         fun fromKey(key: String): ThemeChoice =
