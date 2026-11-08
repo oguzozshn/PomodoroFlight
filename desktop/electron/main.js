@@ -43,6 +43,46 @@ function keepAwake(on) {
   }
 }
 
+/* ---------------- faz bitisi nobetcisi ---------------- */
+// Sayfanin kendi dongusu pencere kucultulunce duruyor: Chromium gizli
+// pencerede requestAnimationFrame'i hic cagirmaz. O yuzden fazin bitisini
+// ana surec bekler — Node zamanlayicisi kisilmaz — ve dolan ani sayfaya
+// bildirir. Sayfa da bitisi orada isler: ses, bildirim, gunluk.
+// Kesin an yerine kisa araliklarla duvar saatine bakiyoruz: boylece
+// bilgisayar uyuyup uyandiginda gecikme yarim saniyeyle sinirli kaliyor.
+const PHASE_WATCH_MS = 500;
+let phaseEndAt = 0;
+let phaseWatch = null;
+
+function stopPhaseWatch() {
+  if (phaseWatch !== null) {
+    clearInterval(phaseWatch);
+    phaseWatch = null;
+  }
+}
+
+function checkPhaseEnd() {
+  if (phaseEndAt === 0) { stopPhaseWatch(); return; }
+  if (Date.now() < phaseEndAt) return;
+  phaseEndAt = 0;
+  stopPhaseWatch();
+  if (win && !win.isDestroyed()) win.webContents.send("phase-due");
+}
+
+/** Sayfa her sayac degisiminde cagirir: dolacak an, duraklamada 0. */
+function schedulePhaseEnd(at) {
+  phaseEndAt = Number.isFinite(at) && at > 0 ? at : 0;
+  if (phaseEndAt === 0) { stopPhaseWatch(); return; }
+  if (phaseWatch === null) phaseWatch = setInterval(checkPhaseEnd, PHASE_WATCH_MS);
+  checkPhaseEnd();
+}
+
+/** Pencere arkadaysa gorev cubugu dugmesi yanip sonsun. */
+function callAttention() {
+  if (process.platform === "darwin") { app.dock?.bounce("informational"); return; }
+  if (win && !win.isDestroyed() && !win.isFocused()) win.flashFrame(true);
+}
+
 /* ---------------- pencere ---------------- */
 let win = null;
 
@@ -65,6 +105,10 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: false,
+      // Minimized/hidden windows normally get their timers and audio throttled,
+      // which would silence the phase-end chime. The phase end itself is
+      // watched in the main process, but the chime still plays here.
+      backgroundThrottling: false,
     },
   });
 
@@ -80,6 +124,9 @@ function createWindow() {
       Object.assign(state, { x: b.x, y: b.y, width: b.width, height: b.height });
     }
   };
+  // Faz bitisinde yanip sonen gorev cubugu dugmesi, pencereye bakilinca sussun.
+  win.on("focus", () => { if (process.platform !== "darwin") win.flashFrame(false); });
+
   win.on("resize", remember);
   win.on("move", remember);
   win.on("close", () => { remember(); saveState(); });
@@ -202,17 +249,24 @@ function buildMenu() {
 }
 
 /* ---------------- IPC ---------------- */
-ipcMain.on("notify", (_e, title, body) => {
+ipcMain.on("notify", (_e, title, body, sound) => {
+  // Pencere öndeyken sesi kabin çanı veriyor, bildirim sessiz kalır. Arkadayken
+  // çan duyulmayabileceği için bildirimin kendi sesi çalar — "Kabin sesi"
+  // kapalıysa o da susar.
+  const front = Boolean(win && !win.isDestroyed() && win.isFocused());
+  if (!front) callAttention();
   if (!Notification.isSupported()) return;
   const n = new Notification({
     title: String(title || "Uçuş Modu"),
     body: String(body || ""),
     icon: fs.existsSync(ICON) ? ICON : undefined,
-    silent: true, // ses zaten kabin çanıyla veriliyor
+    silent: front || !sound,
   });
   n.on("click", () => { if (win && !win.isDestroyed()) { win.show(); win.focus(); } });
   n.show();
 });
+
+ipcMain.on("phase-schedule", (_e, at) => schedulePhaseEnd(Number(at)));
 
 ipcMain.on("progress", (_e, value) => {
   if (win && !win.isDestroyed()) win.setProgressBar(typeof value === "number" ? value : -1);
@@ -250,5 +304,5 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
-  app.on("before-quit", () => { keepAwake(false); saveState(); });
+  app.on("before-quit", () => { keepAwake(false); stopPhaseWatch(); saveState(); });
 }

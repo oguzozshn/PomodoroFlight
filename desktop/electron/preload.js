@@ -7,8 +7,22 @@ const { contextBridge, ipcRenderer } = require("electron");
 const clamp01 = (v) => (typeof v === "number" && v >= 0 && v <= 1 ? v : -1);
 
 contextBridge.exposeInMainWorld("desktop", {
-  /** Faz bitişlerinde işletim sistemi bildirimi gösterir. */
-  notify: (title, body) => ipcRenderer.send("notify", String(title ?? ""), String(body ?? "")),
+  /**
+   * Faz bitişlerinde işletim sistemi bildirimi gösterir. `sound`, "Kabin sesi"
+   * tercihidir: pencere arkadayken bildirimin kendi sesi ancak açıksa çalar.
+   */
+  notify: (title, body, sound) =>
+    ipcRenderer.send("notify", String(title ?? ""), String(body ?? ""), Boolean(sound)),
+  /**
+   * Fazın dolacağı anı ana sürece bildirir; duraklamada 0. Pencere
+   * küçültülünce sayfanın kendi döngüsü durduğu için bitişi ana süreç bekler.
+   */
+  schedulePhaseEnd: (at) => ipcRenderer.send("phase-schedule", Number(at) || 0),
+  /** Ana süreç fazın dolduğunu haber verdiğinde çağrılır. */
+  onPhaseDue: (fn) => {
+    if (typeof fn !== "function") return;
+    ipcRenderer.on("phase-due", () => fn());
+  },
   /** Görev çubuğu ilerleme çubuğu: 0–1 arası oran, gizlemek için -1. */
   setProgress: (value) => ipcRenderer.send("progress", clamp01(value)),
   /** Odak seyri sürerken ekranın uykuya dalmasını engeller. */
