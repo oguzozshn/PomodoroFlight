@@ -13,9 +13,25 @@ const bridge =
 export const hasNative = bridge !== null;
 
 export const platform = {
-  /** Faz bitişlerinde işletim sistemi bildirimi. */
-  notify(title, body) {
-    bridge?.notify?.(title, body);
+  /**
+   * Faz bitişlerinde işletim sistemi bildirimi. `sound`, kabin sesi
+   * tercihidir; kabuk, pencere arkadayken bildirimi sesli göstermek için
+   * kullanır.
+   */
+  notify(title, body, sound) {
+    bridge?.notify?.(title, body, sound);
+  },
+  /**
+   * Fazın dolacağı mutlak an; duraklamada 0. Pencere küçültülünce sayfanın
+   * çizim döngüsü durduğu ve zamanlayıcıları kısıldığı için bitişi kabuk
+   * bekler ve [onPhaseDue] ile geri haber verir.
+   */
+  schedulePhaseEnd(at) {
+    bridge?.schedulePhaseEnd?.(at);
+  },
+  /** Kabuk fazın dolduğunu haber verdiğinde çağrılır. */
+  onPhaseDue(fn) {
+    bridge?.onPhaseDue?.(fn);
   },
   /** Görev çubuğu / kilit ekranı ilerlemesi: 0–1 oran, gizlemek için -1. */
   setProgress(value) {

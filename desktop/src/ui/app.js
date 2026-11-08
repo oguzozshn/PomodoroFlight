@@ -138,6 +138,13 @@ const timer = createTimer({
 });
 
 /**
+ * Pencere önde mi? Faz bitişinin sesini bu belirliyor: öndeyken kabin çanı
+ * çalar, arkadayken bildirimin kendi sesi (kabuk aynı ölçüte bakıyor). Böylece
+ * ikisi birden duyulmaz, hiçbiri de duyulmadan kalmaz.
+ */
+const inFront = () => (typeof document.hasFocus === "function" ? document.hasFocus() : true);
+
+/**
  * Faz doldu: mesafeyi işle, günlüğe yaz, sıradaki faza geç.
  * Odak oturumu atlanamaz: bu yol yalnız süre dolunca ya da molada "Molayı atla"
  * ile çağrılır.
@@ -184,27 +191,29 @@ function finishPhase() {
     journal.append(record);
     records.push(record);
 
-    if (db.sound) chime(arrivedNow ? "land" : "level");
+    if (db.sound && inFront()) chime(arrivedNow ? "land" : "level");
     if (arrivedNow) {
       platform.notify(
         "İniş yapıldı · " + route.dName,
-        route.o + " → " + route.d + " tamamlandı · " + nf(route.km) + " km. Günlüğe damga düştü."
+        route.o + " → " + route.d + " tamamlandı · " + nf(route.km) + " km. Günlüğe damga düştü.",
+        db.sound
       );
     } else {
       const left = Math.max(1, Math.ceil((route.km - flown) / route.kmPerLeg));
       platform.notify(
         "Pomodoro tamam · mola",
         nf(flown - before.flownOnRoute) + " km yol aldın · " +
-        route.dName + " için " + left + " pomodoro kaldı."
+        route.dName + " için " + left + " pomodoro kaldı.",
+        db.sound
       );
     }
 
     timer.setPhase(db.cycle === 0 ? "long" : "break");
     if (db.autoBreak && !arrivedNow) timer.start();
   } else {
-    if (db.sound) chime("boarding");
+    if (db.sound && inFront()) chime("boarding");
     timer.setPhase("focus");
-    platform.notify("Mola bitti", "Kabin hazır — seyre devam edebilirsin.");
+    platform.notify("Mola bitti", "Kabin hazır — seyre devam edebilirsin.", db.sound);
   }
   persist();
   rebuildTrails();
@@ -343,6 +352,9 @@ function persist() {
   db.endAt = timer.endAt;
   db.remainingMs = timer.remaining;
   save();
+  // Pencere küçültülünce çizim döngüsü durur, o yüzden fazın bitişini kabuk
+  // bekler: dolacak anı her değişimde ona bildiriyoruz.
+  platform.schedulePhaseEnd(timer.running ? timer.endAt : 0);
 }
 
 /** Rotanın kat edilen oranı; devam eden pomodoro da orantılı sayılır. */
@@ -884,6 +896,13 @@ function wireKeyboard() {
 }
 
 function wirePlatform() {
+  // Kabuk fazın dolduğunu haber verdi: pencere küçültülmüşken sayfanın kendi
+  // döngüsü durduğu için bitiş ancak buradan işlenir.
+  platform.onPhaseDue(() => {
+    if (timer.sync()) finishPhase();
+    else renderAll();
+  });
+
   platform.onCommand(cmd => {
     if (cmd === "toggle") { toggleTimer(); return; }
     else if (cmd === "reset") { timer.reset(); persist(); }
@@ -942,6 +961,9 @@ function restoreTimer() {
     timer.endAt = db.endAt;
     if (timer.sync()) finishPhase();
   }
+  // Açılışta sayaç sürüyorsa bitişi beklemesi için kabuğa da söylenir;
+  // finishPhase kendi persist'inde zaten söylemişse de aynı değer.
+  platform.schedulePhaseEnd(timer.running ? timer.endAt : 0);
 }
 
 /** Yer listesi ve kara parçaları arka planda yüklenir; gelince yeniden çizilir. */
