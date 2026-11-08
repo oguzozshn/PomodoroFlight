@@ -168,20 +168,6 @@ function setTheme(mode) {
   saveState();
 }
 
-function confirmClear() {
-  const { dialog } = require("electron");
-  const r = dialog.showMessageBoxSync(win, {
-    type: "warning",
-    title: "Günlüğü temizle",
-    message: "Tüm uçuş günlüğü ve ilerleme silinsin mi?",
-    detail: "Tamamlanan rotalar, toplam odak süresi ve kat edilen yol sıfırlanır. Bu işlem geri alınamaz.",
-    buttons: ["Vazgeç", "Temizle"],
-    defaultId: 0,
-    cancelId: 0,
-  });
-  if (r === 1) send("clear");
-}
-
 function buildMenu() {
   const themeItem = (label, mode) => ({
     label, type: "radio", checked: state.theme === mode, click: () => setTheme(mode),
@@ -197,7 +183,8 @@ function buildMenu() {
         { label: "Molayı atla", accelerator: "CmdOrCtrl+Right", click: () => send("skip") },
         { type: "separator" },
         { label: "Kabin sesi", accelerator: "CmdOrCtrl+M", click: () => send("sound") },
-        { label: "Günlüğü temizle…", click: () => confirmClear() },
+        // Onayı sayfa soruyor: silinecek uçuş, km ve odak süresini sayarak.
+        { label: "Günlüğü temizle…", click: () => send("clear") },
         { type: "separator" },
         { role: "quit", label: "Çıkış" },
       ],
