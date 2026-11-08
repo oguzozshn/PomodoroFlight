@@ -10,6 +10,7 @@ import {
   buildRoute, kmBetween, legsFor, kmForFocus, isValidPair, samplePath, pointAt
 } from "../core/route.js";
 import { createTimer, formatClock } from "../core/timer.js";
+import { formatHours } from "../core/format.js";
 import { POMODORO_MIN } from "../core/geo.js";
 import { createStore } from "../core/store.js";
 import { flightState, durationMsOf } from "../core/state.js";
@@ -272,6 +273,42 @@ function endActiveFlight() {
   persist();
   rebuildTrails();
   renderAll();
+}
+
+/**
+ * Gunlugu, ilerlemeyi ve toplamlari siler. Yalniz [askClear] uzerinden
+ * cagrilir: geri donusu yok.
+ */
+function clearEverything() {
+  store.clearProgress();
+  journal.clear();
+  records = [];
+  timer.pause();
+  timer.setPhase("focus");
+  // Sayacin kendisi de diske yazilmali: clearProgress yalniz ilerlemeyi
+  // kaydediyor, duran sayac yazilmazsa eski faz ve endAt diskte kaliyor.
+  persist();
+  rebuildTrails();
+  renderAll();
+}
+
+/**
+ * Silmeden once sorar ve ne kadarinin gidecegini soyler. Gunluk ekranindaki
+ * "Temizle" dugmesi de menudeki "Gunlugu temizle..." de buradan geciyor, boylece
+ * tek bir onay var.
+ */
+function askClear() {
+  const parts = [];
+  if (db.log.length > 0) parts.push(db.log.length + " uçuş kaydı");
+  if (db.totalKm > 0) parts.push(nf(db.totalKm) + " km yol");
+  if (db.totalMs > 0) parts.push(formatHours(db.totalMs) + " odak");
+  confirmBox.open({
+    title: "Günlük ve ilerleme silinsin mi?",
+    body: (parts.length > 0 ? parts.join(", ") + " silinecek" : "Günlükte kayıt yok") +
+      ". Bu işlem geri alınamaz." +
+      (flightActive() ? " Süren uçuş da kapanır." : ""),
+    actions: [{ label: "Temizle", primary: true, run: clearEverything }]
+  });
 }
 
 function askEnd() {
@@ -614,15 +651,7 @@ function wireControls() {
   $("#tabFlight").addEventListener("click", () => showTab("flight"));
   $("#tabLog").addEventListener("click", () => showTab("log"));
 
-  $("#clearBtn").addEventListener("click", () => {
-    store.clearProgress();
-    journal.clear();
-    records = [];
-    timer.pause();
-    timer.setPhase("focus");
-    rebuildTrails();
-    renderAll();
-  });
+  $("#clearBtn").addEventListener("click", () => askClear());
 
   $("#autoBreak").addEventListener("change", e => {
     db.autoBreak = e.currentTarget.checked;
@@ -890,7 +919,7 @@ function wirePlatform() {
     else if (cmd === "end") { askEnd(); return; }
     else if (cmd === "skip") { skipBreak(); return; }
     else if (cmd === "sound") { $("#soundBtn").click(); return; }
-    else if (cmd === "clear") { $("#clearBtn").click(); return; }
+    else if (cmd === "clear") { askClear(); return; }
     else if (cmd === "settings") { settings.open(); return; }
     else if (cmd === "stats") { statement.open(); return; }
     else if (cmd === "log") { showTab("log"); return; }
